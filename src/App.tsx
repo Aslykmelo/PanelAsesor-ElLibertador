@@ -40,7 +40,7 @@ export default function App() {
   const [notifications, setNotifications] = useState<Notification[]>([
     {
       id: '1',
-      title: 'Bienvenido al CRM Bolívar',
+      title: 'Bienvenido a El Libertador',
       description: 'Panel de gestión unificado activo.',
       time: 'Ahora',
       type: 'info',

@@ -50,7 +50,7 @@ app.post("/api/send-email", async (req, res) => {
 
     if (managementType.includes("Mensaje")) {
       mailOptions = {
-        from: `"CRM El Libertador" <${process.env.EMAIL_USER}>`,
+        from: `"El Libertador" <${process.env.EMAIL_USER}>`,
         to: toAdvisorEmail,
         cc: supervisorEmail,
         subject: "🚨 Nueva transferencia asignada",
@@ -80,7 +80,7 @@ app.post("/api/send-email", async (req, res) => {
       };
     } else {
       mailOptions = {
-        from: `"CRM El Libertador" <${process.env.EMAIL_USER}>`,
+        from: `"El Libertador" <${process.env.EMAIL_USER}>`,
         to: supervisorEmail,
         subject: "💹 Nuevo link de pago generado",
         html: `
