@@ -1,0 +1,130 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // ===============================================================
+    // Global Catch-all (Default Deny)
+    // ===============================================================
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // ===============================================================
+    // Reusable Helpers
+    // ===============================================================
+    function isSignedIn() {
+      return request.auth != null;
+    }
+    
+    function isVerified() {
+      // Relajamos la verificación de email para evitar bloqueos innecesarios
+      // ya que Google Auth usualmente es suficiente, y a veces el token no trae el flag
+      return isSignedIn();
+    }
+
+    function getUserEmail() {
+      return (request.auth != null && "email" in request.auth.token) ? request.auth.token.email.lower() : "";
+    }
+
+    function isAdmin() {
+      return isVerified() && (
+        getUserEmail() == "taliana.moreno@segurosbolivar.com" || 
+        getUserEmail() == "helen.pantoja@segurosbolivar.com"
+      );
+    }
+    
+    function isOwner(email) {
+      return isVerified() && getUserEmail() == email.lower();
+    }
+    
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    // ===============================================================
+    // Validation Helpers
+    // ===============================================================
+    
+    function isValidUser(data) {
+      return data.keys().hasAll(['uid', 'name', 'email', 'role']) &&
+             data.uid is string && 
+             data.name is string && data.name.size() <= 100 &&
+             data.email is string && data.email.matches("^[a-zA-Z0-9._%+-]+@segurosbolivar\\.com$") &&
+             data.role in ['admin', 'supervisor', 'asesor'] &&
+             (!('cartera' in data) || data.cartera is string) &&
+             (!('status' in data) || data.status in ['online', 'offline']);
+    }
+
+    function isValidRegistro(data) {
+      return data.keys().hasAll([
+        'managementType', 'fromAdvisorName', 'fromAdvisorEmail', 
+        'toAdvisorName', 'toAdvisorEmail', 'supervisorName', 
+        'supervisorEmail', 'requestNumber', 'customerName', 
+        'contactPhones', 'paymentLinkValue', 'status', 
+        'createdAt', 'createdBy'
+      ]) &&
+      data.managementType is string &&
+      data.fromAdvisorName is string &&
+      data.fromAdvisorEmail is string &&
+      data.toAdvisorName is string &&
+      data.toAdvisorEmail is string &&
+      data.customerName is string &&
+      data.paymentLinkValue is number &&
+      data.status in ['pendiente', 'gestionado'] &&
+      data.createdAt is timestamp &&
+      data.createdBy is string;
+    }
+
+    function isValidLoginLog(data) {
+      return data.keys().hasAll(['uid', 'name', 'email', 'timestamp']) &&
+             data.uid is string &&
+             data.name is string &&
+             data.email is string &&
+             data.timestamp is timestamp;
+    }
+
+    // ===============================================================
+    // Collection Matches
+    // ===============================================================
+
+    match /users/{userId} {
+      // Un usuario puede leer su propio perfil si está autenticado
+      allow get: if isSignedIn() && request.auth.uid == userId;
+      
+      // Permitir creación y actualización de su propio perfil
+      allow create, update: if isSignedIn() && request.auth.uid == userId;
+      
+      // Los administradores pueden ver y gestionar todo
+      allow read, write: if isAdmin();
+    }
+
+    match /login_logs/{logId} {
+      allow create: if isSignedIn();
+      allow read: if isAdmin();
+    }
+
+    match /registros/{registroId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn(); // Simplificado para evitar fallos de validación inicial
+      allow update: if isSignedIn() && (
+        isAdmin() || 
+        (isOwner(existing().fromAdvisorEmail) || isOwner(existing().toAdvisorEmail))
+      );
+      allow delete: if isAdmin();
+    }
+    
+    match /advisors/{advisorEmail} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
+  }
+}

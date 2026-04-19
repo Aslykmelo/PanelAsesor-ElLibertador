@@ -1,0 +1,112 @@
+{
+  "entities": {
+    "Advisor": {
+      "title": "Advisor",
+      "description": "Information about an advisor in the call center.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string", "description": "Full name of the advisor" },
+        "email": { "type": "string", "format": "email", "description": "Corporate email address" },
+        "supervisor": { "type": "string", "description": "Name of the supervisor" },
+        "supervisorEmail": { "type": "string", "format": "email", "description": "Email of the supervisor" }
+      },
+      "required": ["name", "email", "supervisor", "supervisorEmail"]
+    },
+    "TransferRecord": {
+      "title": "Transfer Record",
+      "description": "A record of a call transfer or payment link generation.",
+      "type": "object",
+      "properties": {
+        "managementType": { 
+          "type": "string", 
+          "enum": ["Mensaje (Transferencia de llamada)", "Regalo (Generación de link de pago)"],
+          "description": "The type of management performed"
+        },
+        "fromAdvisorName": { "type": "string", "description": "Name of the advisor who sends" },
+        "fromAdvisorEmail": { "type": "string", "format": "email", "description": "Email of the advisor who sends" },
+        "toAdvisorName": { "type": "string", "description": "Name of the advisor who receives" },
+        "toAdvisorEmail": { "type": "string", "format": "email", "description": "Email of the advisor who receives" },
+        "supervisorName": { "type": "string", "description": "Name of the supervisor" },
+        "supervisorEmail": { "type": "string", "format": "email", "description": "Email of the supervisor" },
+        "requestNumber": { "type": "string", "description": "The request or ticket number" },
+        "customerName": { "type": "string", "description": "Name of the customer" },
+        "contactPhones": { "type": "string", "description": "Customer contact phone numbers" },
+        "paymentLinkValue": { "type": "number", "description": "Value of the payment link (0 for messages)" },
+        "observations": { "type": "string", "description": "Additional notes or observations" },
+        "status": { 
+          "type": "string", 
+          "enum": ["Pending", "Completed"],
+          "description": "Current status of the record"
+        },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Timestamp of creation" },
+        "createdBy": { "type": "string", "format": "email", "description": "Email of the user who created the record" }
+      },
+      "required": [
+        "managementType", 
+        "fromAdvisorName", 
+        "fromAdvisorEmail", 
+        "toAdvisorName", 
+        "toAdvisorEmail", 
+        "supervisorName", 
+        "supervisorEmail", 
+        "requestNumber", 
+        "customerName", 
+        "contactPhones", 
+        "paymentLinkValue", 
+        "status", 
+        "createdAt", 
+        "createdBy"
+      ]
+    },
+    "User": {
+      "title": "User Profile",
+      "description": "User profile stored in Firestore.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "name": { "type": "string" },
+        "email": { "type": "string", "format": "email" },
+        "role": { "type": "string", "enum": ["admin", "supervisor", "asesor"] },
+        "supervisorEmail": { "type": "string", "format": "email" },
+        "supervisorName": { "type": "string" },
+        "cartera": { "type": "string" },
+        "photoURL": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "lastLoginAt": { "type": "string", "format": "date-time" },
+        "status": { "type": "string", "enum": ["online", "offline"] }
+      },
+      "required": ["uid", "name", "email", "role"]
+    },
+    "LoginLog": {
+      "title": "Login Log",
+      "description": "Record of a user logging into the application.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "name": { "type": "string" },
+        "email": { "type": "string", "format": "email" },
+        "timestamp": { "type": "string", "format": "date-time" },
+        "userAgent": { "type": "string" }
+      },
+      "required": ["uid", "name", "email", "timestamp"]
+    }
+  },
+  "firestore": {
+    "/advisors/{advisorId}": {
+      "schema": "Advisor",
+      "description": "Collection of advisors"
+    },
+    "/registros/{registroId}": {
+      "schema": "TransferRecord",
+      "description": "Collection of transfer and payment link records"
+    },
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "Collection of user profiles"
+    },
+    "/login_logs/{logId}": {
+      "schema": "LoginLog",
+      "description": "Collection of user login history logs"
+    }
+  }
+}

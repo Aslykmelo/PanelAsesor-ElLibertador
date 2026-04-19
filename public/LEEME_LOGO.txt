@@ -1,0 +1,4 @@
+# Sube tu logo aquí
+1. Sube tu imagen de logo a esta carpeta.
+2. Renómbrala exactamente a `logo.png`.
+3. El sistema lo detectará automáticamente.

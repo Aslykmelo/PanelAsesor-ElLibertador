@@ -1,0 +1,134 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+@import "@fontsource-variable/geist";
+
+@custom-variant dark (&:is(.dark *));
+
+:root {
+    --background: #fbfbfc;
+    --foreground: #101828;
+    --card: #ffffff;
+    --card-foreground: #101828;
+    --popover: #ffffff;
+    --popover-foreground: #101828;
+    /* Corporate Colors - Seguros Bolívar */
+    --primary: #a1161b;
+    --primary-foreground: #ffffff;
+    --secondary: #1e3a8a;
+    --secondary-foreground: #ffffff;
+    --sidebar: #153157;
+    --muted: #f2f4f7;
+    --muted-foreground: #667085;
+    --accent: #f9fafb;
+    --accent-foreground: #101828;
+    --destructive: #d92d20;
+    --destructive-foreground: #ffffff;
+    --border: #eaecf0;
+    --input: #eaecf0;
+    --ring: #a1161b;
+    --radius: 0.75rem;
+}
+
+.dark {
+    --background: #0c111d;
+    --foreground: #f2f4f7;
+    --card: #101828;
+    --card-foreground: #f2f4f7;
+    --popover: #101828;
+    --popover-foreground: #f2f4f7;
+    --primary: #f04438;
+    --primary-foreground: #ffffff;
+    --secondary: #3b82f6;
+    --secondary-foreground: #ffffff;
+    --sidebar: #01040f;
+    --muted: #1d2939;
+    --muted-foreground: #98a2b3;
+    --accent: #1d2939;
+    --accent-foreground: #f2f4f7;
+    --destructive: #d92d20;
+    --destructive-foreground: #ffffff;
+    --border: #1d2939;
+    --input: #1d2939;
+    --ring: #f04438;
+}
+
+@theme inline {
+    --font-heading: 'Geist Variable', sans-serif;
+    --font-sans: 'Geist Variable', sans-serif;
+    --radius-2xl: 1.5rem;
+    
+    --color-background: var(--background);
+    --color-foreground: var(--foreground);
+    --color-primary: var(--primary);
+    --color-secondary: var(--secondary);
+    --color-sidebar: var(--sidebar);
+    --color-muted: var(--muted);
+    --color-border: var(--border);
+    --color-card: var(--card);
+    --color-card-foreground: var(--card-foreground);
+    --color-popover: var(--popover);
+    --color-popover-foreground: var(--popover-foreground);
+    --color-muted-foreground: var(--muted-foreground);
+    --color-accent: var(--accent);
+    --color-accent-foreground: var(--accent-foreground);
+    --color-destructive: var(--destructive);
+    --color-destructive-foreground: var(--destructive-foreground);
+    --color-input: var(--input);
+    --color-ring: var(--ring);
+}
+
+@layer base {
+  * {
+    @apply border-border;
+    }
+  body {
+    @apply bg-background text-foreground transition-colors duration-300;
+    }
+}
+
+.card-shadow {
+  box-shadow: 0px 1px 2px rgba(16, 24, 40, 0.05);
+}
+
+.card-shadow-lg {
+  box-shadow: 0px 12px 16px -4px rgba(16, 24, 40, 0.08), 0px 4px 6px -2px rgba(16, 24, 40, 0.03);
+}
+
+.dark .card-shadow {
+  box-shadow: 0px 1px 2px rgba(0, 0, 0, 0.5);
+}
+
+.dark .card-shadow-lg {
+  box-shadow: 0px 12px 16px -4px rgba(0, 0, 0, 0.5), 0px 4px 6px -2px rgba(0, 0, 0, 0.5);
+}
+
+/* Custom Scrollbar */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  @apply bg-muted-foreground/20 rounded-full transition-colors;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  @apply bg-muted-foreground/40;
+}
+
+/* Fix for Recharts ResponsiveContainer warnings */
+.recharts-responsive-container {
+  min-width: 0;
+  min-height: 0;
+}
+
+/* Layout transition safety */
+.main-content {
+  width: 100%;
+  min-width: 0;
+}
