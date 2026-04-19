@@ -57,32 +57,32 @@ export default function App() {
         
         // Timeout para evitar colgarse si el documento nunca se crea
         const timeoutId = setTimeout(() => {
-          if (loading) {
-            console.error("Timeout waiting for user document");
-            setLoading(false);
-            signOut();
-            toast.error("Error de sesión: Perfil no encontrado");
-          }
-        }, 10000);
+          // Usamos una referencia interna para no depender de 'loading' en el array de dependencias
+          // El estado se chequea en el momento de ejecución del timeout
+          setLoading((prevLoading) => {
+            if (prevLoading) {
+              console.error("Timeout waiting for user document (uid: " + firebaseUser.uid + ")");
+              toast.error("Error de sesión: Perfil no encontrado");
+              signOut();
+            }
+            return false;
+          });
+        }, 15000); // 15 segundos para dar margen en despliegues
 
         const userUnsubscribe = onSnapshot(userRef, (docSnap) => {
           if (docSnap.exists()) {
             clearTimeout(timeoutId);
-            setCurrentUser(docSnap.data() as User);
+            const userData = { ...docSnap.data(), uid: docSnap.id } as User;
+            setCurrentUser(userData);
             setLoading(false);
-          } else {
-            // Si no existe el documento pero el usuario está autenticado,
-            // puede ser que el proceso de creación en firebase.ts aún esté corriendo.
-            // Esperamos un poco más en lugar de cerrar sesión inmediatamente.
-            console.log("Documento de usuario no encontrado aún...");
-            // No hacemos setLoading(false) aquí todavía para mantener el spinner
           }
         }, (error) => {
-          console.error("User sync error:", error);
+          console.error("User sync error (uid: " + firebaseUser.uid + "):", error);
           setLoading(false);
+          clearTimeout(timeoutId);
           if (error.code === 'permission-denied') {
             toast.error("Error de permisos: No se pudo cargar tu perfil");
-            signOut(); 
+            // No hacemos signOut inmediato para permitir ver el error en consola
           }
         });
 
@@ -94,7 +94,7 @@ export default function App() {
     });
 
     return () => unsubscribe();
-  }, []);
+  }, []); // Sin dependencias para que solo se monte una vez
 
   // 🔥 FIRESTORE DATA SYNC
   useEffect(() => {
