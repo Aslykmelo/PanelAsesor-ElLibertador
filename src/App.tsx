@@ -287,7 +287,7 @@ export default function App() {
               <img 
                 src="/ellibertador.png" 
                 alt="Logo" 
-                className="h-8 w-auto sm:hidden rounded-xl" 
+                className="h-8 w-auto rounded-xl" 
                 referrerPolicy="no-referrer" 
               />
               <div className="relative w-48 lg:w-96 group hidden sm:block">
