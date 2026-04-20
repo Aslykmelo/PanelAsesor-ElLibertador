@@ -252,7 +252,7 @@ Este CRM fue diseñado como solución interna para mejorar procesos operativos y
 ---
 
 ## 💼 Autor
-@talianamoreno08@gmial.com
-Desarrollado como solución interna de automatización y gestión CRM.
+*@talianamoreno08@gmail.com
+*Desarrollado como solución interna de automatización y gestión CRM.
 
 ---
