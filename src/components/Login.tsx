@@ -39,7 +39,7 @@ export const Login: React.FC = () => {
             <div className="p-5 rounded-[2.5rem] flex items-center justify-center min-w-[120px] min-h-[120px] animate-in fade-in duration-1000">
               {!logoError ? (
                 <img 
-                  src={isDark ? "/logonegro.png" : "/logorojo.png"} 
+                  src={isDark ? "/public/logonegro.png" : "/public/logorojo.png"} 
                   alt="Logo El Libertador" 
                   className="w-64 h-auto" 
                   referrerPolicy="no-referrer"
