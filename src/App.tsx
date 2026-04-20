@@ -14,14 +14,14 @@ import { Login } from './components/Login';
 import { ThemeToggle } from './components/ThemeToggle';
 import { Toaster } from '@/components/ui/sonner';
 import { Transfer, User } from './types';
-import { Search, Menu, X, Loader2, User as UserIcon } from 'lucide-react';
+import { Search, Menu, X, Loader2, User as UserIcon, Shield } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 
 import { auth, db, signOut } from './firebase';
 import { onAuthStateChanged } from 'firebase/auth';
-import { collection, query, orderBy, onSnapshot, updateDoc, doc, Timestamp, deleteDoc } from 'firebase/firestore';
+import { collection, query, orderBy, onSnapshot, updateDoc, doc, Timestamp, deleteDoc, where, or } from 'firebase/firestore';
 
 export default function App() {
   const { resolvedTheme } = useTheme();
@@ -30,6 +30,7 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('dashboard');
   const [transfers, setTransfers] = useState<Transfer[]>([]);
+  const [syncError, setSyncError] = useState<string | null>(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(() => {
     if (typeof window !== 'undefined') {
       return window.innerWidth >= 768;
@@ -47,6 +48,15 @@ export default function App() {
       read: false
     }
   ]);
+
+  const effectiveRole = useMemo(() => {
+    if (!currentUser) return 'asesor';
+    const isAdminEmail = (
+      currentUser.email?.toLowerCase() === 'taliana.moreno@segurosbolivar.com' || 
+      currentUser.email?.toLowerCase() === 'helen.pantoja@segurosbolivar.com'
+    );
+    return isAdminEmail ? 'admin' : currentUser.role;
+  }, [currentUser]);
 
   // 🔐 AUTH & USER SYNC
   useEffect(() => {
@@ -75,14 +85,16 @@ export default function App() {
             const userData = { ...docSnap.data(), uid: docSnap.id } as User;
             setCurrentUser(userData);
             setLoading(false);
+          } else {
+            console.log("Documento de usuario aún no existe para UID:", firebaseUser.uid);
           }
         }, (error) => {
           console.error("User sync error (uid: " + firebaseUser.uid + "):", error);
           setLoading(false);
           clearTimeout(timeoutId);
           if (error.code === 'permission-denied') {
-            toast.error("Error de permisos: No se pudo cargar tu perfil");
-            // No hacemos signOut inmediato para permitir ver el error en consola
+            toast.error("Error de permisos: No se pudo cargar tu perfil. Contacta al administrador.");
+            console.warn("TIP: Verifica que las reglas de seguridad en Firestore permitan lectura para el UID: " + firebaseUser.uid);
           }
         });
 
@@ -100,29 +112,86 @@ export default function App() {
   useEffect(() => {
     if (!currentUser) return;
 
-    let q = query(collection(db, 'registros'), orderBy('createdAt', 'desc'));
+    const isAsesor = effectiveRole === 'asesor';
+    const userEmail = currentUser.email.toLowerCase();
     
-    // Si es asesor, solo ve sus gestiones (enviadas o recibidas)
-    // Nota: Firestore v9 query limitations apply if we use multiple where. 
-    // Para simplificar y permitir filtrado complejo en el cliente, traemos lo necesario.
-    // En producción usaríamos índices compuestos y filtrado de servidor.
+    // Si es admin/supervisor, traemos todo en una sola query
+    if (!isAsesor) {
+      const q = query(collection(db, 'registros'), orderBy('createdAt', 'desc'));
+      const unsubscribe = onSnapshot(q, (snapshot) => {
+        const data = snapshot.docs.map(doc => ({
+          ...doc.data(),
+          id: doc.id,
+          createdAt: doc.data().createdAt?.toDate?.() || new Date(),
+          updatedAt: doc.data().updatedAt?.toDate?.()
+        })) as Transfer[];
+        setTransfers(data);
+        setSyncError(null);
+      }, (error) => {
+        console.error("Admin sync error:", error);
+        // SOLO MOSTRAR ERROR SI EL ROL ES ADMIN O SUPERVISOR
+        if (effectiveRole !== 'asesor') {
+          setSyncError(`Error de permisos (Admin): Verifica que tu rol esté activo en la base de datos.`);
+        }
+      });
+      return () => unsubscribe();
+    }
 
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const data = snapshot.docs.map(doc => ({
+    // SI ES ASESOR: Usamos dos queries separadas y las unimos para máxima compatibilidad con las reglas
+    // Esto evita el error "permission-denied" que a veces causan los OR complejos con orderBy
+    let sentData: Transfer[] = [];
+    let receivedData: Transfer[] = [];
+
+    const updateAsesorData = () => {
+      const combined = [...sentData, ...receivedData];
+      // Eliminar duplicados por ID y ordenar por fecha
+      const unique = new Map(combined.map(item => [item.id, item]));
+      const sorted = Array.from(unique.values()).sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+      setTransfers(sorted);
+      setSyncError(null);
+    };
+
+    const qSent = query(
+      collection(db, 'registros'),
+      where('fromAdvisorEmail', '==', userEmail)
+    );
+
+    const qReceived = query(
+      collection(db, 'registros'),
+      where('toAdvisorEmail', '==', userEmail)
+    );
+
+    const unsubSent = onSnapshot(qSent, (snapshot) => {
+      sentData = snapshot.docs.map(doc => ({
         ...doc.data(),
         id: doc.id,
         createdAt: doc.data().createdAt?.toDate?.() || new Date(),
         updatedAt: doc.data().updatedAt?.toDate?.()
       })) as Transfer[];
-
-      setTransfers(data);
+      updateAsesorData();
     }, (error) => {
-      console.error("Firestore error:", error);
-      toast.error("Error al sincronizar datos");
+      console.error("Sent items sync error:", error);
+      setSyncError(`Error al cargar gestiones enviadas. Verifica tu conexión.`);
     });
 
-    return () => unsubscribe();
-  }, [currentUser]);
+    const unsubReceived = onSnapshot(qReceived, (snapshot) => {
+      receivedData = snapshot.docs.map(doc => ({
+        ...doc.data(),
+        id: doc.id,
+        createdAt: doc.data().createdAt?.toDate?.() || new Date(),
+        updatedAt: doc.data().updatedAt?.toDate?.()
+      })) as Transfer[];
+      updateAsesorData();
+    }, (error) => {
+      console.error("Received items sync error:", error);
+      setSyncError(`Error al cargar gestiones recibidas. Verifica tu conexión.`);
+    });
+
+    return () => {
+      unsubSent();
+      unsubReceived();
+    };
+  }, [currentUser, effectiveRole]);
 
   const handleTabChange = (tab: string) => {
     setActiveTab(tab);
@@ -201,58 +270,57 @@ export default function App() {
   }
 
   const renderContent = () => {
+    const isAsesor = effectiveRole === 'asesor';
+
     switch (activeTab) {
       case 'dashboard':
-        return currentUser.role === 'asesor' 
-          ? <DashboardAdviser transfers={filteredData.filter(t => t.fromAdvisorEmail === currentUser.email || t.toAdvisorEmail === currentUser.email)} user={currentUser} onNewTransfer={() => setActiveTab('new-transfer')} />
-          : <DashboardAdmin transfers={filteredData} user={currentUser} />;
+        return isAsesor 
+          ? <DashboardAdviser transfers={filteredData} user={currentUser!} onNewTransfer={() => setActiveTab('new-transfer')} />
+          : <DashboardAdmin transfers={filteredData} user={currentUser!} />;
       
       case 'new-transfer':
-        return <TransferForm onSubmit={handleNewTransfer} currentUser={currentUser} />;
+        return <TransferForm onSubmit={handleNewTransfer} currentUser={currentUser!} />;
 
       case 'my-tasks':
-        {
-          const effectiveRole = (currentUser.email?.toLowerCase() === 'taliana.moreno@segurosbolivar.com' || 
-                                 currentUser.email?.toLowerCase() === 'helen.pantoja@segurosbolivar.com') 
-                                 ? 'admin' : currentUser.role;
-          return (
-            <TransferList
-              transfers={filteredData.filter(t => t.fromAdvisorEmail === currentUser.email || t.toAdvisorEmail === currentUser.email)}
-              onStatusChange={handleStatusChange}
-              onDelete={handleDelete}
-              userRole={effectiveRole}
-            />
-          );
-        }
+        return (
+          <TransferList
+            transfers={isAsesor 
+              ? filteredData 
+              : filteredData.filter(t => 
+                  t.fromAdvisorEmail.toLowerCase() === currentUser!.email.toLowerCase() || 
+                  t.toAdvisorEmail.toLowerCase() === currentUser!.email.toLowerCase()
+                )}
+            onStatusChange={handleStatusChange}
+            onDelete={handleDelete}
+            userRole={effectiveRole}
+          />
+        );
 
       case 'history':
-        {
-          const effectiveRole = (currentUser.email?.toLowerCase() === 'taliana.moreno@segurosbolivar.com' || 
-                                 currentUser.email?.toLowerCase() === 'helen.pantoja@segurosbolivar.com') 
-                                 ? 'admin' : currentUser.role;
-          return (
-            <TransferList
-              transfers={currentUser.role === 'asesor' 
-                ? filteredData.filter(t => t.fromAdvisorEmail === currentUser.email || t.toAdvisorEmail === currentUser.email)
-                : filteredData}
-              onStatusChange={handleStatusChange}
-              onDelete={handleDelete}
-              userRole={effectiveRole}
-            />
-          );
-        }
+        return (
+          <TransferList
+            transfers={filteredData}
+            onStatusChange={handleStatusChange}
+            onDelete={handleDelete}
+            userRole={effectiveRole}
+          />
+        );
 
       case 'ranking':
+        if (isAsesor) {
+          setActiveTab('dashboard');
+          return null;
+        }
         return <Ranking transfers={filteredData} />;
 
       case 'profile':
-        return <Profile user={currentUser} transfers={filteredData.filter(t => t.fromAdvisorEmail === currentUser.email)} />;
+        return <Profile user={currentUser!} transfers={filteredData.filter(t => t.fromAdvisorEmail === currentUser!.email)} />;
 
       case 'user-management':
-        return currentUser.role === 'admin' ? <UserManagement /> : null;
+        return effectiveRole === 'admin' ? <UserManagement /> : null;
 
       default:
-        return <DashboardAdmin transfers={filteredData} user={currentUser} />;
+        return <DashboardAdmin transfers={filteredData} user={currentUser!} />;
     }
   };
 
@@ -262,7 +330,7 @@ export default function App() {
       <Sidebar
         activeTab={activeTab}
         onTabChange={handleTabChange}
-        user={currentUser}
+        user={{ ...currentUser!, role: effectiveRole }}
         onLogout={() => signOut()}
         isOpen={isSidebarOpen}
         onToggle={() => setIsSidebarOpen(!isSidebarOpen)}
@@ -319,8 +387,10 @@ export default function App() {
               onClick={() => setActiveTab('profile')}
             >
               <div className="text-right">
-                <p className="text-sm font-bold leading-none">{currentUser.name}</p>
-                <p className="text-[10px] text-primary font-bold uppercase tracking-wider mt-1">{currentUser.role === 'admin' ? 'Administrador' : currentUser.role === 'supervisor' ? 'Supervisor' : 'Asesor'}</p>
+                <p className="text-sm font-bold leading-none">{currentUser!.name}</p>
+                <p className="text-[10px] text-primary font-bold uppercase tracking-wider mt-1">
+                  {effectiveRole === 'admin' ? 'Administrador' : effectiveRole === 'supervisor' ? 'Supervisor' : 'Asesor'}
+                </p>
               </div>
               <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center border-2 border-primary/20 overflow-hidden">
                 {currentUser.photoURL ? (
@@ -331,7 +401,7 @@ export default function App() {
               </div>
             </div>
             <div className="md:hidden">
-              <UserMenu user={currentUser} onLogout={() => signOut()} />
+              <UserMenu user={{...currentUser!, role: effectiveRole}} onLogout={() => signOut()} />
             </div>
           </div>
 
@@ -339,6 +409,17 @@ export default function App() {
 
         {/* MAIN */}
         <main className="flex-1 overflow-y-auto p-4 md:p-8 custom-scrollbar">
+          {effectiveRole !== 'asesor' && syncError && (
+            <div className="mb-6 p-4 bg-orange-100 border-l-4 border-orange-500 text-orange-700 rounded-r-xl animate-in slide-in-from-top-2 duration-300">
+              <div className="flex items-center gap-3">
+                <Shield className="w-5 h-5" />
+                <div>
+                  <p className="font-black text-sm">Aviso de Seguridad / Permisos</p>
+                  <p className="text-xs font-medium">{syncError}</p>
+                </div>
+              </div>
+            </div>
+          )}
           {renderContent()}
         </main>
 

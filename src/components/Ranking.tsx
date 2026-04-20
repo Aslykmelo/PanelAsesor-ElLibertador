@@ -154,7 +154,7 @@ export function Ranking({ transfers }: RankingProps) {
       margin: { top: 50 }
     });
 
-    doc.save(`ranking_libertador_${new Date().toISOString().split('T')[0]}.pdf`);
+    doc.save(`ranking_libertador_${(new Date().toISOString() || 'report').split('T')[0]}.pdf`);
     toast.success('PDF generado con éxito');
   };
 

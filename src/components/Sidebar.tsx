@@ -38,11 +38,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const { resolvedTheme } = useTheme();
   const isDark = resolvedTheme === 'dark';
   
+  const isAsesor = user?.role === 'asesor';
+  
   const menuItems = [
-    { id: 'dashboard', label: 'Tablero', icon: LayoutDashboard },
+    { id: 'dashboard', label: isAsesor ? 'Mi Gestión' : 'Tablero', icon: LayoutDashboard },
     { id: 'new-transfer', label: 'Nueva Gestión', icon: PhoneForwarded },
     { id: 'my-tasks', label: 'Mis Gestiones', icon: ClipboardList },
-    { id: 'ranking', label: 'Clasificación', icon: Trophy },
+    { id: 'ranking', label: 'Clasificación', icon: Trophy, role: ['admin', 'supervisor'] },
     { id: 'user-management', label: 'Usuarios', icon: UserCircle, role: ['admin'] },
     { id: 'history', label: 'Historial', icon: History, role: ['admin', 'supervisor'] } as const,
   ];

@@ -79,7 +79,7 @@ export function Profile({ user, transfers }: ProfileProps) {
       const pageHeight = pdf.internal.pageSize.getHeight();
       
       pdf.addImage(imgData, 'PNG', 0, 0, pageWidth, pageHeight);
-      pdf.save(`Reconocimiento_Libertador_${user.name.split(' ')[0]}.pdf`);
+      pdf.save(`Reconocimiento_Libertador_${(user.name || 'Asesor').split(' ')[0]}.pdf`);
       
       toast.dismiss(toastId);
       toast.success('¡Reconocimiento descargado con éxito!');

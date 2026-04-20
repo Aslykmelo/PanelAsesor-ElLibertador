@@ -69,9 +69,9 @@ export function DashboardAdviser({ transfers, user, onNewTransfer }: DashboardAd
         
         <div className="relative z-10 flex flex-col md:flex-row justify-between items-center gap-8">
           <div className="text-center md:text-left">
-            <h1 className="text-4xl md:text-5xl font-black tracking-tight mb-2">¡Hola, {user.name.split(' ')[0]}!</h1>
+            <h1 className="text-4xl md:text-5xl font-black tracking-tight mb-2 uppercase italic">Mi Gestión</h1>
             <p className="text-slate-300 text-lg font-medium max-w-md">
-              Tienes <span className="text-white font-bold">{stats.pending} gestiones pendientes</span> por procesar hoy.
+              Hola {(user.name || 'Asesor').split(' ')[0]}, tienes <span className="text-white font-bold">{stats.pending} gestiones esperando</span> tu acción.
             </p>
             <div className="mt-8 flex flex-wrap gap-4 justify-center md:justify-start">
               <Button 
@@ -88,12 +88,12 @@ export function DashboardAdviser({ transfers, user, onNewTransfer }: DashboardAd
             <div className="bg-white/10 backdrop-blur-md p-6 rounded-3xl border border-white/10">
               <TrendingUp className="w-6 h-6 text-primary mb-2" />
               <p className="text-2xl font-black">{stats.sent + stats.received}</p>
-              <p className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Total Mes</p>
+              <p className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Mis Movimientos</p>
             </div>
             <div className="bg-white/10 backdrop-blur-md p-6 rounded-3xl border border-white/10">
               <LayoutDashboard className="w-6 h-6 text-primary mb-2" />
-              <p className="text-2xl font-black">{user.cartera.split(' ')[0]}</p>
-              <p className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Carpeta</p>
+              <p className="text-2xl font-black">{(user.cartera || 'General').split(' ')[0]}</p>
+              <p className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Cartera</p>
             </div>
           </div>
         </div>
@@ -162,8 +162,13 @@ export function DashboardAdviser({ transfers, user, onNewTransfer }: DashboardAd
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <div className="lg:col-span-2 space-y-6">
           <div className="flex items-center justify-between">
-            <h2 className="text-xl font-black text-secondary">Actividad Reciente</h2>
-            <Button variant="link" className="text-primary font-bold">Ver historial</Button>
+            <div className="flex items-center gap-3">
+              <h2 className="text-xl font-black text-secondary">Actividad Reciente</h2>
+              <span className="bg-primary/10 text-primary text-[10px] font-black px-3 py-1 rounded-full uppercase tracking-widest border border-primary/20">
+                Solo mis gestiones
+              </span>
+            </div>
+            <Button variant="link" className="text-primary font-bold" onClick={() => onNewTransfer()}>Ver historial</Button>
           </div>
           
           <div className="space-y-4">

@@ -56,40 +56,55 @@ export const signIn = async () => {
   const userRef = doc(db, 'users', firebaseUser.uid);
   const userSnap = await getDoc(userRef);
 
+  const ADMINS = [
+    'taliana.moreno@segurosbolivar.com',
+    'helen.pantoja@segurosbolivar.com'
+  ];
+
+  const SUPERVISORS = [
+    'luis.mondragon@segurosbolivar.com',
+    'yulieth.moreno@segurosbolivar.com',
+    'ana.gutierrez@segurosbolivar.com',
+    'mabel.elizabeth.andrade@segurosbolivar.com',
+    'lizeth.osma@segurosbolivar.com',
+    'juliana.garcia@segurosbolivar.com'
+  ];
+
+  const userEmail = firebaseUser.email?.toLowerCase() || '';
+
   if (!userSnap.exists()) {
     // Buscar info del asesor en la lista precargada
-    const advisorInfo = ADVISORS.find(a => a.correo.toLowerCase() === firebaseUser.email?.toLowerCase());
+    const advisorInfo = ADVISORS.find(a => a.correo.toLowerCase() === userEmail);
+    
+    // Si no está en ADVISORS, pero está en la lista de SUPERVISORS, le damos ese rol
+    const isSupervisor = SUPERVISORS.includes(userEmail) || ADVISORS.some(a => a.correo_supervisor.toLowerCase() === userEmail);
+    const isAdmin = ADMINS.includes(userEmail);
 
     const newUser = {
       uid: firebaseUser.uid,
-      name: firebaseUser.displayName || advisorInfo?.nombre || 'Asesor',
+      name: firebaseUser.displayName || advisorInfo?.nombre || (isAdmin ? 'Administrador' : isSupervisor ? 'Supervisor' : 'Asesor'),
       email: firebaseUser.email,
-      role: advisorInfo ? 'asesor' : 'supervisor', // Default logic: if in list -> asesor, else supervisor (can be changed manually by admin)
+      role: isAdmin ? 'admin' : (isSupervisor ? 'supervisor' : 'asesor'),
       supervisorEmail: advisorInfo?.correo_supervisor || '',
       supervisorName: advisorInfo?.supervisor || '',
-      cartera: advisorInfo?.cartera || 'Sin asignar',
+      cartera: advisorInfo?.cartera || (isAdmin || isSupervisor ? 'Administración' : 'Sin asignar'),
       photoURL: firebaseUser.photoURL,
       createdAt: serverTimestamp(),
       lastLoginAt: serverTimestamp(),
       status: 'online' as const
     };
 
-    // Forzar admin si es el correo específico de la petición o uno designado
-    if (firebaseUser.email?.toLowerCase() === 'taliana.moreno@segurosbolivar.com' || firebaseUser.email?.toLowerCase() === 'helen.pantoja@segurosbolivar.com') {
-      newUser.role = 'admin';
-    }
-
     await setDoc(userRef, newUser);
   } else {
-    // Si ya existe, actualizamos último login y status
+    // Si ya existe, actualizamos último login y status, y verificamos si hubo cambio de rol manual o por lista
+    const isSupervisor = SUPERVISORS.includes(userEmail) || ADVISORS.some(a => a.correo_supervisor.toLowerCase() === userEmail);
+    const isAdmin = ADMINS.includes(userEmail);
+    
     const updates: any = { 
       lastLoginAt: serverTimestamp(),
-      status: 'online'
+      status: 'online',
+      role: isAdmin ? 'admin' : (isSupervisor ? 'supervisor' : 'asesor')
     };
-    
-    if (firebaseUser.email?.toLowerCase() === 'taliana.moreno@segurosbolivar.com' || firebaseUser.email?.toLowerCase() === 'helen.pantoja@segurosbolivar.com') {
-      updates.role = 'admin';
-    }
     
     await updateDoc(userRef, updates);
   }

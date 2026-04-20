@@ -2,108 +2,46 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     
-    // ===============================================================
-    // Global Catch-all (Default Deny)
-    // ===============================================================
+    // Bloqueo total por defecto
     match /{document=**} {
       allow read, write: if false;
     }
 
-    // ===============================================================
-    // Reusable Helpers
-    // ===============================================================
+    // --- Ayudantes (Sintaxis CEL pura) ---
     function isSignedIn() {
       return request.auth != null;
     }
-    
-    function isVerified() {
-      // Relajamos la verificación de email para evitar bloqueos innecesarios
-      // ya que Google Auth usualmente es suficiente, y a veces el token no trae el flag
-      return isSignedIn();
-    }
 
-    function getUserEmail() {
-      return (request.auth != null && "email" in request.auth.token) ? request.auth.token.email.lower() : "";
+    function getEmail() {
+      return isSignedIn() && "email" in request.auth.token ? request.auth.token.email.lower() : "";
     }
 
     function isAdmin() {
-      return isVerified() && (
-        getUserEmail() == "taliana.moreno@segurosbolivar.com" || 
-        getUserEmail() == "helen.pantoja@segurosbolivar.com"
+      return isSignedIn() && (
+        getEmail() == "taliana.moreno@segurosbolivar.com" || 
+        getEmail() == "helen.pantoja@segurosbolivar.com" || 
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('role', 'asesor') == "admin")
       );
     }
-    
-    function isOwner(email) {
-      return isVerified() && getUserEmail() == email.lower();
-    }
-    
-    function isValidId(id) {
-      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+
+    function isSupervisor() {
+      return isSignedIn() && 
+             exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('role', 'asesor') == "supervisor";
     }
 
-    function incoming() {
-      return request.resource.data;
+    function isOwner(data) {
+      return isSignedIn() && getEmail() != "" && (
+        (data.get('fromAdvisorEmail', '') is string && data.get('fromAdvisorEmail', '').lower() == getEmail()) || 
+        (data.get('toAdvisorEmail', '') is string && data.get('toAdvisorEmail', '').lower() == getEmail())
+      );
     }
 
-    function existing() {
-      return resource.data;
-    }
-
-    // ===============================================================
-    // Validation Helpers
-    // ===============================================================
-    
-    function isValidUser(data) {
-      return data.keys().hasAll(['uid', 'name', 'email', 'role']) &&
-             data.uid is string && 
-             data.name is string && data.name.size() <= 100 &&
-             data.email is string && data.email.matches("^[a-zA-Z0-9._%+-]+@segurosbolivar\\.com$") &&
-             data.role in ['admin', 'supervisor', 'asesor'] &&
-             (!('cartera' in data) || data.cartera is string) &&
-             (!('status' in data) || data.status in ['online', 'offline']);
-    }
-
-    function isValidRegistro(data) {
-      return data.keys().hasAll([
-        'managementType', 'fromAdvisorName', 'fromAdvisorEmail', 
-        'toAdvisorName', 'toAdvisorEmail', 'supervisorName', 
-        'supervisorEmail', 'requestNumber', 'customerName', 
-        'contactPhones', 'paymentLinkValue', 'status', 
-        'createdAt', 'createdBy'
-      ]) &&
-      data.managementType is string &&
-      data.fromAdvisorName is string &&
-      data.fromAdvisorEmail is string &&
-      data.toAdvisorName is string &&
-      data.toAdvisorEmail is string &&
-      data.customerName is string &&
-      data.paymentLinkValue is number &&
-      data.status in ['pendiente', 'gestionado'] &&
-      data.createdAt is timestamp &&
-      data.createdBy is string;
-    }
-
-    function isValidLoginLog(data) {
-      return data.keys().hasAll(['uid', 'name', 'email', 'timestamp']) &&
-             data.uid is string &&
-             data.name is string &&
-             data.email is string &&
-             data.timestamp is timestamp;
-    }
-
-    // ===============================================================
-    // Collection Matches
-    // ===============================================================
+    // --- Colecciones ---
 
     match /users/{userId} {
-      // Un usuario puede leer su propio perfil si está autenticado
-      allow get: if isSignedIn() && request.auth.uid == userId;
-      
-      // Permitir creación y actualización de su propio perfil
-      allow create, update: if isSignedIn() && request.auth.uid == userId;
-      
-      // Los administradores pueden ver y gestionar todo
-      allow read, write: if isAdmin();
+      allow read, write: if isSignedIn() && (request.auth.uid == userId || isAdmin());
     }
 
     match /login_logs/{logId} {
@@ -112,19 +50,23 @@ service cloud.firestore {
     }
 
     match /registros/{registroId} {
-      allow read: if isSignedIn();
-      allow create: if isSignedIn(); // Simplificado para evitar fallos de validación inicial
+      // Reglas de lectura: Los admins y supervisores ven todo. Los asesores solo lo suyo.
+      allow list, get: if isSignedIn() && (isAdmin() || isSupervisor() || isOwner(resource.data));
+      
+      allow create: if isSignedIn();
+      
       allow update: if isSignedIn() && (
         isAdmin() || 
-        (isOwner(existing().fromAdvisorEmail) || isOwner(existing().toAdvisorEmail))
+        isSupervisor() ||
+        isOwner(resource.data)
       );
+      
       allow delete: if isAdmin();
     }
-    
-    match /advisors/{advisorEmail} {
+
+    match /advisors/{advisorId} {
       allow read: if isSignedIn();
       allow write: if isAdmin();
     }
-
   }
 }

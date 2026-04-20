@@ -107,7 +107,7 @@ export const TransferList: React.FC<TransferListProps> = ({ transfers, onStatusC
               <SelectContent className="rounded-2xl">
                 <SelectItem value="todos">Todos los tipos</SelectItem>
                 {MANAGEMENT_TYPES.map(type => (
-                  <SelectItem key={type} value={type}>{type.split(' ')[0]}</SelectItem>
+                  <SelectItem key={type} value={type}>{(type || 'Gestión').split(' ')[0]}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -209,7 +209,7 @@ export const TransferList: React.FC<TransferListProps> = ({ transfers, onStatusC
                       
                       <TableCell>
                         <div className="space-y-1.5">
-                           <p className="text-xs font-black text-secondary uppercase leading-none">{t.managementType.split(' ')[0]}</p>
+                           <p className="text-xs font-black text-secondary uppercase leading-none">{(t.managementType || 'Gestión').split(' ')[0]}</p>
                            <div className="flex items-center gap-2">
                               <div className="w-2 h-2 rounded-full bg-primary" />
                               <p className="text-[10px] text-muted-foreground font-black uppercase tracking-tighter">
@@ -234,15 +234,15 @@ export const TransferList: React.FC<TransferListProps> = ({ transfers, onStatusC
                         <div className="flex items-center gap-4">
                            <div className="flex -space-x-3">
                               <div className="w-8 h-8 rounded-full bg-secondary border-2 border-card flex items-center justify-center text-[10px] font-bold text-white shadow-sm" title={`De: ${t.fromAdvisorName}`}>
-                                 {t.fromAdvisorName.charAt(0)}
+                                 {(t.fromAdvisorName || '?').charAt(0)}
                               </div>
                               <div className="w-8 h-8 rounded-full bg-primary border-2 border-card flex items-center justify-center text-[10px] font-bold text-white shadow-sm" title={`Para: ${t.toAdvisorName}`}>
-                                 {t.toAdvisorName.charAt(0)}
+                                 {(t.toAdvisorName || '?').charAt(0)}
                               </div>
                            </div>
                            <div className="hidden sm:block">
-                              <p className="text-[10px] font-black text-primary uppercase leading-tight">{t.toAdvisorName.split(' ')[0]}</p>
-                              <p className="text-[9px] font-bold text-muted-foreground uppercase">{t.supervisorName.split(' ')[0]}</ p>
+                              <p className="text-[10px] font-black text-primary uppercase leading-tight">{(t.toAdvisorName || 'Asesor').split(' ')[0]}</p>
+                              <p className="text-[9px] font-bold text-muted-foreground uppercase">{(t.supervisorName || 'N/A').split(' ')[0]}</ p>
                            </div>
                         </div>
                       </TableCell>

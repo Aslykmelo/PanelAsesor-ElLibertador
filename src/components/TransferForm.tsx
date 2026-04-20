@@ -78,10 +78,10 @@ export const TransferForm: React.FC<TransferFormProps> = ({ onSubmit, currentUse
         type,
         managementType,
         fromAdvisorName: currentUser.name,
-        fromAdvisorEmail: currentUser.email,
+        fromAdvisorEmail: currentUser.email.toLowerCase(),
         toAdvisorName: selectedToAdvisor.nombre,
-        toAdvisorEmail: selectedToAdvisor.correo,
-        supervisorEmail: selectedToAdvisor.correo_supervisor,
+        toAdvisorEmail: selectedToAdvisor.correo.toLowerCase(),
+        supervisorEmail: selectedToAdvisor.correo_supervisor.toLowerCase(),
         supervisorName: selectedToAdvisor.supervisor,
         cartera: selectedToAdvisor.cartera,
         requestNumber,
@@ -92,7 +92,7 @@ export const TransferForm: React.FC<TransferFormProps> = ({ onSubmit, currentUse
         status: 'pendiente',
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
-        createdBy: currentUser.email
+        createdBy: currentUser.email.toLowerCase()
       };
 
       const docRef = await addDoc(collection(db, 'registros'), docData);
