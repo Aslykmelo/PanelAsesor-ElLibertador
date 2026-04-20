@@ -36,12 +36,12 @@ export const Login: React.FC = () => {
         
         <CardHeader className="text-center space-y-6 pt-12">
           <div className="mx-auto flex items-center justify-center">
-            <div className="p-5 rounded-[2.5rem] transform hover:rotate-3 transition-transform duration-500 flex items-center justify-center min-w-[120px] min-h-[120px]">
+            <div className="p-5 rounded-[2.5rem] flex items-center justify-center min-w-[120px] min-h-[120px] animate-in fade-in duration-1000">
               {!logoError ? (
                 <img 
-                  src={isDark ? "/ellibertador.png" : "/isotipo.png"} 
+                  src={isDark ? "/logonegro.png" : "/logorojo.png"} 
                   alt="Logo El Libertador" 
-                  className="w-32 h-auto rounded-xl" 
+                  className="w-64 h-auto" 
                   referrerPolicy="no-referrer"
                   onError={() => setLogoError(true)}
                 />
@@ -54,10 +54,7 @@ export const Login: React.FC = () => {
             </div>
           </div>
 
-          <div className="space-y-2">
-            <CardTitle className="text-4xl font-black text-foreground uppercase tracking-tighter italic">
-              El Libertador
-            </CardTitle>
+          <div className="space-y-1">
             <CardDescription className="text-muted-foreground font-bold uppercase text-[10px] tracking-[0.3em]">
               Gestión Corporativa de Transferencias
             </CardDescription>

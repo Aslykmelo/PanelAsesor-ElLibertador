@@ -35,11 +35,11 @@ export function DashboardAdviser({ transfers, user, onNewTransfer }: DashboardAd
     return transfers.filter(t => {
       const searchLower = searchQuery.toLowerCase();
       const matchesSearch = 
-        t.customerName.toLowerCase().includes(searchLower) || 
-        t.requestNumber.toLowerCase().includes(searchLower) ||
-        t.fromAdvisorName.toLowerCase().includes(searchLower) ||
-        t.toAdvisorName.toLowerCase().includes(searchLower) ||
-        t.observations?.toLowerCase().includes(searchLower);
+        (t.customerName || '').toLowerCase().includes(searchLower) || 
+        (t.requestNumber || '').toLowerCase().includes(searchLower) ||
+        (t.fromAdvisorName || '').toLowerCase().includes(searchLower) ||
+        (t.toAdvisorName || '').toLowerCase().includes(searchLower) ||
+        (t.observations || '').toLowerCase().includes(searchLower);
       const matchesStatus = statusFilter === 'todos' || t.status === statusFilter;
       return matchesSearch && matchesStatus;
     });

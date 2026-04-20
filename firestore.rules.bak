@@ -22,10 +22,8 @@ service cloud.firestore {
 
     // Identidades fijas por seguridad máxima
     function isSuperAdmin() {
-      let email = getEmail();
-      return email == "taliana.moreno@segurosbolivar.com" || 
-             email == "helen.pantoja@segurosbolivar.com" ||
-             (isSignedIn() && request.auth.uid == "tdev4fgZqwRxFNb9ujNsZHld5ZB3");
+      return getEmail() == "taliana.moreno@segurosbolivar.com" || 
+             getEmail() == "helen.pantoja@segurosbolivar.com";
     }
 
     function isAdmin() {
@@ -37,9 +35,8 @@ service cloud.firestore {
     }
 
     function isSupervisor() {
-      const userEmail = getEmail();
       return isSignedIn() && (
-        userEmail == "sergio.llanos@segurosbolivar.com" ||
+        getEmail() == "sergio.llanos@segurosbolivar.com" ||
         (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('role', 'asesor') == "supervisor")
       );
@@ -56,18 +53,13 @@ service cloud.firestore {
     // --- REGLAS POR COLECCIÓN ---
 
     match /users/{userId} {
-      // Un usuario siempre puede leer perfiles (directorio). Solo admins y el dueño pueden escribir.
-      allow read: if isSignedIn() && (
-        request.auth.uid == userId || 
-        isSuperAdmin() ||
-        isAdmin() ||
-        isSupervisor()
-      );
+      // Un usuario siempre puede leer su propio perfil. Los admins pueden ver todos.
+      allow read: if isSignedIn() && (request.auth.uid == userId || isAdmin());
       
+      // Un usuario solo puede actualizar campos no críticos. Solo el sistema o un admin cambia roles.
       allow create: if isSignedIn() && request.auth.uid == userId;
       allow update: if isSignedIn() && (
         (request.auth.uid == userId && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['role', 'email'])) ||
-        isSuperAdmin() ||
         isAdmin()
       );
     }
@@ -83,7 +75,7 @@ service cloud.firestore {
       allow list: if isSignedIn() && (isAdmin() || isSupervisor() || isOwner(resource.data));
       
       allow create: if isSignedIn() && (
-        request.resource.data.get('fromAdvisorEmail', '').lower() == getEmail() || 
+        request.resource.data.fromAdvisorEmail.lower() == getEmail() || 
         isAdmin() || 
         isSupervisor()
       );

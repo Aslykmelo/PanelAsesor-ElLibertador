@@ -59,11 +59,11 @@ export function DashboardAdmin({ transfers, user }: DashboardAdminProps) {
       const matchesSupervisor = filterSupervisor === 'todos' || t.supervisorEmail === filterSupervisor;
       const searchLower = searchQuery.toLowerCase();
       const matchesSearch = 
-        t.customerName.toLowerCase().includes(searchLower) ||
-        t.requestNumber.toLowerCase().includes(searchLower) ||
-        t.fromAdvisorName.toLowerCase().includes(searchLower) ||
-        t.toAdvisorName.toLowerCase().includes(searchLower) ||
-        t.cartera?.toLowerCase().includes(searchLower);
+        (t.customerName || '').toLowerCase().includes(searchLower) ||
+        (t.requestNumber || '').toLowerCase().includes(searchLower) ||
+        (t.fromAdvisorName || '').toLowerCase().includes(searchLower) ||
+        (t.toAdvisorName || '').toLowerCase().includes(searchLower) ||
+        (t.cartera || '').toLowerCase().includes(searchLower);
       return matchesCartera && matchesAdvisor && matchesSupervisor && matchesSearch;
     });
   }, [transfers, filterCartera, filterAdvisor, filterSupervisor, searchQuery]);

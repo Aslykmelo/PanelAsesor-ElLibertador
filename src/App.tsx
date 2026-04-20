@@ -60,26 +60,31 @@ export default function App() {
 
   // 🔐 AUTH & USER SYNC
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
+    let userUnsubscribe: (() => void) | null = null;
+
+    const authUnsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
+      // Limpiar cualquier suscripción previa de usuario si existe
+      if (userUnsubscribe) {
+        userUnsubscribe();
+        userUnsubscribe = null;
+      }
+
       if (firebaseUser) {
-        // Escuchar cambios en el documento del usuario en tiempo real
+        setLoading(true);
         const userRef = doc(db, 'users', firebaseUser.uid);
         
-        // Timeout para evitar colgarse si el documento nunca se crea
         const timeoutId = setTimeout(() => {
-          // Usamos una referencia interna para no depender de 'loading' en el array de dependencias
-          // El estado se chequea en el momento de ejecución del timeout
           setLoading((prevLoading) => {
             if (prevLoading) {
-              console.error("Timeout waiting for user document (uid: " + firebaseUser.uid + ")");
-              toast.error("Error de sesión: Perfil no encontrado");
-              signOut();
+              console.warn("Timeout waiting for user document (uid: " + firebaseUser.uid + "). Using local info.");
+              // Si después de 15s no hay doc en Firestore, dejamos de cargar
+              // pero NO forzamos el logout aquí para dar margen al fallback
             }
             return false;
           });
-        }, 15000); // 15 segundos para dar margen en despliegues
+        }, 15000);
 
-        const userUnsubscribe = onSnapshot(userRef, (docSnap) => {
+        userUnsubscribe = onSnapshot(userRef, (docSnap) => {
           if (docSnap.exists()) {
             clearTimeout(timeoutId);
             const userData = { ...docSnap.data(), uid: docSnap.id } as User;
@@ -87,26 +92,52 @@ export default function App() {
             setLoading(false);
           } else {
             console.log("Documento de usuario aún no existe para UID:", firebaseUser.uid);
+            const isAdmin = firebaseUser.email?.toLowerCase() === 'taliana.moreno@segurosbolivar.com' || 
+                           firebaseUser.email?.toLowerCase() === 'helen.pantoja@segurosbolivar.com';
+            
+            setCurrentUser({
+              uid: firebaseUser.uid,
+              name: firebaseUser.displayName || 'Asesor',
+              email: firebaseUser.email || '',
+              role: isAdmin ? 'admin' : 'asesor',
+              cartera: 'Actualizando...',
+              photoURL: firebaseUser.photoURL || '',
+              status: 'online'
+            } as User);
+            setLoading(false); // IMPORTANTE: dejar de cargar incluso en fallback
           }
         }, (error) => {
           console.error("User sync error (uid: " + firebaseUser.uid + "):", error);
-          setLoading(false);
           clearTimeout(timeoutId);
+          
           if (error.code === 'permission-denied') {
-            toast.error("Error de permisos: No se pudo cargar tu perfil. Contacta al administrador.");
-            console.warn("TIP: Verifica que las reglas de seguridad en Firestore permitan lectura para el UID: " + firebaseUser.uid);
+            console.warn("Permisos insuficientes para sync. Usando info de Google Auth.");
+            const isAdmin = firebaseUser.email?.toLowerCase() === 'taliana.moreno@segurosbolivar.com' || 
+                           firebaseUser.email?.toLowerCase() === 'helen.pantoja@segurosbolivar.com';
+            
+            setCurrentUser({
+              uid: firebaseUser.uid,
+              name: firebaseUser.displayName || 'Usuario',
+              email: firebaseUser.email || '',
+              role: isAdmin ? 'admin' : 'asesor',
+              cartera: 'Cargando...',
+              photoURL: firebaseUser.photoURL || '',
+              status: 'online'
+            } as User);
           }
+          setLoading(false);
         });
-
-        return () => userUnsubscribe();
       } else {
         setCurrentUser(null);
         setLoading(false);
       }
     });
 
-    return () => unsubscribe();
-  }, []); // Sin dependencias para que solo se monte una vez
+    return () => {
+      authUnsubscribe();
+      if (userUnsubscribe) userUnsubscribe();
+    };
+  }, []);
 
   // 🔥 FIRESTORE DATA SYNC
   useEffect(() => {
@@ -129,9 +160,12 @@ export default function App() {
         setSyncError(null);
       }, (error) => {
         console.error("Admin sync error:", error);
-        // SOLO MOSTRAR ERROR SI EL ROL ES ADMIN O SUPERVISOR
-        if (effectiveRole !== 'asesor') {
-          setSyncError(`Error de permisos (Admin): Verifica que tu rol esté activo en la base de datos.`);
+        // SI HAY ERROR DE PERMISOS PARA ADMIN
+        if (error.code === 'permission-denied') {
+          setSyncError(`Acceso restringido: Tus permisos de administrador aún se están sincronizando en la base de datos.`);
+          console.warn("TIP: Como administrador, asegúrate de que tu correo esté en la lista blanca de Firebase Rules.");
+        } else {
+          setSyncError(`Error de conexión al cargar datos globales.`);
         }
       });
       return () => unsubscribe();

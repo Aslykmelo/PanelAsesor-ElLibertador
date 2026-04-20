@@ -54,7 +54,13 @@ export const signIn = async () => {
 
   // Verificar si el usuario ya existe en Firestore
   const userRef = doc(db, 'users', firebaseUser.uid);
-  const userSnap = await getDoc(userRef);
+  let userSnap;
+  try {
+    userSnap = await getDoc(userRef);
+  } catch (e) {
+    console.warn("No se pudo leer el perfil de usuario en el login (posiblemente por falta de permisos en Firestore):", e);
+    // Si falla la lectura, asumimos que no podemos acceder y permitimos continuar para que App.tsx use el fallback
+  }
 
   const ADMINS = [
     'taliana.moreno@segurosbolivar.com',
@@ -72,41 +78,60 @@ export const signIn = async () => {
 
   const userEmail = firebaseUser.email?.toLowerCase() || '';
 
-  if (!userSnap.exists()) {
-    // Buscar info del asesor en la lista precargada
-    const advisorInfo = ADVISORS.find(a => a.correo.toLowerCase() === userEmail);
-    
-    // Si no está en ADVISORS, pero está en la lista de SUPERVISORS, le damos ese rol
-    const isSupervisor = SUPERVISORS.includes(userEmail) || ADVISORS.some(a => a.correo_supervisor.toLowerCase() === userEmail);
-    const isAdmin = ADMINS.includes(userEmail);
+  if (!userSnap || !userSnap.exists()) {
+    // Si no existe o no pudimos leerlo, intentamos crearlo solo si es necesario (y si podemos)
+    try {
+      // Buscar info del asesor en la lista precargada
+      const advisorInfo = ADVISORS.find(a => a.correo.toLowerCase() === userEmail);
+      
+      // Si no está en ADVISORS, pero está en la lista de SUPERVISORS, le damos ese rol
+      const isSupervisor = SUPERVISORS.includes(userEmail) || ADVISORS.some(a => a.correo_supervisor.toLowerCase() === userEmail);
+      const isAdmin = ADMINS.includes(userEmail);
 
-    const newUser = {
-      uid: firebaseUser.uid,
-      name: firebaseUser.displayName || advisorInfo?.nombre || (isAdmin ? 'Administrador' : isSupervisor ? 'Supervisor' : 'Asesor'),
-      email: firebaseUser.email,
-      role: isAdmin ? 'admin' : (isSupervisor ? 'supervisor' : 'asesor'),
-      supervisorEmail: advisorInfo?.correo_supervisor || '',
-      supervisorName: advisorInfo?.supervisor || '',
-      cartera: advisorInfo?.cartera || (isAdmin || isSupervisor ? 'Administración' : 'Sin asignar'),
-      photoURL: firebaseUser.photoURL,
-      createdAt: serverTimestamp(),
-      lastLoginAt: serverTimestamp(),
-      status: 'online' as const
-    };
+      const newUser = {
+        uid: firebaseUser.uid,
+        name: firebaseUser.displayName || advisorInfo?.nombre || (isAdmin ? 'Administrador' : isSupervisor ? 'Supervisor' : 'Asesor'),
+        email: firebaseUser.email,
+        role: isAdmin ? 'admin' : (isSupervisor ? 'supervisor' : 'asesor'),
+        supervisorEmail: advisorInfo?.correo_supervisor || '',
+        supervisorName: advisorInfo?.supervisor || '',
+        cartera: advisorInfo?.cartera || (isAdmin || isSupervisor ? 'Administración' : 'Sin asignar'),
+        photoURL: firebaseUser.photoURL,
+        createdAt: serverTimestamp(),
+        lastLoginAt: serverTimestamp(),
+        status: 'online' as const
+      };
 
-    await setDoc(userRef, newUser);
+      await setDoc(userRef, newUser);
+    } catch (createErr) {
+      console.warn("No se pudo crear/inicializar el documento de usuario:", createErr);
+    }
   } else {
-    // Si ya existe, actualizamos último login y status, y verificamos si hubo cambio de rol manual o por lista
+    // Si ya existe, actualizamos último login y status
+    const existingRole = userSnap.data()?.role;
     const isSupervisor = SUPERVISORS.includes(userEmail) || ADVISORS.some(a => a.correo_supervisor.toLowerCase() === userEmail);
     const isAdmin = ADMINS.includes(userEmail);
+    const calculatedRole = isAdmin ? 'admin' : (isSupervisor ? 'supervisor' : 'asesor');
     
     const updates: any = { 
       lastLoginAt: serverTimestamp(),
-      status: 'online',
-      role: isAdmin ? 'admin' : (isSupervisor ? 'supervisor' : 'asesor')
+      status: 'online'
     };
     
-    await updateDoc(userRef, updates);
+    if (existingRole !== calculatedRole) {
+      updates.role = calculatedRole;
+    }
+    
+    try {
+      await updateDoc(userRef, updates);
+    } catch (e) {
+      console.warn("No se pudo actualizar el perfil completo en el login:", e);
+      try {
+        await updateDoc(userRef, { lastLoginAt: serverTimestamp(), status: 'online' });
+      } catch (innerError) {
+        console.warn("Error silenciado al actualizar status de usuario:", innerError);
+      }
+    }
   }
 
   // REGISTRAR LOG DE ACCESO
@@ -129,12 +154,20 @@ export const signIn = async () => {
 
 export const signOut = async () => {
   const user = auth.currentUser;
+  
   if (user) {
+    // Intentamos marcar como offline pero no bloqueamos el logout principal
+    // si falla o tarda mucho
     try {
-      await updateDoc(doc(db, 'users', user.uid), { status: 'offline' });
+      // Usamos una promesa con un timeout corto para no colgar el botón de cerrar sesión
+      const updatePromise = updateDoc(doc(db, 'users', user.uid), { status: 'offline' });
+      const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 1000));
+      
+      await Promise.race([updatePromise, timeoutPromise]);
     } catch (e) {
-      console.error("Error updating status on sign out:", e);
+      console.warn("No se pudo actualizar el estado offline (posible cierre de sesión rápido):", e);
     }
   }
+  
   return auth.signOut();
 };

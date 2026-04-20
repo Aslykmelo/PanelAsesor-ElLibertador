@@ -44,12 +44,12 @@ export const TransferList: React.FC<TransferListProps> = ({ transfers, onStatusC
   const filteredTransfers = transfers.filter(t => {
     const searchLower = searchTerm.toLowerCase();
     const matchesSearch = 
-      t.customerName.toLowerCase().includes(searchLower) ||
-      t.requestNumber.toLowerCase().includes(searchLower) ||
-      t.fromAdvisorName.toLowerCase().includes(searchLower) ||
-      t.toAdvisorName.toLowerCase().includes(searchLower) ||
-      t.cartera?.toLowerCase().includes(searchLower) ||
-      t.observations?.toLowerCase().includes(searchLower);
+      (t.customerName || '').toLowerCase().includes(searchLower) ||
+      (t.requestNumber || '').toLowerCase().includes(searchLower) ||
+      (t.fromAdvisorName || '').toLowerCase().includes(searchLower) ||
+      (t.toAdvisorName || '').toLowerCase().includes(searchLower) ||
+      (t.cartera || '').toLowerCase().includes(searchLower) ||
+      (t.observations || '').toLowerCase().includes(searchLower);
     const matchesStatus = statusFilter === 'todos' || t.status === statusFilter;
     const matchesType = typeFilter === 'todos' || t.managementType === typeFilter;
     const matchesSupervisor = supervisorFilter === 'todos' || t.supervisorName === supervisorFilter;
