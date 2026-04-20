@@ -90,7 +90,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             <div className="w-full h-full relative group flex items-center justify-center">
               {!logoError ? (
                 <img 
-                  src="/ellibertador.png" 
+                  src="/public/ellibertador.png" 
                   alt="Logo El Libertador" 
                   className={cn("w-full h-full object-contain transition-all duration-500 rounded-xl", !isOpen ? "p-1" : "")} 
                   referrerPolicy="no-referrer"

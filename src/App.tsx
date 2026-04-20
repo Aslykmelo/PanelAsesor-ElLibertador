@@ -387,7 +387,7 @@ export default function App() {
 
             <div className="flex items-center gap-3">
               <img 
-                src="/ellibertador.png" 
+                src="/public/ellibertador.png" 
                 alt="Logo" 
                 className="h-8 w-auto rounded-xl" 
                 referrerPolicy="no-referrer" 
