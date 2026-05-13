@@ -7,10 +7,12 @@
       "properties": {
         "name": { "type": "string", "description": "Full name of the advisor" },
         "email": { "type": "string", "format": "email", "description": "Corporate email address" },
+        "cartera": { "type": "string", "description": "Assigned portfolio/cartera" },
         "supervisor": { "type": "string", "description": "Name of the supervisor" },
-        "supervisorEmail": { "type": "string", "format": "email", "description": "Email of the supervisor" }
+        "supervisorEmail": { "type": "string", "format": "email", "description": "Email of the supervisor" },
+        "active": { "type": "boolean", "description": "Whether the advisor is active" }
       },
-      "required": ["name", "email", "supervisor", "supervisorEmail"]
+      "required": ["name", "email", "supervisor", "supervisorEmail", "cartera"]
     },
     "TransferRecord": {
       "title": "Transfer Record",
@@ -92,7 +94,7 @@
     }
   },
   "firestore": {
-    "/advisors/{advisorId}": {
+    "/asesores/{advisorId}": {
       "schema": "Advisor",
       "description": "Collection of advisors"
     },

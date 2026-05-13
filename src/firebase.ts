@@ -1,10 +1,11 @@
 import { initializeApp } from 'firebase/app';
 import { getAuth, GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
-import { getFirestore, doc, getDoc, setDoc, updateDoc, serverTimestamp, collection, addDoc } from 'firebase/firestore';
+import { getFirestore, doc, getDoc, setDoc, updateDoc, serverTimestamp, collection, addDoc, getDocFromServer } from 'firebase/firestore';
 import { ADVISORS } from './constants';
 
-const firebaseConfig = {
-  // @ts-ignore
+// Prioridad: 1. Environment variables (manual or injected by platform)
+let firebaseConfig = {
+// @ts-ignore
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
   // @ts-ignore
   authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
@@ -20,22 +21,84 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
-// @ts-ignore
-const dbId = import.meta.env.VITE_FIREBASE_DATABASE_ID;
-// @ts-ignore
-const projectId = import.meta.env.VITE_FIREBASE_PROJECT_ID;
 
-// Lógica de conexión robusta:
-// 1. Si dbId es igual al projectId, casi siempre es un error de configuración y debe ser (default)
-// 2. Si dbId está vacío, es (default)
-// 3. De lo contrario, usamos el dbId proporcionado
+// Determinamos el databaseId
+// @ts-ignore
+const configDbId = import.meta.env.VITE_FIREBASE_DATABASE_ID;
+// @ts-ignore
+const configProjectId = import.meta.env.VITE_FIREBASE_PROJECT_ID;
+
 let finalDbId: string | undefined = undefined;
-
-if (dbId && dbId.trim() !== "" && dbId !== "(default)" && dbId !== projectId) {
-  finalDbId = dbId.trim();
+if (configDbId && configDbId.trim() !== "" && configDbId !== "(default)" && configDbId !== configProjectId) {
+  finalDbId = configDbId.trim();
 }
 
 export const db = finalDbId ? getFirestore(app, finalDbId) : getFirestore(app);
+
+// 🔍 TEST CONNECTION
+async function testConnection() {
+  if (!firebaseConfig.apiKey) {
+    console.warn("Firebase API Key is missing. Login might not work until configured.");
+    return;
+  }
+  try {
+    await getDocFromServer(doc(db, 'asesores', 'connection-test'));
+    console.log("Firestore connection verified");
+  } catch (error: any) {
+    if (error?.message?.includes('offline') || error?.code === 'failed-precondition') {
+      console.error("Firebase is offline or configuration is incorrect.");
+    } else {
+      console.warn("Firestore connection test result:", error.code);
+    }
+  }
+}
+testConnection();
+
+enum OperationType {
+  CREATE = 'create',
+  UPDATE = 'update',
+  DELETE = 'delete',
+  LIST = 'list',
+  GET = 'get',
+  WRITE = 'write',
+}
+
+interface FirestoreErrorInfo {
+  error: string;
+  operationType: OperationType;
+  path: string | null;
+  authInfo: {
+    userId?: string | null;
+    email?: string | null;
+    emailVerified?: boolean | null;
+    isAnonymous?: boolean | null;
+    providerInfo?: {
+      providerId?: string | null;
+      email?: string | null;
+    }[];
+  }
+}
+
+export function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null) {
+  const errInfo: FirestoreErrorInfo = {
+    error: error instanceof Error ? error.message : String(error),
+    authInfo: {
+      userId: auth.currentUser?.uid,
+      email: auth.currentUser?.email,
+      emailVerified: auth.currentUser?.emailVerified,
+      isAnonymous: auth.currentUser?.isAnonymous,
+      providerInfo: auth.currentUser?.providerData?.map(provider => ({
+        providerId: provider.providerId,
+        email: provider.email,
+      })) || []
+    },
+    operationType,
+    path
+  }
+  console.error('Firestore Error Detail: ', JSON.stringify(errInfo));
+  // No lanzamos error para que no rompa el flujo si se catching después, pero logueamos
+  return errInfo;
+}
 
 export const googleProvider = new GoogleAuthProvider();
 googleProvider.setCustomParameters({
@@ -58,6 +121,7 @@ export const signIn = async () => {
   try {
     userSnap = await getDoc(userRef);
   } catch (e) {
+    handleFirestoreError(e, OperationType.GET, `users/${firebaseUser.uid}`);
     console.warn("No se pudo leer el perfil de usuario en el login (posiblemente por falta de permisos en Firestore):", e);
     // Si falla la lectura, asumimos que no podemos acceder y permitimos continuar para que App.tsx use el fallback
   }
@@ -145,6 +209,7 @@ export const signIn = async () => {
       userAgent: navigator.userAgent
     });
   } catch (e) {
+    handleFirestoreError(e, OperationType.CREATE, 'login_logs');
     // Si falla el log por permisos, no bloqueamos el login del usuario
     console.warn("Log de acceso no registrado (posible falta de reglas en Firebase):", e);
   }

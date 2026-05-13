@@ -47,6 +47,18 @@ export interface User {
   status?: 'online' | 'offline';
 }
 
+export interface Advisor {
+  id?: string;
+  name: string;
+  email: string;
+  supervisor: string;
+  supervisorEmail: string;
+  cartera: string;
+  role: string;
+  active: boolean;
+  createdAt: any;
+}
+
 export interface Notification {
   id: string;
   title: string;

@@ -9,6 +9,7 @@ import {
 import { 
   DropdownMenu, 
   DropdownMenuContent, 
+  DropdownMenuGroup,
   DropdownMenuItem, 
   DropdownMenuLabel, 
   DropdownMenuTrigger 
@@ -59,9 +60,9 @@ export const Notifications: React.FC<NotificationsProps> = ({ notifications, onM
         )}
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-80 p-0">
-        <DropdownMenuLabel className="p-4 border-b bg-secondary/5">
-          <h3 className="font-bold text-sm">Notificaciones</h3>
-        </DropdownMenuLabel>
+        <div className="p-4 border-b bg-secondary/5">
+          <h3 className="font-bold text-sm text-secondary">Notificaciones</h3>
+        </div>
         <ScrollArea className="h-80">
           {notifications.length === 0 ? (
             <div className="p-8 text-center text-muted-foreground text-sm">

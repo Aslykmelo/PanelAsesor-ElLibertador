@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { 
   Table, 
   TableBody, 
@@ -17,8 +17,8 @@ import {
   SelectValue 
 } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
-import { TRANSFER_STATUSES, MANAGEMENT_TYPES, ADVISORS, UserRole } from '@/constants';
-import { Transfer } from '@/types';
+import { TRANSFER_STATUSES, MANAGEMENT_TYPES, UserRole } from '@/constants';
+import { Transfer, Advisor } from '@/types';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { CheckCircle2, Search, Filter, Calendar, MessageSquare, Gift, MoreHorizontal, Mail, Check, Trash2 } from 'lucide-react';
@@ -31,15 +31,20 @@ interface TransferListProps {
   onStatusChange?: (id: string, status: string) => void;
   onDelete?: (id: string) => void;
   userRole: UserRole;
+  advisors: Advisor[];
 }
 
-export const TransferList: React.FC<TransferListProps> = ({ transfers, onStatusChange, onDelete, userRole }) => {
+export const TransferList: React.FC<TransferListProps> = ({ transfers, onStatusChange, onDelete, userRole, advisors }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('todos');
   const [typeFilter, setTypeFilter] = useState('todos');
   const [supervisorFilter, setSupervisorFilter] = useState('todos');
 
-  const supervisors = Array.from(new Set(ADVISORS.map(a => a.supervisor)));
+  const supervisors = useMemo(() => {
+    const fromAdvisors = new Set(advisors.map(a => a.supervisor).filter(Boolean));
+    const fromTransfers = new Set(transfers.map(t => t.supervisorName).filter(Boolean));
+    return Array.from(new Set([...Array.from(fromAdvisors), ...Array.from(fromTransfers)]));
+  }, [advisors, transfers]);
 
   const filteredTransfers = transfers.filter(t => {
     const searchLower = searchTerm.toLowerCase();
@@ -259,7 +264,7 @@ export const TransferList: React.FC<TransferListProps> = ({ transfers, onStatusC
 
                       <TableCell className="pr-8 text-right">
                         <div className="flex items-center justify-end gap-2">
-                          {t.status === 'pendiente' && (userRole !== 'asesor' || t.toAdvisorEmail === ADVISORS.find(a => a.correo === t.toAdvisorEmail)?.correo) && (
+                          {t.status === 'pendiente' && (userRole !== 'asesor' || t.toAdvisorEmail.toLowerCase() === (advisors.find(a => a.email.toLowerCase() === t.toAdvisorEmail.toLowerCase())?.email?.toLowerCase() || t.toAdvisorEmail.toLowerCase())) && (
                             <Button 
                               onClick={() => onStatusChange?.(t.id!, 'gestionado')}
                               size="sm" 

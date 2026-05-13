@@ -9,6 +9,7 @@ import {
 import { 
   DropdownMenu, 
   DropdownMenuContent, 
+  DropdownMenuGroup,
   DropdownMenuItem, 
   DropdownMenuLabel, 
   DropdownMenuSeparator, 
@@ -38,13 +39,13 @@ export const UserMenu: React.FC<UserMenuProps> = ({ user, onLogout }) => {
         </div>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-72 p-2 rounded-2xl shadow-2xl border-border bg-card">
-        <DropdownMenuLabel className="px-3 py-4">
+        <div className="px-3 py-4">
           <div className="flex flex-col gap-1">
             <span className="text-[10px] font-black text-primary uppercase tracking-widest">{user.role}</span>
             <span className="text-sm font-black text-secondary truncate">{user.name}</span>
             <span className="text-[10px] font-medium text-muted-foreground truncate">{user.email}</span>
           </div>
-        </DropdownMenuLabel>
+        </div>
         <DropdownMenuSeparator />
         <DropdownMenuItem className="gap-3 h-11 rounded-xl cursor-pointer focus:bg-primary/5 focus:text-primary">
           <UserIcon className="w-4 h-4 opacity-70" />

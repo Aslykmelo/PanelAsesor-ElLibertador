@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Transfer, User } from '../types';
+import { Transfer, User, Advisor } from '../types';
 import { 
   Users, 
   MessageSquare, 
@@ -43,13 +43,16 @@ import { cn } from '@/lib/utils';
 interface DashboardAdminProps {
   transfers: Transfer[];
   user: User;
+  advisors: Advisor[];
 }
 
-export function DashboardAdmin({ transfers, user }: DashboardAdminProps) {
+export function DashboardAdmin({ transfers, user, advisors }: DashboardAdminProps) {
   const [filterCartera, setFilterCartera] = useState<string>('todos');
   const [filterAdvisor, setFilterAdvisor] = useState<string>('todos');
   const [filterSupervisor, setFilterSupervisor] = useState<string>('todos');
   const [searchQuery, setSearchQuery] = useState('');
+  const [dateFrom, setDateFrom] = useState<string>('');
+  const [dateTo, setDateTo] = useState<string>('');
 
   // 📊 COMPUTED DATA
   const filteredTransfers = useMemo(() => {
@@ -57,6 +60,21 @@ export function DashboardAdmin({ transfers, user }: DashboardAdminProps) {
       const matchesCartera = filterCartera === 'todos' || t.cartera === filterCartera;
       const matchesAdvisor = filterAdvisor === 'todos' || t.fromAdvisorEmail === filterAdvisor || t.toAdvisorEmail === filterAdvisor;
       const matchesSupervisor = filterSupervisor === 'todos' || t.supervisorEmail === filterSupervisor;
+      
+      // Date filtering
+      let matchesDate = true;
+      if (dateFrom || dateTo) {
+        const tDate = startOfDay(t.createdAt).getTime();
+        if (dateFrom) {
+          const fromDate = startOfDay(new Date(dateFrom)).getTime();
+          if (tDate < fromDate) matchesDate = false;
+        }
+        if (dateTo) {
+          const toDate = startOfDay(new Date(dateTo)).getTime();
+          if (tDate > toDate) matchesDate = false;
+        }
+      }
+
       const searchLower = searchQuery.toLowerCase();
       const matchesSearch = 
         (t.customerName || '').toLowerCase().includes(searchLower) ||
@@ -64,9 +82,10 @@ export function DashboardAdmin({ transfers, user }: DashboardAdminProps) {
         (t.fromAdvisorName || '').toLowerCase().includes(searchLower) ||
         (t.toAdvisorName || '').toLowerCase().includes(searchLower) ||
         (t.cartera || '').toLowerCase().includes(searchLower);
-      return matchesCartera && matchesAdvisor && matchesSupervisor && matchesSearch;
+      
+      return matchesCartera && matchesAdvisor && matchesSupervisor && matchesSearch && matchesDate;
     });
-  }, [transfers, filterCartera, filterAdvisor, filterSupervisor, searchQuery]);
+  }, [transfers, filterCartera, filterAdvisor, filterSupervisor, searchQuery, dateFrom, dateTo]);
 
   const stats = useMemo(() => {
     const total = filteredTransfers.length;
@@ -143,26 +162,45 @@ export function DashboardAdmin({ transfers, user }: DashboardAdminProps) {
   }, [filteredTransfers]);
 
   const carteras = useMemo(() => {
-    const unique = new Set(transfers.map(t => t.cartera).filter(Boolean));
-    return Array.from(unique);
-  }, [transfers]);
+    const fromTransfers = new Set(transfers.map(t => t.cartera).filter(Boolean));
+    const fromAdvisors = new Set(advisors.map(a => a.cartera).filter(Boolean));
+    return Array.from(new Set([...Array.from(fromTransfers), ...Array.from(fromAdvisors)]));
+  }, [transfers, advisors]);
 
   const uniqueAdvisors = useMemo(() => {
-    const set = new Map();
-    transfers.forEach(t => {
-      set.set(t.fromAdvisorEmail, t.fromAdvisorName);
-      set.set(t.toAdvisorEmail, t.toAdvisorName);
+    const map = new Map();
+    // Prioritize actual registered advisors
+    advisors.forEach(a => {
+      map.set(a.email.toLowerCase(), a.name);
     });
-    return Array.from(set.entries());
-  }, [transfers]);
+    // Fallback to data from transfers for legacy or unknown advisors
+    transfers.forEach(t => {
+      if (!map.has(t.fromAdvisorEmail.toLowerCase())) {
+        map.set(t.fromAdvisorEmail.toLowerCase(), t.fromAdvisorName);
+      }
+      if (!map.has(t.toAdvisorEmail.toLowerCase())) {
+        map.set(t.toAdvisorEmail.toLowerCase(), t.toAdvisorName);
+      }
+    });
+    return Array.from(map.entries());
+  }, [transfers, advisors]);
 
   const uniqueSupervisors = useMemo(() => {
-    const set = new Map();
-    transfers.forEach(t => {
-      if (t.supervisorEmail) set.set(t.supervisorEmail, t.supervisorName);
+    const map = new Map();
+    // Prioritize actual registered advisors' supervisors
+    advisors.forEach(a => {
+      if (a.supervisorEmail) {
+        map.set(a.supervisorEmail.toLowerCase(), a.supervisor);
+      }
     });
-    return Array.from(set.entries());
-  }, [transfers]);
+    // Fallback to transfers
+    transfers.forEach(t => {
+      if (t.supervisorEmail && !map.has(t.supervisorEmail.toLowerCase())) {
+        map.set(t.supervisorEmail.toLowerCase(), t.supervisorName);
+      }
+    });
+    return Array.from(map.entries());
+  }, [transfers, advisors]);
 
   const exportPDF = () => {
     const doc = new jsPDF();
@@ -228,6 +266,8 @@ export function DashboardAdmin({ transfers, user }: DashboardAdminProps) {
               setFilterAdvisor('todos');
               setFilterSupervisor('todos');
               setSearchQuery('');
+              setDateFrom('');
+              setDateTo('');
             }}
           >
             Limpiar Filtros
@@ -252,13 +292,23 @@ export function DashboardAdmin({ transfers, user }: DashboardAdminProps) {
                 <Label className="text-[10px] font-black text-secondary flex items-center gap-1.5 ml-1 uppercase tracking-widest">
                   <Calendar className="w-4 h-4 text-primary" /> Fecha Desde
                 </Label>
-                <Input type="date" className="h-12 bg-muted/30 border-secondary/20 rounded-2xl font-bold" />
+                <Input 
+                  type="date" 
+                  className="h-12 bg-muted/30 border-secondary/20 rounded-2xl font-bold" 
+                  value={dateFrom}
+                  onChange={(e) => setDateFrom(e.target.value)}
+                />
               </div>
               <div className="space-y-3">
                 <Label className="text-[10px] font-black text-secondary flex items-center gap-1.5 ml-1 uppercase tracking-widest">
                   <Calendar className="w-4 h-4 text-primary" /> Fecha Hasta
                 </Label>
-                <Input type="date" className="h-12 bg-muted/30 border-secondary/20 rounded-2xl font-bold" />
+                <Input 
+                  type="date" 
+                  className="h-12 bg-muted/30 border-secondary/20 rounded-2xl font-bold" 
+                  value={dateTo}
+                  onChange={(e) => setDateTo(e.target.value)}
+                />
               </div>
               <div className="space-y-3">
                 <Label className="text-[10px] font-black text-secondary flex items-center gap-1.5 ml-1 uppercase tracking-widest">

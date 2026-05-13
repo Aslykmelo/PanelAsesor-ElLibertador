@@ -15,20 +15,21 @@ import {
   SelectTrigger, 
   SelectValue 
 } from '@/components/ui/select';
-import { ADVISORS, MANAGEMENT_TYPES } from '@/constants';
+import { MANAGEMENT_TYPES } from '@/constants';
 import { toast } from 'sonner';
 import { db } from '@/firebase';
 import { collection, addDoc, serverTimestamp, getDocs, query, where, doc, updateDoc } from 'firebase/firestore';
 import { Loader2, Send, Save, User as UserIcon, Phone, FileText, DollarSign, Briefcase, Search } from 'lucide-react';
-import { User } from '../types';
+import { User, Advisor } from '../types';
 import { motion } from 'motion/react';
 
 interface TransferFormProps {
   onSubmit?: (data: any) => void;
   currentUser: User;
+  advisors: Advisor[];
 }
 
-export const TransferForm: React.FC<TransferFormProps> = ({ onSubmit, currentUser }) => {
+export const TransferForm: React.FC<TransferFormProps> = ({ onSubmit, currentUser, advisors }) => {
   const [loading, setLoading] = useState(false);
   const [managementType, setManagementType] = useState<string>('');
   const [toAdvisorEmail, setToAdvisorEmail] = useState('');
@@ -41,15 +42,17 @@ export const TransferForm: React.FC<TransferFormProps> = ({ onSubmit, currentUse
 
   // 🔎 FILTERED ADVISORS
   const filteredAdvisors = useMemo(() => {
-    return ADVISORS.filter(a => 
-      a.nombre.toLowerCase().includes(searchAdvisor.toLowerCase()) ||
-      a.correo.toLowerCase().includes(searchAdvisor.toLowerCase())
+    return advisors.filter(a => 
+      a.active !== false && (
+        (a.name || '').toLowerCase().includes(searchAdvisor.toLowerCase()) ||
+        (a.email || '').toLowerCase().includes(searchAdvisor.toLowerCase())
+      )
     );
-  }, [searchAdvisor]);
+  }, [searchAdvisor, advisors]);
 
   const selectedToAdvisor = useMemo(() => 
-    ADVISORS.find(a => a.correo === toAdvisorEmail),
-  [toAdvisorEmail]);
+    advisors.find(a => (a.email || '').toLowerCase() === toAdvisorEmail.toLowerCase()),
+  [toAdvisorEmail, advisors]);
 
   useEffect(() => {
     if (managementType === 'Mensaje (Transferencia de llamada)') {
@@ -79,9 +82,9 @@ export const TransferForm: React.FC<TransferFormProps> = ({ onSubmit, currentUse
         managementType,
         fromAdvisorName: currentUser.name,
         fromAdvisorEmail: currentUser.email.toLowerCase(),
-        toAdvisorName: selectedToAdvisor.nombre,
-        toAdvisorEmail: selectedToAdvisor.correo.toLowerCase(),
-        supervisorEmail: selectedToAdvisor.correo_supervisor.toLowerCase(),
+        toAdvisorName: selectedToAdvisor.name,
+        toAdvisorEmail: selectedToAdvisor.email.toLowerCase(),
+        supervisorEmail: selectedToAdvisor.supervisorEmail.toLowerCase(),
         supervisorName: selectedToAdvisor.supervisor,
         cartera: selectedToAdvisor.cartera,
         requestNumber,
@@ -254,62 +257,101 @@ export const TransferForm: React.FC<TransferFormProps> = ({ onSubmit, currentUse
               </CardHeader>
               <CardContent className="p-8 space-y-6">
                 <div className="space-y-4">
-                  <Input 
-                    placeholder="🔍 Buscar asesor por nombre o correo..." 
-                    className="h-12 bg-muted/20 border-2 border-dashed border-border rounded-2xl focus-visible:ring-primary"
-                    value={searchAdvisor}
-                    onChange={(e) => setSearchAdvisor(e.target.value)}
-                  />
-                  
-                  <div className="max-h-[220px] overflow-y-auto pr-2 custom-scrollbar space-y-2">
-                    {filteredAdvisors.map(adv => (
-                      <div 
-                        key={adv.correo}
-                        onClick={() => {
-                          setToAdvisorEmail(adv.correo);
-                          setSearchAdvisor('');
-                        }}
-                        className={`p-4 rounded-2xl border-2 cursor-pointer transition-all flex items-center gap-4 ${
-                          toAdvisorEmail === adv.correo 
-                            ? 'bg-primary/5 border-primary shadow-lg shadow-primary/5' 
-                            : 'bg-muted/10 border-transparent hover:border-muted'
-                        }`}
-                      >
-                        <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold ${
-                          toAdvisorEmail === adv.correo ? 'bg-primary text-white' : 'bg-muted text-muted-foreground'
-                        }`}>
-                          {adv.nombre.charAt(0)}
-                        </div>
-                        <div className="overflow-hidden">
-                          <p className="font-bold text-sm text-secondary truncate">{adv.nombre}</p>
-                          <p className="text-[10px] text-muted-foreground truncate">{adv.correo}</p>
-                        </div>
+                  {!selectedToAdvisor ? (
+                    <>
+                      <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">Buscar Asesor *</Label>
+                      <div className="relative group">
+                        <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground group-focus-within:text-primary transition-colors" />
+                        <Input 
+                          placeholder="Nombre o correo del asesor..." 
+                          className="h-12 pl-10 bg-muted/20 border-2 border-dashed border-border rounded-2xl focus-visible:ring-primary font-bold"
+                          value={searchAdvisor}
+                          onChange={(e) => setSearchAdvisor(e.target.value)}
+                        />
                       </div>
-                    ))}
-                    {filteredAdvisors.length === 0 && (
-                      <p className="text-center text-xs text-muted-foreground py-4">No se encontraron asesores.</p>
-                    )}
-                  </div>
-                </div>
+                      
+                      <div className="max-h-[220px] overflow-y-auto pr-2 custom-scrollbar space-y-2">
+                        {filteredAdvisors.map(adv => (
+                          <div 
+                            key={adv.id || adv.email}
+                            onClick={() => {
+                              setToAdvisorEmail(adv.email);
+                              setSearchAdvisor('');
+                            }}
+                            className="p-4 rounded-2xl border-2 border-transparent bg-muted/10 hover:border-primary/30 hover:bg-primary/5 cursor-pointer transition-all flex items-center gap-4"
+                          >
+                            <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center font-bold text-muted-foreground">
+                              {(adv.name || '').charAt(0)}
+                            </div>
+                            <div className="overflow-hidden">
+                              <p className="font-bold text-sm text-secondary truncate uppercase">{adv.name}</p>
+                              <p className="text-[10px] text-muted-foreground truncate">{adv.email}</p>
+                            </div>
+                          </div>
+                        ))}
+                        {filteredAdvisors.length === 0 && (
+                          <p className="text-center text-xs text-muted-foreground py-4">No se encontraron asesores.</p>
+                        )}
+                      </div>
+                    </>
+                  ) : (
+                    <motion.div 
+                      initial={{ opacity: 0, y: 10 }} 
+                      animate={{ opacity: 1, y: 0 }} 
+                      className="space-y-4"
+                    >
+                      <div className="flex items-center justify-between mb-1">
+                        <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">Asesor Seleccionado</Label>
+                        <Button 
+                          type="button" 
+                          variant="secondary" 
+                          size="sm"
+                          onClick={() => {
+                            console.log("Resetting advisor selection");
+                            setToAdvisorEmail('');
+                            setSearchAdvisor('');
+                          }}
+                          className="text-[10px] font-black uppercase tracking-widest bg-secondary/10 hover:bg-secondary/20 text-secondary border-none rounded-xl h-10 px-5 transition-all shadow-sm"
+                        >
+                          Cambiar asesor
+                        </Button>
+                      </div>
+                      
+                      <div className="p-6 bg-primary/5 border-2 border-primary rounded-[2rem] relative overflow-hidden group">
+                        <div className="flex items-center gap-4 mb-6">
+                            <div className="w-14 h-14 rounded-2xl bg-primary text-white flex items-center justify-center text-xl font-black shadow-lg shadow-primary/20 shrink-0">
+                              {(selectedToAdvisor.name || '').charAt(0)}
+                            </div>
+                            <div className="overflow-hidden">
+                              <h4 className="text-xl font-black text-secondary truncate tracking-tight">{selectedToAdvisor.name}</h4>
+                              <p className="text-sm font-bold text-primary/70 truncate">{selectedToAdvisor.email}</p>
+                            </div>
+                        </div>
 
-                {selectedToAdvisor && (
-                  <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="mt-4 p-6 bg-secondary rounded-3xl text-white space-y-4">
-                    <div className="flex items-center gap-4">
-                      <div className="w-12 h-12 rounded-2xl bg-white/10 flex items-center justify-center">
-                        <Briefcase className="w-6 h-6 text-primary" />
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                          <div className="bg-white dark:bg-black/20 p-4 rounded-2xl border border-primary/10 shadow-sm flex items-center gap-3">
+                            <div className="w-8 h-8 rounded-lg bg-orange-500/10 flex items-center justify-center shrink-0">
+                              <Briefcase className="w-4 h-4 text-orange-500" />
+                            </div>
+                            <div className="overflow-hidden">
+                              <p className="text-[9px] font-black text-muted-foreground uppercase mb-0.5">Cartera</p>
+                              <p className="font-bold text-xs text-secondary truncate">{selectedToAdvisor.cartera}</p>
+                            </div>
+                          </div>
+                          <div className="bg-white dark:bg-black/20 p-4 rounded-2xl border border-primary/10 shadow-sm flex items-center gap-3">
+                            <div className="w-8 h-8 rounded-lg bg-blue-500/10 flex items-center justify-center shrink-0">
+                              <UserIcon className="w-4 h-4 text-blue-500" />
+                            </div>
+                            <div className="overflow-hidden">
+                              <p className="text-[9px] font-black text-muted-foreground uppercase mb-0.5">Supervisor</p>
+                              <p className="font-bold text-xs text-secondary truncate">{selectedToAdvisor.supervisor}</p>
+                            </div>
+                          </div>
+                        </div>
                       </div>
-                      <div>
-                        <p className="text-[10px] font-bold text-white/50 uppercase tracking-widest">Cartera Asignada</p>
-                        <p className="font-bold text-lg">{selectedToAdvisor.cartera}</p>
-                      </div>
-                    </div>
-                    <div className="h-px bg-white/10" />
-                    <div>
-                      <p className="text-[10px] font-bold text-white/50 uppercase tracking-widest">Supervisor</p>
-                      <p className="font-bold text-lg">{selectedToAdvisor.supervisor}</p>
-                    </div>
-                  </motion.div>
-                )}
+                    </motion.div>
+                  )}
+                </div>
               </CardContent>
             </Card>
 

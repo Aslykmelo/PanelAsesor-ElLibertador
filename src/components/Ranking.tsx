@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Transfer } from '../types';
+import { Transfer, Advisor } from '../types';
 import { 
   Trophy, 
   DollarSign, 
@@ -23,7 +23,6 @@ import {
   SelectValue 
 } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
-import { ADVISORS } from '@/constants';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
@@ -32,15 +31,25 @@ import autoTable from 'jspdf-autotable';
 
 interface RankingProps {
   transfers: Transfer[];
+  advisors: Advisor[];
 }
 
-export function Ranking({ transfers }: RankingProps) {
+export function Ranking({ transfers, advisors }: RankingProps) {
   const [searchTerm, setSearchTerm] = useState('');
   const [supervisorFilter, setSupervisorFilter] = useState('todos');
   const [carteraFilter, setCarteraFilter] = useState('todos');
 
-  const supervisors = useMemo(() => Array.from(new Set(ADVISORS.map(a => a.supervisor))), []);
-  const carteras = useMemo(() => Array.from(new Set(ADVISORS.map(a => a.cartera))), []);
+  const supervisors = useMemo(() => {
+    const fromAdvisors = new Set(advisors.map(a => a.supervisor).filter(Boolean));
+    const fromTransfers = new Set(transfers.map(t => t.supervisorName).filter(Boolean));
+    return Array.from(new Set([...Array.from(fromAdvisors), ...Array.from(fromTransfers)]));
+  }, [advisors, transfers]);
+
+  const carteras = useMemo(() => {
+    const fromAdvisors = new Set(advisors.map(a => a.cartera).filter(Boolean));
+    const fromTransfers = new Set(transfers.map(t => t.cartera).filter(Boolean));
+    return Array.from(new Set([...Array.from(fromAdvisors), ...Array.from(fromTransfers)]));
+  }, [advisors, transfers]);
 
   const filteredTransfers = useMemo(() => {
     return transfers.filter(t => {
@@ -50,17 +59,19 @@ export function Ranking({ transfers }: RankingProps) {
         t.toAdvisorName.toLowerCase().includes(searchTerm.toLowerCase()) ||
         t.toAdvisorEmail.toLowerCase().includes(searchTerm.toLowerCase());
       
+      const advisorData = advisors.find(a => a.email.toLowerCase() === t.fromAdvisorEmail.toLowerCase());
+      
       const matchesSupervisor = supervisorFilter === 'todos' || 
         t.supervisorName === supervisorFilter || 
-        ADVISORS.find(a => a.correo === t.fromAdvisorEmail)?.supervisor === supervisorFilter;
+        advisorData?.supervisor === supervisorFilter;
       
       const matchesCartera = carteraFilter === 'todos' || 
         t.cartera === carteraFilter || 
-        ADVISORS.find(a => a.correo === t.fromAdvisorEmail)?.cartera === carteraFilter;
+        advisorData?.cartera === carteraFilter;
 
       return matchesSearch && matchesSupervisor && matchesCartera;
     });
-  }, [transfers, searchTerm, supervisorFilter, carteraFilter]);
+  }, [transfers, searchTerm, supervisorFilter, carteraFilter, advisors]);
 
   const rankingData = useMemo(() => {
     const counts: Record<string, { 

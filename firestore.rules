@@ -2,30 +2,29 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     
-    // --- SEGURIDAD POR DEFECTO: DENEGAR TODO ---
+    // --- 0. SEGURIDAD POR DEFECTO: DENEGAR TODO ---
     match /{document=**} {
       allow read, write: if false;
     }
 
     // --- FUNCIONES GLOBALES DE AYUDA ---
     function isSignedIn() {
-      return request.auth != null;
+      return request.auth != null && request.auth.uid != null;
     }
 
     function getEmail() {
-      return isSignedIn() && "email" in request.auth.token ? request.auth.token.email.lower() : "";
+      // Uso directo de request.auth.token.email si está disponible
+      return isSignedIn() ? request.auth.token.get('email', '').lower() : "";
     }
 
     function isValidId(id) {
       return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
     }
 
-    // Identidades fijas por seguridad máxima
     function isSuperAdmin() {
-      let email = getEmail();
-      return email == "taliana.moreno@segurosbolivar.com" || 
-             email == "helen.pantoja@segurosbolivar.com" ||
-             (isSignedIn() && request.auth.uid == "tdev4fgZqwRxFNb9ujNsZHld5ZB3");
+      return getEmail() == "taliana.moreno@segurosbolivar.com" || 
+             getEmail() == "helen.pantoja@segurosbolivar.com" ||
+             request.auth.uid == "tdev4fgZqwRxFNb9ujNsZHld5ZB3";
     }
 
     function isAdmin() {
@@ -37,49 +36,62 @@ service cloud.firestore {
     }
 
     function isSupervisor() {
-      const userEmail = getEmail();
       return isSignedIn() && (
-        userEmail == "sergio.llanos@segurosbolivar.com" ||
+        getEmail() == "sergio.llanos@segurosbolivar.com" ||
         (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('role', 'asesor') == "supervisor")
       );
     }
 
-    // Lógica de propiedad para gestiones
-    function isOwner(data) {
-      return isSignedIn() && getEmail() != "" && (
-        (data.get('fromAdvisorEmail', '') is string && data.get('fromAdvisorEmail', '').lower() == getEmail()) || 
-        (data.get('toAdvisorEmail', '') is string && data.get('toAdvisorEmail', '').lower() == getEmail())
-      );
-    }
-
     // --- REGLAS POR COLECCIÓN ---
 
+    // 1. Usuarios (Directorio y Perfiles)
     match /users/{userId} {
-      // Un usuario siempre puede leer perfiles (directorio). Solo admins y el dueño pueden escribir.
-      allow read: if isSignedIn() && (
-        request.auth.uid == userId || 
-        isSuperAdmin() ||
-        isAdmin() ||
-        isSupervisor()
-      );
+      // Permitir leer perfil propio o si es admin/super/supervisor
+      allow get: if isSignedIn() && (request.auth.uid == userId || isAdmin() || isSupervisor());
+      // Permitir listar (directorio) a cualquier usuario autenticado del dominio
+      allow list: if isSignedIn();
       
       allow create: if isSignedIn() && request.auth.uid == userId;
+      
       allow update: if isSignedIn() && (
         (request.auth.uid == userId && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['role', 'email'])) ||
-        isSuperAdmin() ||
-        isAdmin()
+        isAdmin() ||
+        isSuperAdmin()
       );
     }
 
+    // 2. Logs de Acceso
     match /login_logs/{logId} {
       allow create: if isSignedIn();
-      allow read: if isAdmin();
+      allow read: if isAdmin() || isSuperAdmin();
+    }
+
+    // 3. Asesores (Directorio de Receptores)
+    // Cobertura total para queries de colección y lectura individual
+    match /asesores/{advisorId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin() || isSuperAdmin();
+    }
+    
+    // Alias por si acaso se usa advisors en el backend/blueprint
+    match /advisors/{advisorId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin() || isSuperAdmin();
+    }
+
+    // 4. Gestiones (Registros de transferencias)
+    function isOwner(data) {
+      return isSignedIn() && getEmail() != "" && (
+        (data.get('fromAdvisorEmail', '').lower() == getEmail()) || 
+        (data.get('toAdvisorEmail', '').lower() == getEmail())
+      );
     }
 
     match /registros/{registroId} {
-      // Validación de ID
-      allow get: if isSignedIn() && isValidId(registroId) && (isAdmin() || isSupervisor() || isOwner(resource.data));
+      // Lectura individual (get) y listado (list)
+      // Para list, Firestore verificará que la query solo pida lo que el usuario puede ver
+      allow get: if isSignedIn() && (isAdmin() || isSupervisor() || isOwner(resource.data));
       allow list: if isSignedIn() && (isAdmin() || isSupervisor() || isOwner(resource.data));
       
       allow create: if isSignedIn() && (
@@ -94,12 +106,7 @@ service cloud.firestore {
         (isOwner(resource.data) && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['fromAdvisorEmail', 'createdAt']))
       );
       
-      allow delete: if isAdmin();
-    }
-
-    match /advisors/{advisorId} {
-      allow read: if isSignedIn();
-      allow write: if isAdmin();
+      allow delete: if isAdmin() || isSuperAdmin();
     }
   }
 }

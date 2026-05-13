@@ -8,12 +8,13 @@ import { TransferList } from './components/TransferList';
 import { Ranking } from './components/Ranking';
 import { Profile } from './components/Profile';
 import { UserManagement } from './components/UserManagement';
+import { AdvisorManagement } from './components/AdvisorManagement';
 import { Notifications, Notification } from './components/Notifications';
 import { UserMenu } from './components/UserMenu';
 import { Login } from './components/Login';
 import { ThemeToggle } from './components/ThemeToggle';
 import { Toaster } from '@/components/ui/sonner';
-import { Transfer, User } from './types';
+import { Transfer, User, Advisor } from './types';
 import { Search, Menu, X, Loader2, User as UserIcon, Shield } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -30,6 +31,7 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('dashboard');
   const [transfers, setTransfers] = useState<Transfer[]>([]);
+  const [advisors, setAdvisors] = useState<Advisor[]>([]);
   const [syncError, setSyncError] = useState<string | null>(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(() => {
     if (typeof window !== 'undefined') {
@@ -140,6 +142,34 @@ export default function App() {
   }, []);
 
   // 🔥 FIRESTORE DATA SYNC
+  useEffect(() => {
+    if (!currentUser) {
+      setAdvisors([]);
+      return;
+    }
+
+    const q = query(collection(db, 'asesores'), orderBy('name', 'asc'));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const data = snapshot.docs.map(doc => ({
+        ...doc.data(),
+        id: doc.id
+      })) as Advisor[];
+      setAdvisors(data);
+    }, (error) => {
+      console.error("Advisors global sync error details:", {
+        code: error.code,
+        message: error.message,
+        uid: auth.currentUser?.uid,
+        email: auth.currentUser?.email
+      });
+      if (error.code === 'permission-denied') {
+        toast.error('Error de permisos al cargar asesores. Si eres administrador, contacta a soporte técnico.');
+      }
+    });
+
+    return () => unsubscribe();
+  }, [currentUser]);
+
   useEffect(() => {
     if (!currentUser) return;
 
@@ -310,10 +340,10 @@ export default function App() {
       case 'dashboard':
         return isAsesor 
           ? <DashboardAdviser transfers={filteredData} user={currentUser!} onNewTransfer={() => setActiveTab('new-transfer')} />
-          : <DashboardAdmin transfers={filteredData} user={currentUser!} />;
+          : <DashboardAdmin transfers={filteredData} user={currentUser!} advisors={advisors} />;
       
       case 'new-transfer':
-        return <TransferForm onSubmit={handleNewTransfer} currentUser={currentUser!} />;
+        return <TransferForm onSubmit={handleNewTransfer} currentUser={currentUser!} advisors={advisors} />;
 
       case 'my-tasks':
         return (
@@ -327,6 +357,7 @@ export default function App() {
             onStatusChange={handleStatusChange}
             onDelete={handleDelete}
             userRole={effectiveRole}
+            advisors={advisors}
           />
         );
 
@@ -337,6 +368,7 @@ export default function App() {
             onStatusChange={handleStatusChange}
             onDelete={handleDelete}
             userRole={effectiveRole}
+            advisors={advisors}
           />
         );
 
@@ -345,7 +377,7 @@ export default function App() {
           setActiveTab('dashboard');
           return null;
         }
-        return <Ranking transfers={filteredData} />;
+        return <Ranking transfers={filteredData} advisors={advisors} />;
 
       case 'profile':
         return <Profile user={currentUser!} transfers={filteredData.filter(t => t.fromAdvisorEmail === currentUser!.email)} />;
@@ -353,8 +385,11 @@ export default function App() {
       case 'user-management':
         return effectiveRole === 'admin' ? <UserManagement /> : null;
 
+      case 'advisor-management':
+        return effectiveRole === 'admin' || effectiveRole === 'supervisor' ? <AdvisorManagement /> : null;
+
       default:
-        return <DashboardAdmin transfers={filteredData} user={currentUser!} />;
+        return <DashboardAdmin transfers={filteredData} user={currentUser!} advisors={advisors} />;
     }
   };
 

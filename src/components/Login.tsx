@@ -9,8 +9,13 @@ import { toast } from 'sonner';
 export const Login: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [logoError, setLogoError] = useState(false);
+  const [mounted, setMounted] = useState(false);
   const { resolvedTheme } = useTheme();
   
+  React.useEffect(() => {
+    setMounted(true);
+  }, []);
+
   const isDark = resolvedTheme === 'dark';
 
   const handleLogin = async () => {
@@ -24,6 +29,10 @@ export const Login: React.FC = () => {
       setLoading(false);
     }
   };
+
+  if (!mounted) {
+    return <div className="min-h-screen bg-background" />;
+  }
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-background relative overflow-hidden transition-colors duration-500">
