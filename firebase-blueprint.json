@@ -75,7 +75,21 @@
         "photoURL": { "type": "string" },
         "createdAt": { "type": "string", "format": "date-time" },
         "lastLoginAt": { "type": "string", "format": "date-time" },
-        "status": { "type": "string", "enum": ["online", "offline"] }
+        "status": { "type": "string", "enum": ["online", "offline"] },
+        "notifications": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": { "type": "string" },
+              "title": { "type": "string" },
+              "description": { "type": "string" },
+              "time": { "type": "string" },
+              "type": { "type": "string" },
+              "read": { "type": "boolean" }
+            }
+          }
+        }
       },
       "required": ["uid", "name", "email", "role"]
     },

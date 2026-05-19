@@ -40,9 +40,20 @@ export const TransferForm: React.FC<TransferFormProps> = ({ onSubmit, currentUse
   const [observations, setObservations] = useState('');
   const [searchAdvisor, setSearchAdvisor] = useState('');
 
-  // 🔎 FILTERED ADVISORS
+  // 🔎 FILTERED & UNIQUE ADVISORS
   const filteredAdvisors = useMemo(() => {
-    return advisors.filter(a => 
+    // 1. Deduplicate by email
+    const uniqueAdvisors = advisors.reduce((acc: Advisor[], current) => {
+      const x = acc.find(item => item.email?.toLowerCase() === current.email?.toLowerCase());
+      if (!x) {
+        return acc.concat([current]);
+      } else {
+        return acc;
+      }
+    }, []);
+
+    // 2. Filter by active and search
+    return uniqueAdvisors.filter(a => 
       a.active !== false && (
         (a.name || '').toLowerCase().includes(searchAdvisor.toLowerCase()) ||
         (a.email || '').toLowerCase().includes(searchAdvisor.toLowerCase())
@@ -95,14 +106,16 @@ export const TransferForm: React.FC<TransferFormProps> = ({ onSubmit, currentUse
         status: 'pendiente',
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
-        createdBy: currentUser.email.toLowerCase()
+        createdBy: currentUser.email.toLowerCase(),
+        createdByName: currentUser.name,
+        createdByEmail: currentUser.email.toLowerCase()
       };
 
       const docRef = await addDoc(collection(db, 'registros'), docData);
       
       // Intentar enviar el correo mediante la API del servidor
       try {
-        const mailRes = await fetch('/api/send-email', {
+        const mailRes = await fetch(`${window.location.origin}/api/send-email`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(docData)
@@ -119,12 +132,23 @@ export const TransferForm: React.FC<TransferFormProps> = ({ onSubmit, currentUse
             notifiedAt: serverTimestamp()
           });
         } else {
+          let errorData;
+          try {
+            errorData = await mailRes.json();
+          } catch (e) {
+            errorData = { error: 'Error desconocido' };
+          }
+          
+          console.error("Servidor respondió con error:", errorData);
           toast.warning('Registro guardado, pero falló el correo', {
-            description: 'Verifica la configuración de Mail en tu Perfil.'
+            description: errorData.error || 'Verifica la configuración del servidor.'
           });
         }
-      } catch (e) {
+      } catch (e: any) {
         console.error("Error al disparar el envío de correo:", e);
+        toast.error('Error de conexión', {
+          description: 'No se pudo contactar con el servidor de correos. Intenta nuevamente.'
+        });
       }
       
       toast.success(type === 'mensaje' 

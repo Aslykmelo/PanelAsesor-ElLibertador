@@ -57,13 +57,15 @@ export function UserManagement() {
       const data = snapshot.docs.map(doc => ({
         ...doc.data(),
         id: doc.id,
+        name: doc.data().name || 'Usuario',
+        email: doc.data().email || '---',
         timestamp: doc.data().timestamp?.toDate?.() || new Date()
       }));
       setLogs(data);
-      setPermissionError(false);
     }, (error) => {
-      console.error("Logs sync error:", error);
+      console.warn("Logs sync error - likely restricted access:", error.message);
       if (error.code === 'permission-denied') {
+        // Silenciamos el error visual si no es crítico o si ya manejamos permissionError
         setPermissionError(true);
       }
     });

@@ -2,5 +2,7 @@
   "name": "Transferencia de llamadas El Libertador",
   "description": "Plataforma de gestión de transferencias y links de pago para asesores de Seguros Bolívar S.A.",
   "requestFramePermissions": [],
-  "majorCapabilities": []
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
 }

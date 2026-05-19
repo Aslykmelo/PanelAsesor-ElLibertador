@@ -91,7 +91,16 @@ export function AdvisorManagement() {
   }, []);
 
   const filteredAdvisors = useMemo(() => {
-    return advisors.filter(adv => 
+    // Deduplicar primero por email
+    const uniqueByEmail = advisors.reduce((acc: Advisor[], current) => {
+      const email = (current.email || '').toLowerCase();
+      if (!acc.find(item => (item.email || '').toLowerCase() === email)) {
+        acc.push(current);
+      }
+      return acc;
+    }, []);
+
+    return uniqueByEmail.filter(adv => 
       (adv.name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
       (adv.email || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
       (adv.cartera || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -191,43 +200,6 @@ export function AdvisorManagement() {
     }
   };
 
-  const seedAdvisors = async () => {
-    // Esta función es para migrar los datos de constants.ts a Firestore
-    const { ADVISORS } = await import('@/constants');
-    if (ADVISORS.length === 0) return;
-    
-    setSubmitting(true);
-    toast.loading("Migrando asesores...");
-    try {
-      const { handleFirestoreError } = await import('@/firebase');
-      for (const adv of ADVISORS) {
-        try {
-          await addDoc(collection(db, 'asesores'), {
-            name: adv.nombre,
-            email: adv.correo.toLowerCase(),
-            supervisor: adv.supervisor,
-            supervisorEmail: adv.correo_supervisor.toLowerCase(),
-            cartera: adv.cartera,
-            role: 'advisor',
-            active: true,
-            createdAt: serverTimestamp()
-          });
-        } catch (innerErr) {
-          handleFirestoreError(innerErr, 'create' as any, 'asesores');
-          throw innerErr; // Re-lanzar para que lo atrape el catch externo
-        }
-      }
-      toast.dismiss();
-      toast.success("Migración completada exitosamente");
-    } catch (error) {
-      console.error("Seeding error:", error);
-      toast.dismiss();
-      toast.error("Error durante la migración");
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
   return (
     <div className="space-y-8 animate-in fade-in zoom-in-95 duration-500 pb-20">
       
@@ -239,26 +211,6 @@ export function AdvisorManagement() {
         </div>
         
         <div className="flex items-center gap-3">
-          <Button 
-            variant="outline" 
-            onClick={seedAdvisors}
-            disabled={submitting}
-            className="rounded-2xl border-2 border-primary/20 text-primary font-black uppercase text-[10px] tracking-widest h-12 px-6 hover:bg-primary/5 transition-all"
-          >
-            <Database className="w-4 h-4 mr-2" />
-            Migrar Permanentes
-          </Button>
-          {advisors.length === 0 && !loading && (
-            <Button 
-              variant="outline" 
-              onClick={seedAdvisors}
-              disabled={submitting}
-              className="rounded-2xl h-12 border-dashed border-2 px-6 font-bold"
-            >
-              Sembrar desde Memoria
-            </Button>
-          )}
-
           <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
             <DialogTrigger render={
               <Button className="rounded-2xl h-12 px-8 font-black shadow-xl shadow-primary/20 gap-2">

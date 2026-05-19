@@ -22,7 +22,8 @@ import { toast } from 'sonner';
 
 import { auth, db, signOut } from './firebase';
 import { onAuthStateChanged } from 'firebase/auth';
-import { collection, query, orderBy, onSnapshot, updateDoc, doc, Timestamp, deleteDoc, where, or } from 'firebase/firestore';
+import { collection, query, orderBy, onSnapshot, updateDoc, doc, Timestamp, deleteDoc, where, or, addDoc, serverTimestamp } from 'firebase/firestore';
+import { useAutoSyncAdvisors } from './hooks/useAutoSyncAdvisors';
 
 export default function App() {
   const { resolvedTheme } = useTheme();
@@ -30,6 +31,9 @@ export default function App() {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('dashboard');
+  
+  // 🔥 AUTOMATIC DATA SYNC
+  useAutoSyncAdvisors(currentUser);
   const [transfers, setTransfers] = useState<Transfer[]>([]);
   const [advisors, setAdvisors] = useState<Advisor[]>([]);
   const [syncError, setSyncError] = useState<string | null>(null);
@@ -40,16 +44,17 @@ export default function App() {
     return true;
   });
   const [globalSearch, setGlobalSearch] = useState('');
-  const [notifications, setNotifications] = useState<Notification[]>([
-    {
-      id: '1',
-      title: 'Bienvenido a El Libertador',
-      description: 'Panel de gestión unificado activo.',
-      time: 'Ahora',
-      type: 'info',
-      read: false
+  const [notifications, setNotifications] = useState<Notification[]>([]);
+
+  // 🔥 NOTIFICATIONS SYNC
+  useEffect(() => {
+    if (!currentUser || !currentUser.notifications) {
+      if (notifications.length > 0 && !currentUser) setNotifications([]);
+      return;
     }
-  ]);
+    
+    setNotifications(currentUser.notifications);
+  }, [currentUser]);
 
   const effectiveRole = useMemo(() => {
     if (!currentUser) return 'asesor';
@@ -264,18 +269,36 @@ export default function App() {
     }
   };
 
-  const handleNewTransfer = (data: any) => {
+  const handleNewTransfer = async (data: any) => {
+    if (!currentUser) return;
+
+    const isLink = !data.managementType.includes('Mensaje');
+    
     const newNotif: Notification = {
-      id: Math.random().toString(36),
-      title: data.managementType.includes('Mensaje') ? 'Nueva Transferencia' : 'Nuevo Link',
-      description: `${data.toAdvisorName} registrado`,
-      time: 'Recién',
-      type: 'success',
-      read: false
+      id: Math.random().toString(36).substring(7),
+      title: isLink ? '🎁 Link de Pago' : '📞 Transferencia',
+      description: isLink 
+        ? `Has generado un link de pago exitosamente para la solicitud ${data.requestNumber}.` 
+        : `Has realizado una transferencia de llamada para la solicitud ${data.requestNumber}.`,
+      type: 'success' as const,
+      read: false,
+      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
     };
 
-    setNotifications([newNotif, ...notifications]);
-    setActiveTab('history');
+    try {
+      const userRef = doc(db, 'users', currentUser.uid);
+      const updatedNotifications = [newNotif, ...(currentUser.notifications || [])].slice(0, 50); // Limit to 50
+      
+      await updateDoc(userRef, {
+        notifications: updatedNotifications
+      });
+      setActiveTab('history');
+    } catch (error) {
+      console.error("Error saving notification to user document:", error);
+      // Fallback local if server fails
+      setNotifications(prev => [newNotif, ...prev]);
+      setActiveTab('history');
+    }
   };
 
   const handleStatusChange = async (id: string, status: any) => {
@@ -301,8 +324,23 @@ export default function App() {
     }
   };
 
-  const markNotificationAsRead = (id: string) => {
-    setNotifications(notifications.map(n => n.id === id ? { ...n, read: true } : n));
+  const markNotificationAsRead = async (id: string) => {
+    if (!currentUser) return;
+    
+    try {
+      const userRef = doc(db, 'users', currentUser.uid);
+      const updatedNotifications = (currentUser.notifications || []).map(n => 
+        n.id === id ? { ...n, read: true } : n
+      );
+
+      await updateDoc(userRef, {
+        notifications: updatedNotifications
+      });
+    } catch (error) {
+      console.error("Error marking notification as read in user document:", error);
+      // Fallback local
+      setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
+    }
   };
   
   // 🔎 GLOBAL SEARCH FILTER

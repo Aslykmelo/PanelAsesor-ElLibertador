@@ -84,21 +84,24 @@ export function Ranking({ transfers, advisors }: RankingProps) {
     }> = {};
 
     filteredTransfers.forEach(t => {
-      // Sender stats
-      if (!counts[t.fromAdvisorEmail]) {
-        counts[t.fromAdvisorEmail] = { count: 0, name: t.fromAdvisorName, email: t.fromAdvisorEmail, totalValue: 0, receiveCount: 0, linksCount: 0 };
-      }
-      counts[t.fromAdvisorEmail].count++;
-      counts[t.fromAdvisorEmail].totalValue += (t.paymentLinkValue || 0);
-      if (t.type === 'regalo') {
-        counts[t.fromAdvisorEmail].linksCount++;
-      }
+      // 1. REGISTRAR STATS (QUIEN REALIZA LA ACCIÓN)
+      const creatorEmail = t.createdByEmail || t.fromAdvisorEmail;
+      const creatorName = t.createdByName || t.fromAdvisorName;
 
-      // Receiver stats
+      if (!counts[creatorEmail]) {
+        counts[creatorEmail] = { count: 0, name: creatorName, email: creatorEmail, totalValue: 0, receiveCount: 0, linksCount: 0 };
+      }
+      counts[creatorEmail].count++;
+
+      // 2. RESPONSIBLE STATS (A QUIEN PERTENECE EL CASO)
       if (!counts[t.toAdvisorEmail]) {
         counts[t.toAdvisorEmail] = { count: 0, name: t.toAdvisorName, email: t.toAdvisorEmail, totalValue: 0, receiveCount: 0, linksCount: 0 };
       }
       counts[t.toAdvisorEmail].receiveCount++;
+      counts[t.toAdvisorEmail].totalValue += (t.paymentLinkValue || 0);
+      if (t.type === 'regalo') {
+        counts[t.toAdvisorEmail].linksCount++;
+      }
     });
 
     return Object.values(counts);

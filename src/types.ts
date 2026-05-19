@@ -31,6 +31,9 @@ export interface Transfer {
   
   createdAt: any;
   updatedAt: any;
+  createdBy?: string;
+  createdByName?: string;
+  createdByEmail?: string;
 }
 
 export interface User {
@@ -45,6 +48,7 @@ export interface User {
   createdAt: any;
   lastLoginAt?: any;
   status?: 'online' | 'offline';
+  notifications?: Notification[];
 }
 
 export interface Advisor {

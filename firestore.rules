@@ -13,17 +13,13 @@ service cloud.firestore {
     }
 
     function getEmail() {
-      // Uso directo de request.auth.token.email si está disponible
       return isSignedIn() ? request.auth.token.get('email', '').lower() : "";
     }
 
-    function isValidId(id) {
-      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
-    }
-
     function isSuperAdmin() {
-      return getEmail() == "taliana.moreno@segurosbolivar.com" || 
-             getEmail() == "helen.pantoja@segurosbolivar.com" ||
+      let email = getEmail();
+      return email == "taliana.moreno@segurosbolivar.com" || 
+             email == "helen.pantoja@segurosbolivar.com" ||
              request.auth.uid == "tdev4fgZqwRxFNb9ujNsZHld5ZB3";
     }
 
@@ -36,8 +32,9 @@ service cloud.firestore {
     }
 
     function isSupervisor() {
+      let email = getEmail();
       return isSignedIn() && (
-        getEmail() == "sergio.llanos@segurosbolivar.com" ||
+        email == "sergio.llanos@segurosbolivar.com" ||
         (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('role', 'asesor') == "supervisor")
       );
@@ -47,9 +44,7 @@ service cloud.firestore {
 
     // 1. Usuarios (Directorio y Perfiles)
     match /users/{userId} {
-      // Permitir leer perfil propio o si es admin/super/supervisor
       allow get: if isSignedIn() && (request.auth.uid == userId || isAdmin() || isSupervisor());
-      // Permitir listar (directorio) a cualquier usuario autenticado del dominio
       allow list: if isSignedIn();
       
       allow create: if isSignedIn() && request.auth.uid == userId;
@@ -64,17 +59,15 @@ service cloud.firestore {
     // 2. Logs de Acceso
     match /login_logs/{logId} {
       allow create: if isSignedIn();
-      allow read: if isAdmin() || isSuperAdmin();
+      allow read: if isAdmin() || isSuperAdmin() || isSupervisor();
     }
 
     // 3. Asesores (Directorio de Receptores)
-    // Cobertura total para queries de colección y lectura individual
     match /asesores/{advisorId} {
       allow read: if isSignedIn();
       allow write: if isAdmin() || isSuperAdmin();
     }
     
-    // Alias por si acaso se usa advisors en el backend/blueprint
     match /advisors/{advisorId} {
       allow read: if isSignedIn();
       allow write: if isAdmin() || isSuperAdmin();
@@ -82,20 +75,19 @@ service cloud.firestore {
 
     // 4. Gestiones (Registros de transferencias)
     function isOwner(data) {
+      // Importante: No usar .lower() sobre data.field para permitir queries de listado
       return isSignedIn() && getEmail() != "" && (
-        (data.get('fromAdvisorEmail', '').lower() == getEmail()) || 
-        (data.get('toAdvisorEmail', '').lower() == getEmail())
+        (data.get('fromAdvisorEmail', '') == getEmail()) || 
+        (data.get('toAdvisorEmail', '') == getEmail()) ||
+        (data.get('createdBy', '') == getEmail())
       );
     }
 
     match /registros/{registroId} {
-      // Lectura individual (get) y listado (list)
-      // Para list, Firestore verificará que la query solo pida lo que el usuario puede ver
-      allow get: if isSignedIn() && (isAdmin() || isSupervisor() || isOwner(resource.data));
-      allow list: if isSignedIn() && (isAdmin() || isSupervisor() || isOwner(resource.data));
+      allow read: if isSignedIn() && (isAdmin() || isSupervisor() || isOwner(resource.data));
       
       allow create: if isSignedIn() && (
-        request.resource.data.get('fromAdvisorEmail', '').lower() == getEmail() || 
+        request.resource.data.get('fromAdvisorEmail', '') == getEmail() || 
         isAdmin() || 
         isSupervisor()
       );

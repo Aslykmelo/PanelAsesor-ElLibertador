@@ -136,11 +136,12 @@ export function DashboardAdmin({ transfers, user, advisors }: DashboardAdminProp
     const map = new Map();
     filteredTransfers.forEach(t => {
       if (t.type === 'regalo') {
-        const name = (t.fromAdvisorName || 'Desconocido').toUpperCase();
-        const current = map.get(name) || { name, value: 0, count: 0 };
+        const name = (t.toAdvisorName || 'Desconocido').toUpperCase();
+        const email = t.toAdvisorEmail.toLowerCase();
+        const current = map.get(email) || { name, value: 0, count: 0 };
         current.value += t.paymentLinkValue || 0;
         current.count++;
-        map.set(name, current);
+        map.set(email, current);
       }
     });
     return Array.from(map.values())
