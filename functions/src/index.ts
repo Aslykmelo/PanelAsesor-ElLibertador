@@ -94,12 +94,12 @@ export const onRegistroCreated = onDocumentCreated("registros/{registroId}", asy
       const mailOptions = {
         from: '"El Libertador" <noreply@segurosbolivar.com>',
         to: [supervisorEmail, data.fromAdvisorEmail],
-        subject: "💹 Nuevo link de pago generado",
+        subject: "Link de Pago Generado",
         html: `
           <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color: #f8fafc; padding: 20px;">
             <tr>
               <td align="center">
-                <table width="600" cellpadding="0" cellspacing="0" border="0" style="background-color: #ffffff; border-radius: 20px; overflow: hidden; border: 1px solid #e1e1e1; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;">
+                <table width="600" cellpadding="0" cellspacing="0" border="0" style="background-color: #ffffff; border-radius: 20px; overflow: hidden; border: 1px solid #e2e8f0; font-family: 'Segoe UI', Arial, sans-serif;">
                   <!-- Header -->
                   <tr>
                     <td bgcolor="#153157" style="padding: 30px; text-align: center; color: #ffffff;">
@@ -114,8 +114,8 @@ export const onRegistroCreated = onDocumentCreated("registros/{registroId}", asy
                         Se informa que el asesor <b>${fromAdvisorName}</b> ha generado un link de pago exitoso:
                       </p>
                       
-                      <div style="background-color: #f8f9fa; border-radius: 12px; padding: 25px; margin-bottom: 30px; border: 1px solid #e1e1e1;">
-                        <h2 style="margin: 0 0 20px 0; font-size: 14px; text-transform: uppercase; color: #153157; letter-spacing: 1px; text-align: center; border-bottom: 1px solid #e1e1e1; padding-bottom: 10px;">Información de la Gestión</h2>
+                      <div style="background-color: #f8fafc; border-radius: 12px; padding: 25px; margin-bottom: 30px; border: 1px solid #e2e8f0;">
+                        <h2 style="margin: 0 0 20px 0; font-size: 14px; text-transform: uppercase; color: #153157; letter-spacing: 1px; text-align: center; border-bottom: 1px solid #e2e8f0; padding-bottom: 10px;">Información de la Gestión</h2>
                         
                         <table width="100%" cellpadding="0" cellspacing="0" border="0">
                           <tr>
@@ -148,10 +148,10 @@ export const onRegistroCreated = onDocumentCreated("registros/{registroId}", asy
                           </tr>
                           <tr>
                             <td style="padding: 20px 0 0 0; font-size: 18px; color: #153157;"><b>💰 Valor del Link:</b></td>
-                            <td style="padding: 20px 0 0 0; font-size: 24px; color: #153157; text-align: right; font-weight: bold;">$${paymentLinkValue.toLocaleString()}</td>
+                            <td style="padding: 20px 0 0 0; font-size: 24px; color: #153157; text-align: right; font-weight: bold;">$${Number(paymentLinkValue).toLocaleString()}</td>
                           </tr>
                         </table>
-                        ${observations ? `<div style="margin-top: 15px; font-style: italic; color: #64748b; font-size: 14px; text-align: center; border-top: 1px dashed #e1e1e1; padding-top: 10px;"><b>Obs:</b> ${observations}</div>` : ''}
+                        ${observations ? `<div style="margin-top: 15px; font-style: italic; color: #64748b; font-size: 14px; text-align: center; border-top: 1px dashed #cbd5e1; padding-top: 10px;"><b>Obs:</b> ${observations}</div>` : ''}
                       </div>
 
                       <div style="background-color: #e0e7ff; color: #153157; padding: 15px; border-radius: 12px; text-align: center; font-weight: bold; font-size: 14px; border: 1px solid #c7d2fe;">
@@ -161,8 +161,8 @@ export const onRegistroCreated = onDocumentCreated("registros/{registroId}", asy
                   </tr>
                   <!-- Footer -->
                   <tr>
-                    <td style="background-color: #f1f1f1; padding: 20px; text-align: center; font-size: 12px; color: #999;">
-                      Este es un mensaje automático de El Libertador. Por favor no responder.
+                    <td style="background-color: #f1f5f9; padding: 20px; text-align: center; font-size: 12px; color: #64748b; border-bottom-left-radius: 20px; border-bottom-right-radius: 20px;">
+                      Este es un mensaje automático, por favor no responder.
                     </td>
                   </tr>
                 </table>

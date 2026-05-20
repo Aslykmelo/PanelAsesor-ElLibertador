@@ -43,6 +43,8 @@ async function startServer() {
       observations
     } = req.body;
 
+    const phone = req.body.contactPhones || req.body.phone || 'No registrado';
+
     if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
       return res.status(500).json({ error: "Credenciales de correo no configuradas en el servidor" });
     }
@@ -77,13 +79,13 @@ async function startServer() {
               </div>
               <div style="padding: 40px; color: ${colors.blue};">
                 <p style="font-size: 16px;">Hola <b>${toAdvisorName}</b>,</p>
-                <p style="font-size: 16px; line-height: 1.6;">Has recibido una <b>transferencia de llamada</b> de parte de <b>${fromAdvisorName}</b>. Es necesario realizar la gestión lo antes posible.</p>
+                <p style="font-size: 16px; line-height: 1.6; margin-bottom: 25px;">Has recibido una <b>transferencia de llamada</b> de parte de <b>${fromAdvisorName}</b>. Es necesario realizar la gestión lo antes posible.</p>
                 
                 <div style="background: ${colors.bg}; border-left: 5px solid ${colors.red}; padding: 25px; margin: 30px 0; border-radius: 8px;">
                   <h3 style="margin: 0 0 15px 0; font-size: 14px; text-transform: uppercase; color: ${colors.red};">Detalles de la Gestión</h3>
                   <p style="margin: 8px 0; font-size: 15px;"><b>Cliente:</b> ${customerName}</p>
                   <p style="margin: 8px 0; font-size: 15px;"><b>Solicitud:</b> ${requestNumber}</p>
-                  <p style="margin: 8px 0; font-size: 15px;"><b>Teléfono:</b> ${req.body.contactPhones || req.body.phone || 'No registrado'}</p>
+                  <p style="margin: 8px 0; font-size: 15px;"><b>Teléfono:</b> ${phone}</p>
                   <p style="margin: 8px 0; font-size: 15px;"><b>Fecha:</b> ${formattedDate}</p>
                   <p style="margin: 8px 0; font-size: 15px;"><b>Tipo:</b> ${managementType}</p>
                 </div>
@@ -101,7 +103,7 @@ async function startServer() {
         mailOptions = {
           from: `"El Libertador" <${process.env.EMAIL_USER}>`,
           to: [supervisorEmail, fromAdvisorEmail],
-          subject: "💹 Nuevo link de pago generado",
+          subject: "Link de Pago Generado",
           html: `
             <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color: #f8fafc; padding: 20px;">
               <tr>
@@ -143,7 +145,7 @@ async function startServer() {
                             </tr>
                             <tr>
                               <td style="padding: 10px 0; font-size: 15px; border-bottom: 1px solid #f1f5f9; color: #64748b;">📞 Teléfono:</td>
-                              <td style="padding: 10px 0; font-size: 15px; border-bottom: 1px solid #f1f5f9; text-align: right;"><b>${req.body.contactPhones || req.body.phone || 'No registrado'}</b></td>
+                              <td style="padding: 10px 0; font-size: 15px; border-bottom: 1px solid #f1f5f9; text-align: right;"><b>${phone}</b></td>
                             </tr>
                             <tr>
                               <td style="padding: 10px 0; font-size: 15px; border-bottom: 1px solid #f1f5f9; color: #64748b;">📅 Fecha:</td>
