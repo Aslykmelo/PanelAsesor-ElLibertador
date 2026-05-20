@@ -48,7 +48,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     { id: 'advisor-management', label: 'Gestión Asesores', icon: Users, role: ['admin', 'supervisor'] },
     { id: 'ranking', label: 'Clasificación', icon: Trophy, role: ['admin', 'supervisor'] },
     { id: 'user-management', label: 'Usuarios', icon: UserCircle, role: ['admin'] },
-    { id: 'history', label: 'Historial', icon: History, role: ['admin', 'supervisor'] } as const,
+    { id: 'history', label: 'Historial', icon: History, role: ['admin', 'supervisor'] },
   ];
 
   const filteredMenu = menuItems.filter(item => 
