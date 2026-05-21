@@ -19,7 +19,8 @@ import {
   Layers,
   Award,
   ArrowUpRight,
-  TrendingDown
+  TrendingDown,
+  Phone
 } from 'lucide-react';
 import { 
   BarChart, 
@@ -127,6 +128,7 @@ export function DashboardAdmin({ transfers, user, advisors }: DashboardAdminProp
   const [filterCartera, setFilterCartera] = useState<string>('todos');
   const [filterAdvisor, setFilterAdvisor] = useState<string>('todos');
   const [filterSupervisor, setFilterSupervisor] = useState<string>('todos');
+  const [filterChannel, setFilterChannel] = useState<string>('todos');
   const [searchQuery, setSearchQuery] = useState('');
   const [dateFrom, setDateFrom] = useState<string>('');
   const [dateTo, setDateTo] = useState<string>('');
@@ -177,9 +179,17 @@ export function DashboardAdmin({ transfers, user, advisors }: DashboardAdminProp
         (t.toAdvisorName || '').toLowerCase().includes(searchLower) ||
         (t.cartera || '').toLowerCase().includes(searchLower);
       
-      return matchesCartera && matchesAdvisor && matchesSupervisor && matchesSearch && matchesDate;
+      const getChan = (rec: any) => {
+        const raw = rec.canalGestion || rec.channel || rec.canal || 'Llamada';
+        return raw.toLowerCase().trim() === 'whatsapp' ? 'whatsapp' : 'llamada';
+      };
+      
+      const matchesChannel = filterChannel === 'todos' || 
+        getChan(t) === filterChannel.toLowerCase().trim();
+      
+      return matchesCartera && matchesAdvisor && matchesSupervisor && matchesSearch && matchesDate && matchesChannel;
     });
-  }, [transfers, filterCartera, filterAdvisor, filterSupervisor, searchQuery, dateFrom, dateTo, advisors, user.cartera]);
+  }, [transfers, filterCartera, filterAdvisor, filterSupervisor, searchQuery, dateFrom, dateTo, filterChannel, advisors, user.cartera]);
 
   // CARTERA STATED GROUPINGS
   const carterasStats = useMemo(() => {
@@ -256,6 +266,54 @@ export function DashboardAdmin({ transfers, user, advisors }: DashboardAdminProp
 
     return { total, callTransfers, paymentLinks, totalValue, successRate, linksSuccessRate, activeAdvisorsInPeriod, topCartera };
   }, [filteredTransfers, activeAdvisorsInPeriod, topCartera]);
+
+  // 📈 ANALYTICS FOR CHANNELS (CANALES)
+  const channelStats = useMemo(() => {
+    const total = filteredTransfers.length;
+    
+    const getChan = (t: any) => {
+      const raw = t.canalGestion || t.channel || t.canal || 'Llamada';
+      return raw.toLowerCase().trim() === 'whatsapp' ? 'whatsapp' : 'llamada';
+    };
+
+    const whatsapp = filteredTransfers.filter(t => getChan(t) === 'whatsapp').length;
+    const llamadas = filteredTransfers.filter(t => getChan(t) === 'llamada').length;
+    const noEspecificado = 0;
+
+    const pctWhatsapp = total > 0 ? Math.round((whatsapp / total) * 100) : 0;
+    const pctLlamadas = total > 0 ? Math.round((llamadas / total) * 100) : 0;
+
+    let canalMasUtilizado = 'Ninguno';
+    if (whatsapp > llamadas) {
+      canalMasUtilizado = 'WhatsApp';
+    } else if (llamadas > whatsapp) {
+      canalMasUtilizado = 'Llamada';
+    } else if (whatsapp > 0 && whatsapp === llamadas) {
+      canalMasUtilizado = 'Empate (Ambos)';
+    }
+
+    // Links generados por canal
+    const linksWhatsapp = filteredTransfers.filter(t => t.type === 'regalo' && getChan(t) === 'whatsapp').length;
+    const linksLlamadas = filteredTransfers.filter(t => t.type === 'regalo' && getChan(t) === 'llamada').length;
+
+    // Transferencias por canal
+    const transWhatsapp = filteredTransfers.filter(t => t.type === 'mensaje' && getChan(t) === 'whatsapp').length;
+    const transLlamadas = filteredTransfers.filter(t => t.type === 'mensaje' && getChan(t) === 'llamada').length;
+
+    return {
+      total,
+      whatsapp,
+      llamadas,
+      noEspecificado,
+      pctWhatsapp,
+      pctLlamadas,
+      canalMasUtilizado,
+      linksWhatsapp,
+      linksLlamadas,
+      transWhatsapp,
+      transLlamadas
+    };
+  }, [filteredTransfers]);
 
   // Chart Data: Last 7 Days Evolution
   const evolutionData = useMemo(() => {
@@ -393,7 +451,7 @@ export function DashboardAdmin({ transfers, user, advisors }: DashboardAdminProp
       doc.text(`Reporte de Control Administrativo de Transferencias`, 14, 28);
       doc.text(`Generado por: ${user.name} (${user.role.toUpperCase()})`, 14, 34);
       doc.text(`Fecha: ${format(new Date(), 'PPP', { locale: es })}`, 14, 40);
-      doc.text(`Filtros: Cartera: ${filterCartera} | Supervisor: ${filterSupervisor}`, 14, 46);
+      doc.text(`Filtros: Cartera: ${filterCartera} | Supervisor: ${filterSupervisor} | Canal: ${filterChannel}`, 14, 46);
 
       // Simple overview KPIs
       doc.setFontSize(12);
@@ -404,6 +462,7 @@ export function DashboardAdmin({ transfers, user, advisors }: DashboardAdminProp
       const tableRows = filteredTransfers.map(t => [
         format(new Date(t.createdAt), 'dd/MM/yyyy HH:mm'),
         t.managementType || 'Contacto',
+        t.canalGestion || (t as any).channel || (t as any).canal || 'Llamada',
         t.customerName || 'Cliente',
         t.requestNumber || 'S/N',
         t.fromAdvisorName || 'Desconocido',
@@ -414,7 +473,7 @@ export function DashboardAdmin({ transfers, user, advisors }: DashboardAdminProp
 
       autoTable(doc, {
         startY: 62,
-        head: [['Fecha', 'Tipo', 'Cliente', 'Solicitud', 'De Asesor', 'Para Asesor', 'Estado', 'Valor']],
+        head: [['Fecha', 'Tipo', 'Canal', 'Cliente', 'Solicitud', 'De Asesor', 'Para Asesor', 'Estado', 'Valor']],
         body: tableRows,
         headStyles: { fillColor: [4, 20, 48] }, // Dark corporate blue
         alternateRowStyles: { fillColor: [248, 250, 252] },
@@ -509,7 +568,7 @@ export function DashboardAdmin({ transfers, user, advisors }: DashboardAdminProp
                 </div>
                 
                 {/* Dropdowns Filters Grid */}
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-6">
                   <div className="space-y-2">
                     <Label className="text-[10px] font-black text-slate-500 dark:text-slate-300 flex items-center gap-1.5 ml-1 uppercase tracking-widest">
                       <Calendar className="w-4 h-4 text-[#EF0D0D]" /> Fecha Desde
@@ -584,6 +643,22 @@ export function DashboardAdmin({ transfers, user, advisors }: DashboardAdminProp
                       </SelectContent>
                     </Select>
                   </div>
+
+                  <div className="space-y-2">
+                    <Label className="text-[10px] font-black text-slate-500 dark:text-slate-300 flex items-center gap-1.5 ml-1 uppercase tracking-widest">
+                      <Phone className="w-4 h-4 text-[#EF0D0D]" /> Canal de Gestión
+                    </Label>
+                    <Select value={filterChannel} onValueChange={setFilterChannel}>
+                      <SelectTrigger className="h-12 bg-muted/40 border border-slate-100 dark:border-slate-800 rounded-2xl font-bold focus:ring-[#EF0D0D] text-xs">
+                        <SelectValue placeholder="Todos" />
+                      </SelectTrigger>
+                      <SelectContent className="rounded-2xl border-none shadow-2xl">
+                        <SelectItem value="todos" className="font-extrabold uppercase text-[10px] text-rose-600">Ver Todos</SelectItem>
+                        <SelectItem value="Llamada" className="font-bold text-xs">📞 Llamada</SelectItem>
+                        <SelectItem value="WhatsApp" className="font-bold text-xs">💬 WhatsApp</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
 
                 <div className="flex justify-end items-center pt-2 border-t border-border/40 dark:border-border/10">
@@ -594,6 +669,7 @@ export function DashboardAdmin({ transfers, user, advisors }: DashboardAdminProp
                       setFilterCartera('todos');
                       setFilterAdvisor('todos');
                       setFilterSupervisor('todos');
+                      setFilterChannel('todos');
                       setSearchQuery('');
                       setDateFrom('');
                       setDateTo('');
@@ -729,9 +805,9 @@ export function DashboardAdmin({ transfers, user, advisors }: DashboardAdminProp
             </Button>
           </div>
         </CardHeader>
-        <CardContent className="p-8 h-[380px] min-w-0">
-          <div className="w-full h-full min-h-0 min-w-0 font-sans">
-            <ResponsiveContainer width="100%" height="100%">
+        <CardContent className="p-8 h-auto min-w-0">
+          <div className="w-full h-[300px] min-h-0 min-w-0 font-sans">
+            <ResponsiveContainer width="100%" height={300}>
               {activeChartTab === 'evolution' ? (
                 <AreaChart data={evolutionData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                   <defs>
@@ -773,6 +849,133 @@ export function DashboardAdmin({ transfers, user, advisors }: DashboardAdminProp
           </div>
         </CardContent>
       </Card>
+
+      {/* SECCIÓN CANAL DE GESTIÓN (NUEVOS METRICS EXPLICIT) */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        
+        {/* PANEL PRINCIPAL CANALES */}
+        <Card className="rounded-[2.5rem] border border-border/40 dark:border-border/10 card-shadow overflow-hidden bg-card">
+          <CardHeader className="py-6 px-10 border-b border-border/40 dark:border-border/10 bg-muted/5 flex flex-row items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-violet-500/10 dark:bg-violet-500/20 text-violet-500 flex items-center justify-center">
+              <Layers className="w-5 h-5" />
+            </div>
+            <div>
+              <CardTitle className="text-[14px] font-black text-[#041430] dark:text-foreground uppercase tracking-wider">
+                Resumen de Canales
+              </CardTitle>
+              <CardDescription className="text-xs font-semibold">
+                Análisis general de distribución
+              </CardDescription>
+            </div>
+          </CardHeader>
+          <CardContent className="p-8 flex flex-col justify-between h-[250px]">
+            <div className="space-y-4 w-full">
+              <div className="flex justify-between items-center bg-muted/50 p-4 rounded-2xl">
+                <div>
+                  <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Canal Más Utilizado</p>
+                  <p className="text-sm font-black text-[#041430] dark:text-foreground mt-1">
+                    {channelStats.canalMasUtilizado === 'WhatsApp' ? '💬 WhatsApp' : channelStats.canalMasUtilizado === 'Llamada' ? '📞 Llamada' : channelStats.canalMasUtilizado}
+                  </p>
+                </div>
+                <div className="w-10 h-10 rounded-full bg-violet-500/10 text-violet-500 flex items-center justify-center font-bold text-lg">
+                  🏆
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="bg-green-500/5 dark:bg-green-500/10 p-3.5 rounded-2xl border border-green-500/10">
+                  <span className="text-[9px] font-black uppercase tracking-wider text-green-600 block">WhatsApp</span>
+                  <span className="text-xl font-black text-green-700 dark:text-green-400 block mt-1">{channelStats.pctWhatsapp}%</span>
+                  <span className="text-[10px] text-muted-foreground block font-bold mt-0.5">{channelStats.whatsapp} casos</span>
+                </div>
+                <div className="bg-blue-500/5 dark:bg-blue-500/10 p-3.5 rounded-2xl border border-blue-500/10">
+                  <span className="text-[9px] font-black uppercase tracking-wider text-blue-600 block">Llamadas</span>
+                  <span className="text-xl font-black text-blue-700 dark:text-blue-400 block mt-1">{channelStats.pctLlamadas}%</span>
+                  <span className="text-[10px] text-muted-foreground block font-bold mt-0.5">{channelStats.llamadas} casos</span>
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* DETALLE WHATSAPP */}
+        <Card className="rounded-[2.5rem] border border-border/40 dark:border-border/10 card-shadow overflow-hidden bg-card">
+          <CardHeader className="py-6 px-10 border-b border-border/40 dark:border-border/10 bg-muted/5 flex flex-row items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-green-500/10 dark:bg-green-500/20 text-green-500 flex items-center justify-center">
+              <MessageSquare className="w-5 h-5" />
+            </div>
+            <div>
+              <CardTitle className="text-[14px] font-black text-secondary dark:text-foreground uppercase tracking-wider">
+                Desempeño WhatsApp
+              </CardTitle>
+              <CardDescription className="text-xs font-semibold">
+                Gestión comercial por chat digital
+              </CardDescription>
+            </div>
+          </CardHeader>
+          <CardContent className="p-8 flex flex-col justify-between h-[250px]">
+            <div className="space-y-4 w-full">
+              <div className="flex justify-between items-center border-b border-muted pb-3">
+                <span className="text-xs font-bold text-muted-foreground">Links de Pago Generados</span>
+                <span className="text-xs font-black text-green-600 bg-green-500/10 px-2.5 py-1 rounded-lg">
+                  {channelStats.linksWhatsapp} links
+                </span>
+              </div>
+              <div className="flex justify-between items-center border-b border-muted pb-3">
+                <span className="text-xs font-bold text-muted-foreground">Transferencias de Llamada</span>
+                <span className="text-xs font-black text-green-600 bg-green-500/10 px-2.5 py-1 rounded-lg">
+                  {channelStats.transWhatsapp} transferencias
+                </span>
+              </div>
+              <div className="flex justify-between items-center pt-2">
+                <span className="text-xs font-black text-secondary dark:text-foreground uppercase tracking-wide">Total Canal</span>
+                <span className="text-lg font-black text-slate-800 dark:text-foreground">
+                  {channelStats.whatsapp} gestiones
+                </span>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* DETALLE LLAMADAS */}
+        <Card className="rounded-[2.5rem] border border-border/40 dark:border-border/10 card-shadow overflow-hidden bg-card">
+          <CardHeader className="py-6 px-10 border-b border-border/40 dark:border-border/10 bg-muted/5 flex flex-row items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-blue-500/10 dark:bg-blue-500/20 text-blue-500 flex items-center justify-center">
+              <Phone className="w-5 h-5" />
+            </div>
+            <div>
+              <CardTitle className="text-[14px] font-black text-secondary dark:text-foreground uppercase tracking-wider">
+                Desempeño Llamadas
+              </CardTitle>
+              <CardDescription className="text-xs font-semibold">
+                Gestión comercial por canal telefónico
+              </CardDescription>
+            </div>
+          </CardHeader>
+          <CardContent className="p-8 flex flex-col justify-between h-[250px]">
+            <div className="space-y-4 w-full">
+              <div className="flex justify-between items-center border-b border-muted pb-3">
+                <span className="text-xs font-bold text-muted-foreground">Links de Pago Generados</span>
+                <span className="text-xs font-black text-blue-600 bg-blue-500/10 px-2.5 py-1 rounded-lg">
+                  {channelStats.linksLlamadas} links
+                </span>
+              </div>
+              <div className="flex justify-between items-center border-b border-muted pb-3">
+                <span className="text-xs font-bold text-muted-foreground">Transferencias de Llamada</span>
+                <span className="text-xs font-black text-blue-600 bg-blue-500/10 px-2.5 py-1 rounded-lg">
+                  {channelStats.transLlamadas} transferencias
+                </span>
+              </div>
+              <div className="flex justify-between items-center pt-2">
+                <span className="text-xs font-black text-secondary dark:text-foreground uppercase tracking-wide">Total Canal</span>
+                <span className="text-lg font-black text-slate-800 dark:text-foreground">
+                  {channelStats.llamadas} gestiones
+                </span>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
 
       {/* RANKINGS GRID SECTION - CORRECTED LOGIC OF ASSIGNMENTS */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
@@ -919,9 +1122,9 @@ export function DashboardAdmin({ transfers, user, advisors }: DashboardAdminProp
               </CardDescription>
             </div>
           </CardHeader>
-          <CardContent className="p-4 md:p-8 h-[280px] min-w-0">
-            <div className="w-full h-full min-h-0 min-w-0 font-sans">
-              <ResponsiveContainer width="100%" height="100%">
+          <CardContent className="p-4 md:p-8 h-auto min-w-0">
+            <div className="w-full h-[220px] min-h-0 min-w-0 font-sans">
+              <ResponsiveContainer width="100%" height={220}>
                 <BarChart data={topAdvisorsByVolume} margin={{ top: 10, right: 10, left: -25, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E2E8F0" opacity={0.4} />
                   <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 9, fontWeight: 700, fill: '#64748B' }} />
@@ -951,10 +1154,10 @@ export function DashboardAdmin({ transfers, user, advisors }: DashboardAdminProp
               </div>
             </div>
           </CardHeader>
-          <CardContent className="p-4 md:p-8 flex flex-col md:flex-row gap-6 items-center justify-between h-auto md:h-[280px]">
+          <CardContent className="p-4 md:p-8 flex flex-col md:flex-row gap-6 items-center justify-between h-auto">
             {/* Visual Chart */}
-            <div className="w-full md:w-1/2 h-[180px] md:h-full min-h-0 min-w-0 font-sans">
-              <ResponsiveContainer width="100%" height="100%">
+            <div className="w-full md:w-1/2 h-[200px] min-h-0 min-w-0 font-sans">
+              <ResponsiveContainer width="100%" height={200}>
                 <BarChart data={carterasStats} layout="vertical" margin={{ top: 0, right: 10, left: 10, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#E2E8F0" opacity={0.4} />
                   <XAxis type="number" hide />

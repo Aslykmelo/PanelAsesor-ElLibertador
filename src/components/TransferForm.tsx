@@ -19,7 +19,8 @@ import { MANAGEMENT_TYPES } from '@/constants';
 import { toast } from 'sonner';
 import { db } from '@/firebase';
 import { collection, addDoc, serverTimestamp, getDocs, query, where, doc, updateDoc } from 'firebase/firestore';
-import { Loader2, Send, Save, User as UserIcon, Phone, FileText, DollarSign, Briefcase, Search } from 'lucide-react';
+import { CollectionReference } from 'firebase/firestore';
+import { Loader2, Send, Save, User as UserIcon, Phone, FileText, DollarSign, Briefcase, Search, MessageSquare } from 'lucide-react';
 import { User, Advisor } from '../types';
 import { motion } from 'motion/react';
 
@@ -39,6 +40,7 @@ export const TransferForm: React.FC<TransferFormProps> = ({ onSubmit, currentUse
   const [paymentValue, setPaymentValue] = useState('');
   const [observations, setObservations] = useState('');
   const [searchAdvisor, setSearchAdvisor] = useState('');
+  const [canalGestion, setCanalGestion] = useState<'Llamada' | 'WhatsApp' | ''>('');
 
   // 🔎 FILTERED & UNIQUE ADVISORS
   const filteredAdvisors = useMemo(() => {
@@ -74,8 +76,8 @@ export const TransferForm: React.FC<TransferFormProps> = ({ onSubmit, currentUse
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!managementType || !requestNumber || !customerName || !phone || !toAdvisorEmail) {
-      toast.error('Por favor complete los campos obligatorios (*)');
+    if (!managementType || !requestNumber || !customerName || !phone || !toAdvisorEmail || !canalGestion) {
+      toast.error('Por favor complete los campos obligatorios (*). Recuerde seleccionar el Canal de Gestión.');
       return;
     }
 
@@ -91,6 +93,7 @@ export const TransferForm: React.FC<TransferFormProps> = ({ onSubmit, currentUse
       const docData = {
         type,
         managementType,
+        canalGestion,
         fromAdvisorName: currentUser.name,
         fromAdvisorEmail: currentUser.email.toLowerCase(),
         toAdvisorName: selectedToAdvisor.name,
@@ -160,6 +163,7 @@ export const TransferForm: React.FC<TransferFormProps> = ({ onSubmit, currentUse
 
       // Reset
       setManagementType('');
+      setCanalGestion('');
       setRequestNumber('');
       setCustomerName('');
       setPhone('');
@@ -211,6 +215,36 @@ export const TransferForm: React.FC<TransferFormProps> = ({ onSubmit, currentUse
                       ))}
                     </SelectContent>
                   </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">Canal de Gestión *</Label>
+                  <div className="grid grid-cols-2 gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setCanalGestion('Llamada')}
+                      className={`h-12 flex items-center justify-center gap-2 rounded-2xl font-bold transition-all text-sm border-2 ${
+                        canalGestion === 'Llamada'
+                          ? 'border-primary bg-primary/10 text-primary dark:bg-rose-500/10 dark:border-rose-500 dark:text-rose-400'
+                          : 'border-transparent bg-muted/50 text-muted-foreground hover:bg-muted/75'
+                      }`}
+                    >
+                      <Phone className="w-4 h-4" />
+                      Llamada
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setCanalGestion('WhatsApp')}
+                      className={`h-12 flex items-center justify-center gap-2 rounded-2xl font-bold transition-all text-sm border-2 ${
+                        canalGestion === 'WhatsApp'
+                          ? 'border-primary bg-primary/10 text-primary dark:bg-rose-500/10 dark:border-rose-500 dark:text-rose-400'
+                          : 'border-transparent bg-muted/50 text-muted-foreground hover:bg-muted/75'
+                      }`}
+                    >
+                      <MessageSquare className="w-4 h-4" />
+                      WhatsApp
+                    </button>
+                  </div>
                 </div>
 
                 <div className="space-y-2">

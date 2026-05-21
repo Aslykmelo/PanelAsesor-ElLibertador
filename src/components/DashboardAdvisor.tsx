@@ -186,9 +186,18 @@ export function DashboardAdviser({ transfers, user, onNewTransfer }: DashboardAd
                   </div>
                   <div>
                     <h3 className="font-bold text-secondary">{activity.customerName}</h3>
-                    <p className="text-xs text-muted-foreground">
-                      {activity.managementType} • {format(activity.createdAt, "d 'de' MMMM", { locale: es })}
-                    </p>
+                    <div className="flex flex-wrap items-center gap-2 mt-1">
+                      <p className="text-xs text-muted-foreground">
+                        {activity.managementType} • {format(activity.createdAt, "d 'de' MMMM", { locale: es })}
+                      </p>
+                      <span className={`text-[9px] font-black uppercase px-1.5 py-0.5 rounded ${
+                        (activity.canalGestion || 'Llamada') === 'WhatsApp' 
+                          ? 'bg-green-100 text-green-700 dark:bg-green-950/40 dark:text-green-300' 
+                          : 'bg-blue-100 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300'
+                      }`}>
+                        {(activity.canalGestion || 'Llamada') === 'WhatsApp' ? '💬 WhatsApp' : '📞 Llamada'}
+                      </span>
+                    </div>
                   </div>
                 </div>
                 <div className="text-right">

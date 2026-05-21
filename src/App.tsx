@@ -386,12 +386,18 @@ export default function App() {
       case 'my-tasks':
         return (
           <TransferList
-            transfers={isAsesor 
-              ? filteredData 
-              : filteredData.filter(t => 
-                  t.fromAdvisorEmail.toLowerCase() === currentUser!.email.toLowerCase() || 
-                  t.toAdvisorEmail.toLowerCase() === currentUser!.email.toLowerCase()
-                )}
+            title="Mis Gestiones"
+            transfers={filteredData.filter(t => {
+              const creatorEmail = (t.createdByEmail || t.createdBy || '').toLowerCase().trim();
+              const fromEmail = (t.fromAdvisorEmail || '').toLowerCase().trim();
+              const currentUserEmail = (currentUser?.email || '').toLowerCase().trim();
+              const currentUserUid = currentUser?.uid || '';
+              return (
+                creatorEmail === currentUserEmail || 
+                t.createdBy === currentUserUid || 
+                fromEmail === currentUserEmail
+              );
+            })}
             onStatusChange={handleStatusChange}
             onDelete={handleDelete}
             userRole={effectiveRole}

@@ -23,6 +23,7 @@ export interface Transfer {
   
   paymentLinkValue: number;
   observations?: string;
+  canalGestion?: 'Llamada' | 'WhatsApp';
   
   status: TransferStatus;
   

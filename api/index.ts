@@ -28,7 +28,8 @@ app.post("/api/send-email", async (req, res) => {
     customerName, 
     requestNumber, 
     paymentLinkValue,
-    observations
+    observations,
+    canalGestion
   } = req.body;
 
   const phone = req.body.contactPhones || req.body.phone || 'No registrado';
@@ -75,6 +76,7 @@ app.post("/api/send-email", async (req, res) => {
                 <p style="margin: 8px 0; font-size: 15px;"><b>Teléfono:</b> ${phone}</p>
                 <p style="margin: 8px 0; font-size: 15px;"><b>Fecha:</b> ${formattedDate}</p>
                 <p style="margin: 8px 0; font-size: 15px;"><b>Tipo:</b> ${managementType}</p>
+                <p style="margin: 8px 0; font-size: 15px;"><b>Canal de Gestión:</b> ${canalGestion === 'WhatsApp' ? '💬 WhatsApp' : (canalGestion === 'Llamada' ? '📞 Llamada' : '💬 No especificado')}</p>
               </div>
 
               <div style="text-align: center; margin-top: 30px;">
@@ -141,6 +143,10 @@ app.post("/api/send-email", async (req, res) => {
                           <tr>
                             <td style="padding: 10px 0; font-size: 15px; border-bottom: 1px solid #f1f5f9; color: #64748b;">📌 Tipo de Gestión:</td>
                             <td style="padding: 10px 0; font-size: 15px; border-bottom: 1px solid #f1f5f9; text-align: right;"><b>${managementType}</b></td>
+                          </tr>
+                          <tr>
+                            <td style="padding: 10px 0; font-size: 15px; border-bottom: 1px solid #f1f5f9; color: #64748b;">${canalGestion === 'WhatsApp' ? '📱' : (canalGestion === 'Llamada' ? '📞' : '💬')} Canal de Gestión:</td>
+                            <td style="padding: 10px 0; font-size: 15px; border-bottom: 1px solid #f1f5f9; text-align: right;"><b>${canalGestion || 'No especificado'}</b></td>
                           </tr>
                           <tr>
                             <td style="padding: 20px 0 0 0; font-size: 18px; color: ${colors.blue};"><b>💰 Valor del Link:</b></td>

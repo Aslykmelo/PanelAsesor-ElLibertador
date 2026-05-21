@@ -26,19 +26,25 @@ import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 
+const getRecordChannel = (t: any): string => {
+  return t.canalGestion || t.channel || t.canal || 'Llamada';
+};
+
 interface TransferListProps {
   transfers: Transfer[];
   onStatusChange?: (id: string, status: string) => void;
   onDelete?: (id: string) => void;
   userRole: UserRole;
   advisors: Advisor[];
+  title?: string;
 }
 
-export const TransferList: React.FC<TransferListProps> = ({ transfers, onStatusChange, onDelete, userRole, advisors }) => {
+export const TransferList: React.FC<TransferListProps> = ({ transfers, onStatusChange, onDelete, userRole, advisors, title }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('todos');
   const [typeFilter, setTypeFilter] = useState('todos');
   const [supervisorFilter, setSupervisorFilter] = useState('todos');
+  const [channelFilter, setChannelFilter] = useState('todos');
 
   // Sorting State
   const [sortField, setSortField] = useState<'createdAt' | 'customerName' | 'paymentLinkValue' | 'requestNumber' | 'status'>('createdAt');
@@ -78,7 +84,9 @@ export const TransferList: React.FC<TransferListProps> = ({ transfers, onStatusC
       const matchesStatus = statusFilter === 'todos' || t.status === statusFilter;
       const matchesType = typeFilter === 'todos' || t.managementType === typeFilter;
       const matchesSupervisor = supervisorFilter === 'todos' || t.supervisorName === supervisorFilter;
-      return matchesSearch && matchesStatus && matchesType && matchesSupervisor;
+      const matchesChannel = channelFilter === 'todos' || 
+        getRecordChannel(t).toLowerCase().trim() === channelFilter.toLowerCase().trim();
+      return matchesSearch && matchesStatus && matchesType && matchesSupervisor && matchesChannel;
     });
 
     // 2. Sort
@@ -113,10 +121,11 @@ export const TransferList: React.FC<TransferListProps> = ({ transfers, onStatusC
   // Export to CSV Functionality
   const exportToCSV = () => {
     try {
-      const headers = ['Fecha', 'Tipo', 'Cliente', 'ID Solicitud', 'Telefono', 'De Asesor', 'Para Asesor', 'Supervisor', 'Cartera', 'Estado', 'Valor Link'];
+      const headers = ['Fecha', 'Tipo', 'Canal de Gestión', 'Cliente', 'ID Solicitud', 'Telefono', 'De Asesor', 'Para Asesor', 'Supervisor', 'Cartera', 'Estado', 'Valor Link'];
       const rows = processedTransfers.map(t => [
         format(new Date(t.createdAt), 'yyyy-MM-dd HH:mm:ss'),
         t.managementType,
+        getRecordChannel(t),
         t.customerName,
         t.requestNumber,
         t.phone,
@@ -151,8 +160,12 @@ export const TransferList: React.FC<TransferListProps> = ({ transfers, onStatusC
       {/* HEADER & FILTERS */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h2 className="text-2xl font-black text-secondary dark:text-foreground">Historial de Gestiones</h2>
-          <p className="text-muted-foreground text-sm font-medium">Visualiza y gestiona todos los registros con paginación y ordenamiento</p>
+          <h2 className="text-2xl font-black text-secondary dark:text-foreground">{title || "Historial de Gestiones"}</h2>
+          <p className="text-muted-foreground text-sm font-medium">
+            {title === "Mis Gestiones" 
+              ? "Revisa y administra el progreso de tus registros personales" 
+              : "Visualiza y gestiona todos los registros con paginación y ordenamiento"}
+          </p>
         </div>
         <div className="flex items-center gap-3">
           <Button 
@@ -200,7 +213,7 @@ export const TransferList: React.FC<TransferListProps> = ({ transfers, onStatusC
           </Button>
         </div>
         
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 w-full">
+        <div className={`grid grid-cols-1 sm:grid-cols-2 ${userRole !== 'asesor' ? 'lg:grid-cols-4' : 'lg:grid-cols-3'} gap-6 w-full`}>
           <div className="space-y-2">
             <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">Tipo de Gestión</Label>
             <Select value={typeFilter} onValueChange={(val) => { setTypeFilter(val); setCurrentPage(1); }}>
@@ -244,6 +257,20 @@ export const TransferList: React.FC<TransferListProps> = ({ transfers, onStatusC
                 {TRANSFER_STATUSES.map(status => (
                   <SelectItem key={status.value} value={status.value}>{status.label}</SelectItem>
                 ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-2">
+            <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">Canal de Gestión</Label>
+            <Select value={channelFilter} onValueChange={(val) => { setChannelFilter(val); setCurrentPage(1); }}>
+              <SelectTrigger className="w-full h-12 bg-muted/50 border-none rounded-2xl focus:ring-primary shadow-none font-bold text-xs">
+                <SelectValue placeholder="Canal" />
+              </SelectTrigger>
+              <SelectContent className="rounded-2xl">
+                <SelectItem value="todos">Todos los canales</SelectItem>
+                <SelectItem value="Llamada">📞 Llamada</SelectItem>
+                <SelectItem value="WhatsApp">💬 WhatsApp</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -336,6 +363,16 @@ export const TransferList: React.FC<TransferListProps> = ({ transfers, onStatusC
                               <p className="text-[10px] text-muted-foreground font-black uppercase tracking-tighter">
                                 {t.cartera || 'Sin Cartera'}
                               </p>
+                           </div>
+                           <div className="pt-1">
+                             <span className={cn(
+                               "text-[9px] font-black px-1.5 py-0.5 rounded uppercase tracking-wider",
+                               getRecordChannel(t) === 'WhatsApp' ? "bg-green-100 text-green-700 dark:bg-green-950/40 dark:text-green-300" :
+                               "bg-blue-100 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300"
+                               
+                             )}>
+                               {getRecordChannel(t) === 'WhatsApp' ? '💬 WhatsApp' : '📞 Llamada'}
+                             </span>
                            </div>
                         </div>
                       </TableCell>

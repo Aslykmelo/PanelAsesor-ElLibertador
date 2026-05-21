@@ -16,6 +16,11 @@ export const Login: React.FC = () => {
     setMounted(true);
   }, []);
 
+  // Reset logoError state whenever theme changes to try loading the proper image again
+  React.useEffect(() => {
+    setLogoError(false);
+  }, [resolvedTheme]);
+
   const isDark = resolvedTheme === 'dark';
 
   const handleLogin = async () => {
@@ -48,16 +53,17 @@ export const Login: React.FC = () => {
             <div className="p-5 rounded-[2.5rem] flex items-center justify-center min-w-[120px] min-h-[120px] animate-in fade-in duration-1000">
               {!logoError ? (
                 <img 
+                  key={isDark ? 'dark' : 'light'}
                   src={isDark ? "/logonegro.png" : "/logorojo.png"} 
                   alt="Logo El Libertador" 
-                  className="w-64 h-auto" 
+                  className="w-64 h-auto select-none pointer-events-none" 
                   referrerPolicy="no-referrer"
                   onError={() => setLogoError(true)}
                 />
               ) : (
-                <div className="flex flex-col items-center text-white/50">
-                  <ShieldCheck className="w-12 h-12 mb-1" />
-                  <span className="text-[10px] font-black uppercase tracking-widest">El Libertador</span>
+                <div className="flex flex-col items-center text-slate-800 dark:text-slate-200">
+                  <ShieldCheck className="w-12 h-12 mb-1 text-primary animate-bounce" />
+                  <span className="text-[12px] font-black uppercase tracking-widest text-[#041430] dark:text-foreground">El Libertador</span>
                 </div>
               )}
             </div>

@@ -220,8 +220,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ transfers, onNewTransfer }
             <CardTitle className="text-lg font-black text-secondary uppercase tracking-widest">Evolución de Registros</CardTitle>
           </CardHeader>
           <CardContent className="p-8">
-            <div className="h-[300px]">
-              <ResponsiveContainer width="100%" height="100%">
+            <div className="h-[300px] w-full">
+              <ResponsiveContainer width="100%" height={300}>
                 <LineChart data={evolutionData}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border)" opacity={0.5} />
                   <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{ fontSize: 10, fontWeight: 'bold', fill: 'var(--muted-foreground)' }} />
@@ -244,8 +244,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ transfers, onNewTransfer }
             <CardTitle className="text-lg font-black text-secondary uppercase tracking-widest">Distribución de Gestión</CardTitle>
           </CardHeader>
           <CardContent className="p-8">
-            <div className="h-[200px]">
-              <ResponsiveContainer width="100%" height="100%">
+            <div className="h-[200px] w-full">
+              <ResponsiveContainer width="100%" height={200}>
                 <PieChart>
                   <Pie
                     data={pieData}
@@ -284,8 +284,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ transfers, onNewTransfer }
             <CardTitle className="text-lg font-black text-secondary uppercase tracking-widest">Asesores que más Envían</CardTitle>
           </CardHeader>
           <CardContent className="p-8">
-            <div className="h-[300px]">
-              <ResponsiveContainer width="100%" height="100%">
+            <div className="h-[300px] w-full">
+              <ResponsiveContainer width="100%" height={300}>
                 <BarChart data={senderData} layout="vertical">
                   <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="var(--border)" opacity={0.5} />
                   <XAxis type="number" hide />
@@ -306,8 +306,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ transfers, onNewTransfer }
             <CardTitle className="text-lg font-black text-secondary uppercase tracking-widest">Asesores que más Reciben</CardTitle>
           </CardHeader>
           <CardContent className="p-8">
-            <div className="h-[300px]">
-              <ResponsiveContainer width="100%" height="100%">
+            <div className="h-[300px] w-full">
+              <ResponsiveContainer width="100%" height={300}>
                 <BarChart data={receiverData} layout="vertical">
                   <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="var(--border)" opacity={0.5} />
                   <XAxis type="number" hide />
