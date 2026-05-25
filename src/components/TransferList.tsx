@@ -17,11 +17,11 @@ import {
   SelectValue 
 } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
-import { TRANSFER_STATUSES, MANAGEMENT_TYPES, UserRole } from '@/constants';
+import { MANAGEMENT_TYPES, UserRole } from '@/constants';
 import { Transfer, Advisor } from '@/types';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
-import { CheckCircle2, Search, Filter, Calendar, MessageSquare, Gift, MoreHorizontal, Mail, Check, Trash2, Eye, EyeOff, Copy } from 'lucide-react';
+import { Search, Filter, Calendar, MessageSquare, Gift, MoreHorizontal, Mail, Check, Trash2, Eye, EyeOff, Copy } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
@@ -55,7 +55,6 @@ export const TransferList: React.FC<TransferListProps> = ({ transfers, onStatusC
   };
 
   const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState('todos');
   const [typeFilter, setTypeFilter] = useState('todos');
   const [supervisorFilter, setSupervisorFilter] = useState('todos');
   const [channelFilter, setChannelFilter] = useState('todos');
@@ -110,12 +109,11 @@ export const TransferList: React.FC<TransferListProps> = ({ transfers, onStatusC
         (t.toAdvisorName || '').toLowerCase().includes(searchLower) ||
         (t.cartera || '').toLowerCase().includes(searchLower) ||
         (t.observations || '').toLowerCase().includes(searchLower);
-      const matchesStatus = statusFilter === 'todos' || t.status === statusFilter;
       const matchesType = typeFilter === 'todos' || t.managementType === typeFilter;
       const matchesSupervisor = supervisorFilter === 'todos' || t.supervisorName === supervisorFilter;
       const matchesChannel = channelFilter === 'todos' || 
         getRecordChannel(t).toLowerCase().trim() === channelFilter.toLowerCase().trim();
-      return matchesSearch && matchesStatus && matchesType && matchesSupervisor && matchesChannel;
+      return matchesSearch && matchesType && matchesSupervisor && matchesChannel;
     });
 
     // 2. Sort
@@ -137,7 +135,7 @@ export const TransferList: React.FC<TransferListProps> = ({ transfers, onStatusC
 
       return sortDirection === 'asc' ? comparison : -comparison;
     });
-  }, [transfers, searchTerm, statusFilter, typeFilter, supervisorFilter, sortField, sortDirection]);
+  }, [transfers, searchTerm, typeFilter, supervisorFilter, channelFilter, sortField, sortDirection]);
 
   // Pagination Calculations
   const totalItems = processedTransfers.length;
@@ -190,11 +188,6 @@ export const TransferList: React.FC<TransferListProps> = ({ transfers, onStatusC
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h2 className="text-2xl font-black text-secondary dark:text-foreground">{title || "Historial de Gestiones"}</h2>
-          <p className="text-muted-foreground text-sm font-medium">
-            {title === "Mis Gestiones" 
-              ? "Revisa y administra el progreso de tus registros personales" 
-              : "Visualiza y gestiona todos los registros con paginación y ordenamiento"}
-          </p>
         </div>
         <div className="flex items-center gap-3">
           <Button 
@@ -232,9 +225,9 @@ export const TransferList: React.FC<TransferListProps> = ({ transfers, onStatusC
             className="text-primary font-black text-[10px] uppercase tracking-widest hover:bg-primary/5 h-12 px-6 rounded-2xl border border-primary/20"
             onClick={() => {
               setSearchTerm('');
-              setStatusFilter('todos');
               setTypeFilter('todos');
               setSupervisorFilter('todos');
+              setChannelFilter('todos');
               setCurrentPage(1);
             }}
           >
@@ -242,7 +235,7 @@ export const TransferList: React.FC<TransferListProps> = ({ transfers, onStatusC
           </Button>
         </div>
         
-        <div className={`grid grid-cols-1 sm:grid-cols-2 ${userRole !== 'asesor' ? 'lg:grid-cols-4' : 'lg:grid-cols-3'} gap-6 w-full`}>
+        <div className={`grid grid-cols-1 sm:grid-cols-2 ${userRole !== 'asesor' ? 'lg:grid-cols-3' : 'lg:grid-cols-2'} gap-6 w-full`}>
           <div className="space-y-2">
             <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">Tipo de Gestión</Label>
             <Select value={typeFilter} onValueChange={(val) => { setTypeFilter(val); setCurrentPage(1); }}>
@@ -274,21 +267,6 @@ export const TransferList: React.FC<TransferListProps> = ({ transfers, onStatusC
               </Select>
             </div>
           )}
-
-          <div className="space-y-2">
-            <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">Estado</Label>
-            <Select value={statusFilter} onValueChange={(val) => { setStatusFilter(val); setCurrentPage(1); }}>
-              <SelectTrigger className="w-full h-12 bg-muted/50 border-none rounded-2xl focus:ring-primary shadow-none font-bold text-xs">
-                <SelectValue placeholder="Estado" />
-              </SelectTrigger>
-              <SelectContent className="rounded-2xl">
-                <SelectItem value="todos">Todos</SelectItem>
-                {TRANSFER_STATUSES.map(status => (
-                  <SelectItem key={status.value} value={status.value}>{status.label}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
 
           <div className="space-y-2">
             <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">Canal de Gestión</Label>
@@ -493,18 +471,7 @@ export const TransferList: React.FC<TransferListProps> = ({ transfers, onStatusC
                                  <span>{isExpanded ? 'Ocultar' : 'Detalles'}</span>
                                </Button>
 
-                               {t.status === 'pendiente' && (userRole !== 'asesor' || t.toAdvisorEmail.toLowerCase() === (advisors.find(a => a.email.toLowerCase() === t.toAdvisorEmail.toLowerCase())?.email?.toLowerCase() || t.toAdvisorEmail.toLowerCase())) && (
-                                <Button 
-                                  onClick={() => {
-                                    onStatusChange?.(t.id!, 'gestionado');
-                                  }}
-                                  size="sm" 
-                                  className="bg-primary hover:bg-primary/90 text-white font-black rounded-2xl text-[10px] h-9 px-4 shadow-md shadow-primary/20 transition-all hover:scale-105 active:scale-95 whitespace-nowrap"
-                                >
-                                  <CheckCircle2 className="w-3.5 h-3.5 mr-1" />
-                                  Gestionar
-                                </Button>
-                               )}
+
                               
                                {userRole === 'admin' && (
                                 <Button 
