@@ -84,23 +84,32 @@ export function Ranking({ transfers, advisors }: RankingProps) {
     }> = {};
 
     filteredTransfers.forEach(t => {
-      // 1. REGISTRAR STATS (QUIEN REALIZA LA ACCIÓN)
-      const creatorEmail = t.createdByEmail || t.fromAdvisorEmail;
-      const creatorName = t.createdByName || t.fromAdvisorName;
+      // 1. OBTENER CORREOS LIMPIOS
+      const creatorEmail = (t.createdByEmail || t.fromAdvisorEmail || '').toLowerCase().trim();
+      const creatorName = t.createdByName || t.fromAdvisorName || 'Desconocido';
+      
+      const receiverEmail = (t.toAdvisorEmail || '').toLowerCase().trim();
+      const receiverName = t.toAdvisorName || 'Pendiente';
 
-      if (!counts[creatorEmail]) {
-        counts[creatorEmail] = { count: 0, name: creatorName, email: creatorEmail, totalValue: 0, receiveCount: 0, linksCount: 0 };
+      // 2. ENVIOS & VALOR GENERADO (PARA QUIEN CREA EL REGISTRO)
+      if (creatorEmail) {
+        if (!counts[creatorEmail]) {
+          counts[creatorEmail] = { count: 0, name: creatorName, email: creatorEmail, totalValue: 0, receiveCount: 0, linksCount: 0 };
+        }
+        if (t.type === 'mensaje') {
+          counts[creatorEmail].count++;
+        } else if (t.type === 'regalo') {
+          counts[creatorEmail].linksCount++;
+          counts[creatorEmail].totalValue += (t.paymentLinkValue || 0);
+        }
       }
-      counts[creatorEmail].count++;
 
-      // 2. RESPONSIBLE STATS (A QUIEN PERTENECE EL CASO)
-      if (!counts[t.toAdvisorEmail]) {
-        counts[t.toAdvisorEmail] = { count: 0, name: t.toAdvisorName, email: t.toAdvisorEmail, totalValue: 0, receiveCount: 0, linksCount: 0 };
-      }
-      counts[t.toAdvisorEmail].receiveCount++;
-      counts[t.toAdvisorEmail].totalValue += (t.paymentLinkValue || 0);
-      if (t.type === 'regalo') {
-        counts[t.toAdvisorEmail].linksCount++;
+      // 3. RECIBIDOS (PARA QUIEN RECIBE EL CASO)
+      if (receiverEmail) {
+        if (!counts[receiverEmail]) {
+          counts[receiverEmail] = { count: 0, name: receiverName, email: receiverEmail, totalValue: 0, receiveCount: 0, linksCount: 0 };
+        }
+        counts[receiverEmail].receiveCount++;
       }
     });
 

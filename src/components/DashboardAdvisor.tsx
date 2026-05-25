@@ -10,16 +10,26 @@ import {
   TrendingUp,
   LayoutDashboard,
   Search,
-  Filter
+  Filter,
+  Eye,
+  EyeOff,
+  Copy,
+  Check,
+  Calendar,
+  MessageSquare,
+  Gift,
+  Phone,
+  Award
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent } from '@/components/ui/card';
-import { motion } from 'motion/react';
+import { motion, AnimatePresence } from 'motion/react';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
+import { toast } from 'sonner';
 
 interface DashboardAdvisorProps {
   transfers: Transfer[];
@@ -30,6 +40,35 @@ interface DashboardAdvisorProps {
 export function DashboardAdviser({ transfers, user, onNewTransfer }: DashboardAdvisorProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('todos');
+
+  // Expanded card state for recent activities on Dashboard Asesor
+  const [expandedActivity, setExpandedActivity] = useState<Record<string, boolean>>({});
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+
+  const getClientPhone = (t: any): string => {
+    if (!t) return 'No especificado';
+    return t.phone ||
+           t.contactPhones ||
+           t.phoneNumber ||
+           t.customerPhone ||
+           t.telefono ||
+           t.telefonoCliente ||
+           t.contactPhone ||
+           t.mobile ||
+           t.celular ||
+           'No especificado';
+  };
+
+  const handleCopy = (text: string, id: string) => {
+    try {
+      navigator.clipboard.writeText(text);
+      setCopiedId(id);
+      toast.success('¡Copiado con éxito!');
+      setTimeout(() => setCopiedId(null), 2000);
+    } catch (e) {
+      toast.error('No se pudo copiar');
+    }
+  };
 
   const filteredData = useMemo(() => {
     return transfers.filter(t => {
@@ -172,42 +211,213 @@ export function DashboardAdviser({ transfers, user, onNewTransfer }: DashboardAd
           </div>
           
           <div className="space-y-4">
-            {recentActivities.map((activity, i) => (
-              <motion.div 
-                key={activity.id}
-                initial={{ opacity: 0, x: -20 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: i * 0.1 }}
-                className="group p-5 bg-card rounded-[2rem] border border-border/50 card-shadow hover:border-primary/20 transition-all flex items-center justify-between"
-              >
-                <div className="flex items-center gap-4">
-                  <div className={`w-12 h-12 rounded-2xl flex items-center justify-center ${activity.status === 'gestionado' ? 'bg-green-50 text-green-600' : 'bg-yellow-50 text-yellow-600'}`}>
-                    {activity.status === 'gestionado' ? <CheckCircle2 className="w-6 h-6" /> : <Clock className="w-6 h-6" />}
-                  </div>
-                  <div>
-                    <h3 className="font-bold text-secondary">{activity.customerName}</h3>
-                    <div className="flex flex-wrap items-center gap-2 mt-1">
-                      <p className="text-xs text-muted-foreground">
-                        {activity.managementType} • {format(activity.createdAt, "d 'de' MMMM", { locale: es })}
-                      </p>
-                      <span className={`text-[9px] font-black uppercase px-1.5 py-0.5 rounded ${
-                        (activity.canalGestion || 'Llamada') === 'WhatsApp' 
-                          ? 'bg-green-100 text-green-700 dark:bg-green-950/40 dark:text-green-300' 
-                          : 'bg-blue-100 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300'
-                      }`}>
-                        {(activity.canalGestion || 'Llamada') === 'WhatsApp' ? '💬 WhatsApp' : '📞 Llamada'}
-                      </span>
+            {recentActivities.map((activity, i) => {
+              const isExpanded = !!expandedActivity[activity.id || ''];
+              return (
+                <div key={activity.id} className="space-y-3">
+                  <motion.div 
+                    initial={{ opacity: 0, x: -20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: i * 0.05 }}
+                    onClick={() => {
+                      setExpandedActivity(prev => ({
+                        ...prev,
+                        [activity.id || '']: !prev[activity.id || '']
+                      }));
+                    }}
+                    className={`group p-5 bg-card rounded-[2rem] border transition-all flex items-center justify-between cursor-pointer select-none ${
+                      isExpanded 
+                        ? 'border-primary shadow-lg shadow-primary/5 ring-1 ring-primary/20 bg-slate-50/50 dark:bg-slate-900/30' 
+                        : 'border-border/50 card-shadow hover:border-primary/30 hover:bg-slate-50/30 dark:hover:bg-slate-900/10'
+                    }`}
+                  >
+                    <div className="flex items-center gap-4">
+                      <div className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-transform group-hover:scale-105 ${activity.status === 'gestionado' ? 'bg-green-50 text-green-600 dark:bg-green-950/35 dark:text-green-300' : 'bg-yellow-50 text-yellow-600 dark:bg-yellow-950/35 dark:text-yellow-300'}`}>
+                        {activity.status === 'gestionado' ? <CheckCircle2 className="w-6 h-6" /> : <Clock className="w-6 h-6" />}
+                      </div>
+                      <div>
+                        <h3 className="font-black text-secondary dark:text-foreground text-sm sm:text-base">{activity.customerName}</h3>
+                        <div className="flex flex-wrap items-center gap-2 mt-1">
+                          <p className="text-xs text-muted-foreground font-medium">
+                            {activity.managementType} • {format(activity.createdAt, "d 'de' MMMM, yyyy", { locale: es })}
+                          </p>
+                          <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded-full ${
+                            (activity.canalGestion || 'Llamada') === 'WhatsApp' 
+                              ? 'bg-green-100 text-green-700 dark:bg-green-950/40 dark:text-green-300' 
+                              : 'bg-blue-100 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300'
+                          }`}>
+                            {(activity.canalGestion || 'Llamada') === 'WhatsApp' ? '💬 WhatsApp' : '📞 Llamada'}
+                          </span>
+                        </div>
+                      </div>
                     </div>
-                  </div>
+                    
+                    <div className="flex items-center gap-4">
+                      <div className="text-right hidden sm:block">
+                        <p className="text-sm font-black text-secondary dark:text-foreground">#{activity.requestNumber}</p>
+                        <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-md ${activity.status === 'gestionado' ? 'bg-green-100 text-green-700 dark:bg-green-950/30 dark:text-green-300' : 'bg-yellow-100 text-yellow-700 dark:bg-yellow-950/30 dark:text-yellow-300'}`}>
+                          {activity.status}
+                        </span>
+                      </div>
+                      <div className="text-muted-foreground p-1 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors">
+                        {isExpanded ? <EyeOff className="w-5 h-5 text-primary" /> : <Eye className="w-5 h-5" />}
+                      </div>
+                    </div>
+                  </motion.div>
+
+                  {/* Expanded Item Detail */}
+                  <AnimatePresence initial={false}>
+                    {isExpanded && (
+                      <motion.div
+                        initial={{ opacity: 0, height: 0, marginTop: 0 }}
+                        animate={{ opacity: 1, height: 'auto', marginTop: 12 }}
+                        exit={{ opacity: 0, height: 0, marginTop: 0 }}
+                        transition={{ duration: 0.2, ease: 'easeInOut' }}
+                        className="overflow-hidden px-1"
+                      >
+                        <div className="bg-slate-50 dark:bg-slate-900/60 rounded-[2rem] border border-border/60 p-5 sm:p-6 space-y-6 shadow-md">
+                          
+                          {/* HIGHLIGHTED CLIENT CARD */}
+                          <div className="bg-card dark:bg-slate-900/80 rounded-2xl p-4 sm:p-5 border border-primary/15 dark:border-primary/10 shadow-sm space-y-4">
+                            <h4 className="text-[11px] font-black uppercase tracking-[0.1em] text-primary flex items-center gap-1.5 border-b border-border/20 pb-2">
+                              👤 Información del Cliente
+                            </h4>
+                            
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                              {/* Customer name */}
+                              <div className="bg-muted/20 p-3 rounded-xl">
+                                <span className="text-[10px] font-bold text-muted-foreground block uppercase tracking-wider">Cliente</span>
+                                <span className="text-sm font-extrabold text-secondary dark:text-foreground flex items-center gap-1.5 mt-0.5">
+                                  👤 {activity.customerName || '-'}
+                                </span>
+                              </div>
+
+                              {/* Request number */}
+                              <div className="bg-muted/20 p-3 rounded-xl flex justify-between items-center">
+                                <div>
+                                  <span className="text-[10px] font-bold text-muted-foreground block uppercase tracking-wider">Solicitud / Radicado</span>
+                                  <span className="text-sm font-mono font-black text-secondary dark:text-foreground flex items-center gap-1.5 mt-0.5">
+                                    📄 #{activity.requestNumber || '-'}
+                                  </span>
+                                </div>
+                                {activity.requestNumber && (
+                                  <button 
+                                    onClick={() => handleCopy(activity.requestNumber, `req-${activity.id}`)}
+                                    className="p-1.5 hover:bg-card rounded-md text-muted-foreground hover:text-primary transition-colors cursor-pointer"
+                                    title="Copiar Solicitud"
+                                  >
+                                    {copiedId === `req-${activity.id}` ? <Check className="w-4 h-4 text-green-500" /> : <Copy className="w-4 h-4" />}
+                                  </button>
+                                )}
+                              </div>
+
+                              {/* Prominent client phone */}
+                              <div className="bg-primary/5 dark:bg-primary/10 border border-primary/20 p-4 rounded-xl flex justify-between items-center sm:col-span-2">
+                                <div className="space-y-0.5">
+                                  <span className="text-[11px] font-black text-primary block uppercase tracking-wider flex items-center gap-1">
+                                    📞 TELÉFONO DE CONTACTO
+                                  </span>
+                                  <span className="text-xl font-black text-secondary dark:text-foreground tracking-tight block">
+                                    {getClientPhone(activity)}
+                                  </span>
+                                </div>
+                                {getClientPhone(activity) !== 'No especificado' && (
+                                  <div className="flex gap-1.5">
+                                    <button 
+                                      onClick={() => handleCopy(getClientPhone(activity), `phone-${activity.id}`)}
+                                      className="h-10 px-4 bg-primary text-white font-bold rounded-xl flex items-center gap-1.5 text-xs hover:bg-primary/95 transition-all shadow-sm active:scale-95"
+                                      title="Copiar Teléfono de Contacto"
+                                    >
+                                      {copiedId === `phone-${activity.id}` ? (
+                                        <>
+                                          <Check className="w-4 h-4" />
+                                          <span>Copiado</span>
+                                        </>
+                                      ) : (
+                                        <>
+                                          <Copy className="w-4 h-4" />
+                                          <span>Copiar Número</span>
+                                        </>
+                                      )}
+                                    </button>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* EXTRA DETAILS COLLAPSIBLE */}
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-5 text-xs">
+                            <div className="space-y-3">
+                              <h5 className="font-black text-[10px] uppercase tracking-wider text-muted-foreground border-b border-border/30 pb-1">Gestión & Asignación</h5>
+                              <div className="space-y-2">
+                                <div className="flex justify-between">
+                                  <span className="text-muted-foreground font-medium">Asesor Emisor:</span>
+                                  <span className="font-bold text-secondary dark:text-foreground">{activity.fromAdvisorName}</span>
+                                </div>
+                                <div className="flex justify-between">
+                                  <span className="text-muted-foreground font-medium">Asesor Destino:</span>
+                                  <span className="font-bold text-secondary dark:text-foreground">{activity.toAdvisorName}</span>
+                                </div>
+                                <div className="flex justify-between">
+                                  <span className="text-muted-foreground font-medium">Supervisor:</span>
+                                  <span className="font-bold text-secondary dark:text-foreground">{activity.supervisorName || 'No asignado'}</span>
+                                </div>
+                                <div className="flex justify-between">
+                                  <span className="text-muted-foreground font-medium">Cartera:</span>
+                                  <span className="font-black text-primary uppercase">{activity.cartera || 'Sin Cartera'}</span>
+                                </div>
+                              </div>
+                            </div>
+
+                            <div className="space-y-3">
+                              <h5 className="font-black text-[10px] uppercase tracking-wider text-muted-foreground border-b border-border/30 pb-1">Canales & Valores</h5>
+                              <div className="space-y-2">
+                                <div className="flex justify-between">
+                                  <span className="text-muted-foreground font-medium">Canal de atención:</span>
+                                  <span className="font-bold text-secondary dark:text-foreground">
+                                    {(activity.canalGestion || 'Llamada') === 'WhatsApp' ? '💬 WhatsApp' : '📞 Llamada'}
+                                  </span>
+                                </div>
+                                <div className="flex justify-between">
+                                  <span className="text-muted-foreground font-medium">Tipo de gestión:</span>
+                                  <span className="font-bold text-secondary dark:text-foreground">{activity.managementType}</span>
+                                </div>
+                                {activity.paymentLinkValue > 0 && (
+                                  <div className="flex justify-between items-center">
+                                    <span className="text-muted-foreground font-medium">Valor Link de Pago:</span>
+                                    <span className="font-black text-emerald-600 dark:text-emerald-400 text-sm">
+                                      ${activity.paymentLinkValue.toLocaleString('es-CO')}
+                                    </span>
+                                  </div>
+                                )}
+                                <div className="flex justify-between">
+                                  <span className="text-muted-foreground font-medium">Fecha Completa:</span>
+                                  <span className="font-semibold text-muted-foreground">
+                                    {format(activity.createdAt, "dd 'de' MMMM, yyyy - hh:mm:ss a", { locale: es })}
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* OBSERVATIONS */}
+                          {activity.observations && (
+                            <div className="bg-card dark:bg-slate-900/40 p-4 rounded-2xl border border-border/40">
+                              <span className="text-[10px] font-black text-muted-foreground block uppercase tracking-wider mb-2">📝 Observaciones de Gestión:</span>
+                              <p className="text-sm text-secondary dark:text-foreground font-medium leading-relaxed whitespace-pre-line bg-muted/20 p-3 rounded-xl">
+                                {activity.observations}
+                              </p>
+                            </div>
+                          )}
+
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
                 </div>
-                <div className="text-right">
-                  <p className="text-sm font-bold text-secondary">#{activity.requestNumber}</p>
-                  <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-md ${activity.status === 'gestionado' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}`}>
-                    {activity.status}
-                  </span>
-                </div>
-              </motion.div>
-            ))}
+              );
+            })}
             {recentActivities.length === 0 && (
               <div className="p-20 text-center border-2 border-dashed border-border rounded-[2rem]">
                 <p className="text-muted-foreground">No hay gestiones recientes registradas.</p>

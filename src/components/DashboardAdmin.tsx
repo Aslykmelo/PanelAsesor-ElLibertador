@@ -380,6 +380,24 @@ export function DashboardAdmin({ transfers, user, advisors }: DashboardAdminProp
       .slice(0, 5);
   }, [filteredTransfers]);
 
+  // Top list: Asesores que más transfieren llamadas (only type === 'mensaje' / 'Mensaje')
+  const topSenders = useMemo(() => {
+    const map = new Map<string, { email: string; name: string; count: number }>();
+    filteredTransfers.forEach(t => {
+      if (t.type === 'mensaje') {
+        const email = (t.createdByEmail || t.fromAdvisorEmail || '').toLowerCase().trim();
+        if (!email) return;
+        const name = t.createdByName || t.fromAdvisorName || 'Desconocido';
+        const current = map.get(email) || { email, name, count: 0 };
+        current.count++;
+        map.set(email, current);
+      }
+    });
+    return Array.from(map.values())
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 5);
+  }, [filteredTransfers]);
+
   // Advisor performance charts (Total combining messages and links, grouped by maker / creator)
   const topAdvisorsByVolume = useMemo(() => {
     const map = new Map<string, { email: string; name: string; value: number }>();
@@ -812,12 +830,12 @@ export function DashboardAdmin({ transfers, user, advisors }: DashboardAdminProp
                 <AreaChart data={evolutionData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                   <defs>
                     <linearGradient id="colorTransferencias" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#041430" stopOpacity={0.4}/>
-                      <stop offset="95%" stopColor="#041430" stopOpacity={0.0}/>
+                      <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.4}/>
+                      <stop offset="95%" stopColor="#3b82f6" stopOpacity={0.0}/>
                     </linearGradient>
                     <linearGradient id="colorLinks" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#EF0D0D" stopOpacity={0.4}/>
-                      <stop offset="95%" stopColor="#EF0D0D" stopOpacity={0.0}/>
+                      <stop offset="5%" stopColor="#ef4444" stopOpacity={0.4}/>
+                      <stop offset="95%" stopColor="#ef4444" stopOpacity={0.0}/>
                     </linearGradient>
                   </defs>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#CBD5E1" opacity={0.3} />
@@ -828,8 +846,8 @@ export function DashboardAdmin({ transfers, user, advisors }: DashboardAdminProp
                     itemStyle={{ fontWeight: 'black', fontSize: '12px' }}
                   />
                   <Legend verticalAlign="top" height={36} iconType="circle" wrapperStyle={{ fontSize: '11px', fontWeight: 'bold' }} />
-                  <Area name="Transferencias de Llamada" type="monotone" dataKey="transferencias" stroke="#041430" strokeWidth={3} fillOpacity={1} fill="url(#colorTransferencias)" />
-                  <Area name="Links de Pago" type="monotone" dataKey="links" stroke="#EF0D0D" strokeWidth={3} fillOpacity={1} fill="url(#colorLinks)" />
+                  <Area name="Transferencias de Llamada" type="monotone" dataKey="transferencias" stroke="#3b82f6" strokeWidth={3} fillOpacity={1} fill="url(#colorTransferencias)" />
+                  <Area name="Links de Pago" type="monotone" dataKey="links" stroke="#ef4444" strokeWidth={3} fillOpacity={1} fill="url(#colorLinks)" />
                 </AreaChart>
               ) : (
                 <BarChart data={evolutionData} margin={{ top: 10, right: 10, left: -15, bottom: 0 }}>
@@ -841,8 +859,8 @@ export function DashboardAdmin({ transfers, user, advisors }: DashboardAdminProp
                     contentStyle={{ borderRadius: '16px', border: 'none', backgroundColor: 'var(--card)' }}
                   />
                   <Legend verticalAlign="top" height={36} iconType="rect" wrapperStyle={{ fontSize: '11px', fontWeight: 'bold' }} />
-                  <Bar name="Transferencias" dataKey="transferencias" fill="#041430" radius={[4, 4, 0, 0]} maxBarSize={30} />
-                  <Bar name="Links Emitidos" dataKey="links" fill="#EF0D0D" radius={[4, 4, 0, 0]} maxBarSize={30} />
+                  <Bar name="Transferencias" dataKey="transferencias" fill="#3b82f6" radius={[4, 4, 0, 0]} maxBarSize={30} />
+                  <Bar name="Links Emitidos" dataKey="links" fill="#ef4444" radius={[4, 4, 0, 0]} maxBarSize={30} />
                 </BarChart>
               )}
             </ResponsiveContainer>
@@ -978,13 +996,13 @@ export function DashboardAdmin({ transfers, user, advisors }: DashboardAdminProp
       </div>
 
       {/* RANKINGS GRID SECTION - CORRECTED LOGIC OF ASSIGNMENTS */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
         
         {/* TOP VALUE ADVISORS CARD - CORRECTED TO TAKE GENERATOR (CREATEDBY) OF LIKNS */}
         <Card className="rounded-[2.5rem] border border-border/40 dark:border-border/10 card-shadow overflow-hidden bg-card">
           <CardHeader className="py-6 px-10 border-b border-border/40 dark:border-border/10 bg-muted/5 flex flex-row items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-[#EF0D0D]/10 dark:bg-rose-500/20 text-[#EF0D0D] flex items-center justify-center">
-              <Award className="w-5 h-5" />
+            <div className="w-10 h-10 rounded-xl bg-rose-500/10 dark:bg-rose-500/20 text-[#EF0D0D] flex items-center justify-center">
+              <Award className="w-5 h-5 text-rose-500" />
             </div>
             <div>
               <CardTitle className="text-[14px] font-black text-secondary dark:text-foreground uppercase tracking-wider">
@@ -1021,7 +1039,7 @@ export function DashboardAdmin({ transfers, user, advisors }: DashboardAdminProp
                       </div>
                     </div>
                     <div className="text-right">
-                      <p className="text-base font-black text-[#EF0D0D] dark:text-rose-400">${adv.value.toLocaleString('es-CO')}</p>
+                      <p className="text-base font-black text-rose-500 dark:text-rose-400">${adv.value.toLocaleString('es-CO')}</p>
                     </div>
                   </div>
                   {/* Progress bar to represent comparative volume */}
@@ -1029,7 +1047,7 @@ export function DashboardAdmin({ transfers, user, advisors }: DashboardAdminProp
                     <div 
                       className={cn(
                         "h-full rounded-full transition-all duration-1000",
-                        i === 0 ? "bg-[#EF0D0D]" : "bg-[#041430]"
+                        i === 0 ? "bg-rose-500" : "bg-blue-500"
                       )}
                       style={{ width: `${percentage}%` }}
                     />
@@ -1048,8 +1066,8 @@ export function DashboardAdmin({ transfers, user, advisors }: DashboardAdminProp
         {/* TOP RECEIVERS PERFORMANCE - CORRECTED TO TAKE ASSIGNED RESPONSABLE (RECEIVER) */}
         <Card className="rounded-[2.5rem] border border-border/40 dark:border-border/10 card-shadow overflow-hidden bg-card">
           <CardHeader className="py-6 px-10 border-b border-border/40 dark:border-border/10 bg-muted/5 flex flex-row items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-[#041430]/10 dark:bg-slate-700/20 text-[#041430] dark:text-slate-200 flex items-center justify-center">
-              <Users className="w-5 h-5" />
+            <div className="w-10 h-10 rounded-xl bg-indigo-500/10 dark:bg-indigo-500/20 text-[#041430] dark:text-slate-200 flex items-center justify-center">
+              <Users className="w-5 h-5 text-indigo-500" />
             </div>
             <div>
               <CardTitle className="text-[14px] font-black text-secondary dark:text-foreground uppercase tracking-wider">
@@ -1072,7 +1090,7 @@ export function DashboardAdmin({ transfers, user, advisors }: DashboardAdminProp
                         #{i+1}
                       </span>
                       <div>
-                        <p className="font-extrabold text-sm text-secondary dark:text-foreground group-hover:text-[#EF0D0D] transition-colors">
+                        <p className="font-extrabold text-sm text-secondary dark:text-foreground group-hover:text-rose-600 transition-colors">
                           {adv.name}
                         </p>
                         <p className="text-[10px] font-semibold text-muted-foreground truncate max-w-[220px]">
@@ -1098,6 +1116,69 @@ export function DashboardAdmin({ transfers, user, advisors }: DashboardAdminProp
             {topReceivers.length === 0 && (
               <div className="text-center py-20 text-slate-400 italic font-semibold text-sm">
                 No se registran casos recibidos en el período seleccionado.
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* ASESORES QUE MAS TRANSFIEREN LLAMADAS (NEW CARD IN THE SYSTEM) */}
+        <Card className="rounded-[2.5rem] border border-border/40 dark:border-border/10 card-shadow overflow-hidden bg-card">
+          <CardHeader className="py-6 px-10 border-b border-border/40 dark:border-border/10 bg-muted/5 flex flex-row items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-blue-500/10 dark:bg-blue-500/20 text-[#EF0D0D] flex items-center justify-center">
+              <Phone className="w-5 h-5 text-blue-500" />
+            </div>
+            <div>
+              <CardTitle className="text-[14px] font-black text-secondary dark:text-foreground uppercase tracking-wider">
+                Asesores que más Transfieren
+              </CardTitle>
+              <CardDescription className="text-xs font-semibold">
+                TOP 5 de asesores emisores ordenados por cantidad de llamadas transferidas (sin links de pago)
+              </CardDescription>
+            </div>
+          </CardHeader>
+          <CardContent className="p-8 space-y-5">
+            {topSenders.map((adv, i) => {
+              const maxCount = topSenders[0]?.count || 1;
+              const percentage = Math.round((adv.count / maxCount) * 100);
+              return (
+                <div key={adv.email} className="flex flex-col gap-2 group p-3.5 rounded-2xl bg-muted/5 hover:bg-muted/30 border border-transparent hover:border-slate-100 dark:hover:border-slate-800 transition-all">
+                  <div className="flex justify-between items-center">
+                    <div className="flex items-center gap-3">
+                      <span className={cn(
+                        "w-7 h-7 rounded-lg flex items-center justify-center text-xs font-black",
+                        i === 0 ? "bg-amber-100 text-amber-700 dark:bg-amber-950/50" :
+                        i === 1 ? "bg-slate-150 text-slate-700 dark:bg-slate-900/50" :
+                        "bg-[#3b82f6]/10 text-blue-500"
+                      )}>
+                        #{i+1}
+                      </span>
+                      <div>
+                        <p className="font-extrabold text-sm text-secondary dark:text-foreground group-hover:text-blue-500 transition-colors">
+                          {adv.name}
+                        </p>
+                        <p className="text-[10px] font-semibold text-muted-foreground truncate max-w-[220px]">
+                          {adv.email}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-lg font-black text-secondary dark:text-foreground">{adv.count}</p>
+                      <p className="text-[9px] font-black uppercase text-secondary/40 tracking-widest">Transferencias</p>
+                    </div>
+                  </div>
+                  {/* Progress indicator */}
+                  <div className="w-full bg-muted rounded-full h-1.5 overflow-hidden">
+                    <div 
+                      className="bg-blue-500 h-full rounded-full transition-all duration-1000"
+                      style={{ width: `${percentage}%` }}
+                    />
+                  </div>
+                </div>
+              );
+            })}
+            {topSenders.length === 0 && (
+              <div className="text-center py-20 text-slate-400 italic font-semibold text-sm">
+                No se registran transferencias en el período seleccionado.
               </div>
             )}
           </CardContent>
@@ -1130,7 +1211,7 @@ export function DashboardAdmin({ transfers, user, advisors }: DashboardAdminProp
                   <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 9, fontWeight: 700, fill: '#64748B' }} />
                   <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 9, fontWeight: 700, fill: '#64748B' }} />
                   <ReTooltip cursor={{ fill: 'var(--muted)', opacity: 0.15 }} contentStyle={{ borderRadius: '16px', border: 'none', backgroundColor: 'var(--card)' }} />
-                  <Bar dataKey="value" fill="#041430" radius={[6, 6, 0, 0]} barSize={25} />
+                  <Bar dataKey="value" fill="#3b82f6" radius={[6, 6, 0, 0]} barSize={25} />
                 </BarChart>
               </ResponsiveContainer>
             </div>
@@ -1165,7 +1246,7 @@ export function DashboardAdmin({ transfers, user, advisors }: DashboardAdminProp
                   <ReTooltip cursor={{ fill: 'var(--muted)', opacity: 0.15 }} contentStyle={{ borderRadius: '16px', border: 'none', backgroundColor: 'var(--card)', fontSize: '11px' }} />
                   <Bar dataKey="total" name="Total Gestiones" fill="#EF0D0D" radius={[0, 6, 6, 0]} barSize={14}>
                     {carterasStats.map((entry, index) => {
-                      const colors = ['#EF0D0D', '#041430', '#6366F1', '#10B981', '#F59E0B', '#0891B2'];
+                      const colors = ['#EF0D0D', '#3b82f6', '#6366F1', '#10B981', '#F59E0B', '#0891B2'];
                       return <Cell key={`cell-${index}`} fill={colors[index % colors.length]} />;
                     })}
                   </Bar>
@@ -1176,7 +1257,7 @@ export function DashboardAdmin({ transfers, user, advisors }: DashboardAdminProp
             {/* List with detailed official numbers */}
             <div className="w-full md:w-1/2 flex flex-col gap-2.5 overflow-y-auto max-h-[220px] pr-2 scrollbar-thin">
               {carterasStats.map((c, i) => {
-                const colors = ['bg-[#EF0D0D]', 'bg-[#041430]', 'bg-[#6366F1]', 'bg-[#10B981]', 'bg-[#F59E0B]', 'bg-[#0891B2]'];
+                const colors = ['bg-[#EF0D0D]', 'bg-[#3b82f6]', 'bg-[#6366F1]', 'bg-[#10B981]', 'bg-[#F59E0B]', 'bg-[#0891B2]'];
                 return (
                   <div key={c.name} className="flex items-center justify-between text-xs p-1.5 rounded-lg border border-transparent hover:border-slate-100 dark:hover:border-slate-800 transition-colors">
                     <div className="flex items-center gap-2 min-w-0">

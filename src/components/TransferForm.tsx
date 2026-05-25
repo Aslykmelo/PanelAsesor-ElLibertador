@@ -42,6 +42,23 @@ export const TransferForm: React.FC<TransferFormProps> = ({ onSubmit, currentUse
   const [searchAdvisor, setSearchAdvisor] = useState('');
   const [canalGestion, setCanalGestion] = useState<'Llamada' | 'WhatsApp' | ''>('');
 
+  const formatCOP = (valString: string) => {
+    if (!valString) return '';
+    const num = parseInt(valString, 10);
+    if (isNaN(num)) return '';
+    return new Intl.NumberFormat('es-CO', {
+      style: 'currency',
+      currency: 'COP',
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0
+    }).format(num);
+  };
+
+  const handlePaymentValueChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const rawValue = e.target.value.replace(/\D/g, '');
+    setPaymentValue(rawValue);
+  };
+
   // 🔎 FILTERED & UNIQUE ADVISORS
   const filteredAdvisors = useMemo(() => {
     // 1. Deduplicate by email
@@ -84,6 +101,15 @@ export const TransferForm: React.FC<TransferFormProps> = ({ onSubmit, currentUse
     if (!selectedToAdvisor) {
       toast.error('Asesor de destino no válido');
       return;
+    }
+
+    const type = managementType.includes('Mensaje') ? 'mensaje' : 'regalo';
+    if (type === 'regalo') {
+      const parsedValue = parseFloat(paymentValue || '0');
+      if (isNaN(parsedValue) || parsedValue < 1000) {
+        toast.error('⚠️ El valor del link debe ser mayor a $1.000 COP.');
+        return;
+      }
     }
 
     setLoading(true);
@@ -262,12 +288,12 @@ export const TransferForm: React.FC<TransferFormProps> = ({ onSubmit, currentUse
                   <div className="relative">
                     <DollarSign className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                     <Input 
-                      type="number"
-                      placeholder="0.00" 
+                      type="text"
+                      placeholder="$0" 
                       disabled={managementType.includes('Mensaje')}
                       className="h-12 bg-muted/50 border-none rounded-2xl pl-10 focus-visible:ring-primary font-bold transition-all disabled:opacity-50"
-                      value={paymentValue}
-                      onChange={(e) => setPaymentValue(e.target.value)}
+                      value={paymentValue ? formatCOP(paymentValue) : ''}
+                      onChange={handlePaymentValueChange}
                     />
                   </div>
                 </div>
