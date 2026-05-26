@@ -71,18 +71,45 @@ export const TransferForm: React.FC<TransferFormProps> = ({ onSubmit, currentUse
       }
     }, []);
 
+    // 1.5. Add virtual NGSO advisor
+    const ngsoAdvisor: Advisor = {
+      id: 'ngso-virtual',
+      name: 'NGSO',
+      email: 'lidercartera2@ngsoabogados.com',
+      supervisor: 'NGSO',
+      supervisorEmail: 'lidercartera2@ngsoabogados.com',
+      cartera: 'NGSO',
+      role: 'asesor',
+      active: true,
+      createdAt: new Date()
+    };
+    
+    const combined = [ngsoAdvisor, ...uniqueAdvisors];
+
     // 2. Filter by active and search
-    return uniqueAdvisors.filter(a => 
+    return combined.filter(a => 
       a.active !== false && (
         (a.name || '').toLowerCase().includes(searchAdvisor.toLowerCase()) ||
-        (a.email || '').toLowerCase().includes(searchAdvisor.toLowerCase())
+        (a.email || '').toLowerCase().includes(searchAdvisor.toLowerCase()) ||
+        (a.cartera || '').toLowerCase().includes(searchAdvisor.toLowerCase())
       )
     );
   }, [searchAdvisor, advisors]);
 
-  const selectedToAdvisor = useMemo(() => 
-    advisors.find(a => (a.email || '').toLowerCase() === toAdvisorEmail.toLowerCase()),
-  [toAdvisorEmail, advisors]);
+  const selectedToAdvisor = useMemo(() => {
+    if ((toAdvisorEmail || '').toLowerCase() === 'lidercartera2@ngsoabogados.com') {
+      return {
+        id: 'ngso-virtual',
+        name: 'NGSO',
+        email: 'lidercartera2@ngsoabogados.com',
+        supervisor: 'NGSO',
+        supervisorEmail: 'lidercartera2@ngsoabogados.com',
+        cartera: 'NGSO',
+        active: true
+      };
+    }
+    return advisors.find(a => (a.email || '').toLowerCase() === toAdvisorEmail.toLowerCase());
+  }, [toAdvisorEmail, advisors]);
 
   useEffect(() => {
     if (managementType === 'Mensaje (Transferencia de llamada)') {
@@ -116,6 +143,8 @@ export const TransferForm: React.FC<TransferFormProps> = ({ onSubmit, currentUse
     try {
       const type = managementType.includes('Mensaje') ? 'mensaje' : 'regalo';
       
+      const isNgso = (selectedToAdvisor.cartera || '').toUpperCase().trim() === 'NGSO';
+      
       const docData = {
         type,
         managementType,
@@ -123,10 +152,10 @@ export const TransferForm: React.FC<TransferFormProps> = ({ onSubmit, currentUse
         fromAdvisorName: currentUser.name,
         fromAdvisorEmail: currentUser.email.toLowerCase(),
         toAdvisorName: selectedToAdvisor.name,
-        toAdvisorEmail: selectedToAdvisor.email.toLowerCase(),
-        supervisorEmail: selectedToAdvisor.supervisorEmail.toLowerCase(),
-        supervisorName: selectedToAdvisor.supervisor,
-        cartera: selectedToAdvisor.cartera,
+        toAdvisorEmail: isNgso ? 'lidercartera2@ngsoabogados.com' : selectedToAdvisor.email.toLowerCase(),
+        supervisorEmail: isNgso ? 'lidercartera2@ngsoabogados.com' : selectedToAdvisor.supervisorEmail.toLowerCase(),
+        supervisorName: isNgso ? 'NGSO' : selectedToAdvisor.supervisor,
+        cartera: isNgso ? 'NGSO' : selectedToAdvisor.cartera,
         requestNumber,
         customerName,
         contactPhones: phone,
@@ -152,7 +181,7 @@ export const TransferForm: React.FC<TransferFormProps> = ({ onSubmit, currentUse
         
         if (mailRes.ok) {
           toast.success('Notificación enviada por correo', {
-            description: `Se envió un aviso a ${type === 'mensaje' ? docData.toAdvisorEmail : docData.supervisorEmail}`
+            description: `Se envió un aviso a ${isNgso ? 'lidercartera2@ngsoabogados.com' : (type === 'mensaje' ? docData.toAdvisorEmail : docData.supervisorEmail)}`
           });
           
           // Actualizamos el registro en Firestore para marcarlo como notificado visualmente
@@ -355,24 +384,42 @@ export const TransferForm: React.FC<TransferFormProps> = ({ onSubmit, currentUse
                       </div>
                       
                       <div className="max-h-[220px] overflow-y-auto pr-2 custom-scrollbar space-y-2">
-                        {filteredAdvisors.map(adv => (
-                          <div 
-                            key={adv.id || adv.email}
-                            onClick={() => {
-                              setToAdvisorEmail(adv.email);
-                              setSearchAdvisor('');
-                            }}
-                            className="p-4 rounded-2xl border-2 border-transparent bg-muted/10 hover:border-primary/30 hover:bg-primary/5 cursor-pointer transition-all flex items-center gap-4"
-                          >
-                            <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center font-bold text-muted-foreground">
-                              {(adv.name || '').charAt(0)}
+                        {filteredAdvisors.map(adv => {
+                          const isNgsoItem = (adv.cartera || '').toUpperCase().trim() === 'NGSO';
+                          return (
+                            <div 
+                              key={adv.id || adv.email}
+                              onClick={() => {
+                                setToAdvisorEmail(adv.email);
+                                setSearchAdvisor('');
+                              }}
+                              className={`p-4 rounded-2xl border-2 border-transparent hover:border-primary/30 hover:bg-primary/5 cursor-pointer transition-all flex items-center gap-4 ${
+                                isNgsoItem 
+                                  ? 'bg-emerald-500/5 border-dashed border-emerald-500/30 hover:border-emerald-500/50 hover:bg-emerald-500/10 dark:bg-emerald-950/10' 
+                                  : 'bg-muted/10'
+                              }`}
+                            >
+                              <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold shrink-0 ${
+                                isNgsoItem 
+                                  ? 'bg-emerald-500/10 text-emerald-600 dark:bg-emerald-950/30 dark:text-emerald-400 font-extrabold text-base' 
+                                  : 'bg-muted text-muted-foreground'
+                              }`}>
+                                {isNgsoItem ? '🏢' : (adv.name || '').charAt(0)}
+                              </div>
+                              <div className="overflow-hidden flex-1">
+                                <div className="flex items-center gap-2">
+                                  <p className="font-bold text-sm text-secondary truncate uppercase">{adv.name}</p>
+                                  {isNgsoItem && (
+                                    <span className="text-[9px] font-black bg-emerald-500 text-white px-2 py-0.5 rounded-full uppercase tracking-widest leading-none">
+                                      Outsourcing
+                                    </span>
+                                  )}
+                                </div>
+                                <p className="text-[10px] text-muted-foreground truncate">{adv.email}</p>
+                              </div>
                             </div>
-                            <div className="overflow-hidden">
-                              <p className="font-bold text-sm text-secondary truncate uppercase">{adv.name}</p>
-                              <p className="text-[10px] text-muted-foreground truncate">{adv.email}</p>
-                            </div>
-                          </div>
-                        ))}
+                          );
+                        })}
                         {filteredAdvisors.length === 0 && (
                           <p className="text-center text-xs text-muted-foreground py-4">No se encontraron asesores.</p>
                         )}
@@ -401,38 +448,64 @@ export const TransferForm: React.FC<TransferFormProps> = ({ onSubmit, currentUse
                         </Button>
                       </div>
                       
-                      <div className="p-6 bg-primary/5 border-2 border-primary rounded-[2rem] relative overflow-hidden group">
-                        <div className="flex items-center gap-4 mb-6">
-                            <div className="w-14 h-14 rounded-2xl bg-primary text-white flex items-center justify-center text-xl font-black shadow-lg shadow-primary/20 shrink-0">
-                              {(selectedToAdvisor.name || '').charAt(0)}
+                      {(() => {
+                        const isNgso = (selectedToAdvisor.cartera || '').toUpperCase().trim() === 'NGSO';
+                        if (isNgso) {
+                          return (
+                            <div className="p-6 bg-gradient-to-br from-emerald-500/10 to-teal-500/10 border-2 border-emerald-500 dark:border-emerald-600 rounded-[2rem] relative overflow-hidden group shadow-md w-full">
+                              <div className="absolute right-0 bottom-0 translate-x-4 translate-y-4 opacity-5 pointer-events-none">
+                                <Briefcase className="w-40 h-40" />
+                              </div>
+                              
+                              <div className="flex items-center gap-4">
+                                  <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-emerald-500 to-teal-500 text-white flex items-center justify-center text-xl font-black shadow-lg shadow-emerald-500/20 shrink-0">
+                                     🏢
+                                  </div>
+                                  <div className="overflow-hidden">
+                                     <h4 className="text-xl font-black text-secondary dark:text-emerald-400 truncate tracking-tight">🏢 NGSO</h4>
+                                     <p className="text-sm font-bold text-emerald-600 dark:text-emerald-400 truncate">lidercartera2@ngsoabogados.com</p>
+                                  </div>
+                              </div>
                             </div>
-                            <div className="overflow-hidden">
-                              <h4 className="text-xl font-black text-secondary truncate tracking-tight">{selectedToAdvisor.name}</h4>
-                              <p className="text-sm font-bold text-primary/70 truncate">{selectedToAdvisor.email}</p>
+                          );
+                        }
+                        return (
+                          <div className="p-6 bg-primary/5 border-2 border-primary rounded-[2rem] relative overflow-hidden group w-full">
+                            <div className="flex items-center gap-4 mb-6">
+                                <div className="w-14 h-14 rounded-2xl bg-primary text-white flex items-center justify-center text-xl font-black shadow-lg shadow-primary/20 shrink-0">
+                                   {(selectedToAdvisor.name || '').charAt(0)}
+                                </div>
+                                <div className="overflow-hidden">
+                                   <h4 className="text-xl font-black text-secondary truncate tracking-tight">{selectedToAdvisor.name}</h4>
+                                   <p className="text-sm font-bold text-primary/70 truncate">{selectedToAdvisor.email}</p>
+                                </div>
                             </div>
-                        </div>
 
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                          <div className="bg-white dark:bg-black/20 p-4 rounded-2xl border border-primary/10 shadow-sm flex items-center gap-3">
-                            <div className="w-8 h-8 rounded-lg bg-orange-500/10 flex items-center justify-center shrink-0">
-                              <Briefcase className="w-4 h-4 text-orange-500" />
-                            </div>
-                            <div className="overflow-hidden">
-                              <p className="text-[9px] font-black text-muted-foreground uppercase mb-0.5">Cartera</p>
-                              <p className="font-bold text-xs text-secondary truncate">{selectedToAdvisor.cartera}</p>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                              <div className="bg-white dark:bg-black/20 p-4 rounded-2xl border border-primary/10 shadow-sm flex items-center gap-3">
+                                <div className="w-8 h-8 rounded-lg bg-orange-500/10 flex items-center justify-center shrink-0">
+                                  <Briefcase className="w-4 h-4 text-orange-500" />
+                                </div>
+                                <div className="overflow-hidden">
+                                  <p className="text-[9px] font-black text-muted-foreground uppercase mb-0.5">Cartera</p>
+                                  <p className="font-bold text-xs text-secondary truncate">
+                                    {selectedToAdvisor.cartera}
+                                  </p>
+                                </div>
+                              </div>
+                              <div className="bg-white dark:bg-black/20 p-4 rounded-2xl border border-primary/10 shadow-sm flex items-center gap-3">
+                                <div className="w-8 h-8 rounded-lg bg-blue-500/10 flex items-center justify-center shrink-0">
+                                  <UserIcon className="w-4 h-4 text-blue-500" />
+                                </div>
+                                <div className="overflow-hidden">
+                                  <p className="text-[9px] font-black text-muted-foreground uppercase mb-0.5">Supervisor</p>
+                                  <p className="font-bold text-xs text-secondary truncate">{selectedToAdvisor.supervisor}</p>
+                                </div>
+                              </div>
                             </div>
                           </div>
-                          <div className="bg-white dark:bg-black/20 p-4 rounded-2xl border border-primary/10 shadow-sm flex items-center gap-3">
-                            <div className="w-8 h-8 rounded-lg bg-blue-500/10 flex items-center justify-center shrink-0">
-                              <UserIcon className="w-4 h-4 text-blue-500" />
-                            </div>
-                            <div className="overflow-hidden">
-                              <p className="text-[9px] font-black text-muted-foreground uppercase mb-0.5">Supervisor</p>
-                              <p className="font-bold text-xs text-secondary truncate">{selectedToAdvisor.supervisor}</p>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
+                        );
+                      })()}
                     </motion.div>
                   )}
                 </div>

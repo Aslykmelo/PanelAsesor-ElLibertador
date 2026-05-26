@@ -53,6 +53,9 @@ import { toast } from 'sonner';
 // Helper to normalize and match official carteras
 function getOfficialCarteraKey(raw: string): string {
   const normalized = (raw || '').toLowerCase().trim();
+  if (normalized.includes('ngso')) {
+    return 'ngso';
+  }
   if (normalized.includes('copropiedad')) {
     return 'copropiedades';
   }
@@ -74,6 +77,7 @@ function getOfficialCarteraKey(raw: string): string {
 // Map key to official formatted name
 function getOfficialCarteraName(key: string): string {
   switch (key) {
+    case 'ngso': return 'NGSO';
     case 'pre jurídico': return 'Pre Jurídico';
     case 'jurídico': return 'Jurídico';
     case 'desocupados': return 'Desocupados';
@@ -84,6 +88,17 @@ function getOfficialCarteraName(key: string): string {
 }
 
 function resolveTransferCarteraKey(t: Transfer, advisors: Advisor[], currentUserCartera?: string): string {
+  // If the transfer is explicitly for NGSO (acting as recipient) or any field indicates NGSO, count as ngso brand
+  const isNgso = (t.cartera || '').toUpperCase().trim() === 'NGSO' ||
+                 (t.toAdvisorName || '').toUpperCase().includes('NGSO') ||
+                 (t.toAdvisorEmail || '').toLowerCase().trim() === 'lidercartera2@ngsoabogados.com' ||
+                 (t.supervisorName || '').toUpperCase().includes('NGSO') ||
+                 (t.supervisorEmail || '').toLowerCase().trim() === 'lidercartera2@ngsoabogados.com';
+
+  if (isNgso) {
+    return 'ngso';
+  }
+
   const creatorEmail = (t.createdByEmail || t.fromAdvisorEmail || '').toLowerCase().trim();
   
   // Find creator in advisors
@@ -201,10 +216,11 @@ export function DashboardAdmin({ transfers, user, advisors }: DashboardAdminProp
       'jurídico': 'Ana María Gutiérrez',
       'desocupados': 'Mabel Andrade',
       'cuotas al día': 'Lizeth Osma',
-      'copropiedades': 'Lizeth Osma Copropiedades'
+      'copropiedades': 'Lizeth Osma Copropiedades',
+      'ngso': 'NGSO'
     };
 
-    const officialCarterasKeys = ['pre jurídico', 'jurídico', 'desocupados', 'cuotas al día', 'copropiedades'];
+    const officialCarterasKeys = ['pre jurídico', 'jurídico', 'desocupados', 'cuotas al día', 'copropiedades', 'ngso'];
     officialCarterasKeys.forEach(k => {
       listMap.set(k, { 
         name: getOfficialCarteraName(k), 
@@ -350,7 +366,7 @@ export function DashboardAdmin({ transfers, user, advisors }: DashboardAdminProp
     filteredTransfers.forEach(t => {
       if (t.type === 'regalo') {
         const email = (t.createdByEmail || t.fromAdvisorEmail || '').toLowerCase().trim();
-        if (!email) return;
+        if (!email || email === 'lidercartera2@ngsoabogados.com') return;
         const name = t.createdByName || t.fromAdvisorName || 'Desconocido';
         const val = t.paymentLinkValue || 0;
         const current = map.get(email) || { email, name, count: 0, value: 0 };
@@ -369,7 +385,7 @@ export function DashboardAdmin({ transfers, user, advisors }: DashboardAdminProp
     const map = new Map<string, { email: string; name: string; count: number }>();
     filteredTransfers.forEach(t => {
       const email = (t.toAdvisorEmail || '').toLowerCase().trim();
-      if (!email) return;
+      if (!email || email === 'lidercartera2@ngsoabogados.com') return;
       const name = t.toAdvisorName || 'Pendiente';
       const current = map.get(email) || { email, name, count: 0 };
       current.count++;
@@ -386,7 +402,7 @@ export function DashboardAdmin({ transfers, user, advisors }: DashboardAdminProp
     filteredTransfers.forEach(t => {
       if (t.type === 'mensaje') {
         const email = (t.createdByEmail || t.fromAdvisorEmail || '').toLowerCase().trim();
-        if (!email) return;
+        if (!email || email === 'lidercartera2@ngsoabogados.com') return;
         const name = t.createdByName || t.fromAdvisorName || 'Desconocido';
         const current = map.get(email) || { email, name, count: 0 };
         current.count++;
@@ -403,7 +419,7 @@ export function DashboardAdmin({ transfers, user, advisors }: DashboardAdminProp
     const map = new Map<string, { email: string; name: string; value: number }>();
     filteredTransfers.forEach(t => {
       const email = (t.createdByEmail || t.fromAdvisorEmail || '').toLowerCase().trim();
-      if (!email) return;
+      if (!email || email === 'lidercartera2@ngsoabogados.com') return;
       const name = t.createdByName || t.fromAdvisorName || 'Desconocido';
       const current = map.get(email) || { email, name, value: 0 };
       current.value++;
@@ -421,10 +437,8 @@ export function DashboardAdmin({ transfers, user, advisors }: DashboardAdminProp
   }, [filteredTransfers]);
 
   const carteras = useMemo(() => {
-    const fromTransfers = new Set(transfers.map(t => t.cartera).filter(Boolean));
-    const fromAdvisors = new Set(advisors.map(a => a.cartera).filter(Boolean));
-    return Array.from(new Set([...Array.from(fromTransfers), ...Array.from(fromAdvisors)]));
-  }, [transfers, advisors]);
+    return ['Pre Jurídico', 'Jurídico', 'Desocupados', 'Cuotas al Día', 'Copropiedades', 'NGSO'];
+  }, []);
 
   const uniqueAdvisors = useMemo(() => {
     const map = new Map();
@@ -439,6 +453,8 @@ export function DashboardAdmin({ transfers, user, advisors }: DashboardAdminProp
         map.set(t.toAdvisorEmail.toLowerCase(), t.toAdvisorName);
       }
     });
+    // Ensure the central email maps to "NGSO" name
+    map.set('lidercartera2@ngsoabogados.com', 'NGSO');
     return Array.from(map.entries());
   }, [transfers, advisors]);
 
@@ -454,6 +470,8 @@ export function DashboardAdmin({ transfers, user, advisors }: DashboardAdminProp
         map.set(t.supervisorEmail.toLowerCase(), t.supervisorName);
       }
     });
+    // Ensure the central email maps to "NGSO" name
+    map.set('lidercartera2@ngsoabogados.com', 'NGSO');
     return Array.from(map.entries());
   }, [transfers, advisors]);
 

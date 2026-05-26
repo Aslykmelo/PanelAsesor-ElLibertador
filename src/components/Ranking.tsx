@@ -42,14 +42,20 @@ export function Ranking({ transfers, advisors }: RankingProps) {
   const supervisors = useMemo(() => {
     const fromAdvisors = new Set(advisors.map(a => a.supervisor).filter(Boolean));
     const fromTransfers = new Set(transfers.map(t => t.supervisorName).filter(Boolean));
-    return Array.from(new Set([...Array.from(fromAdvisors), ...Array.from(fromTransfers)]));
+    const normalized = Array.from(new Set([...Array.from(fromAdvisors), ...Array.from(fromTransfers)]))
+      .map(s => {
+        const uppercase = s.toUpperCase().trim();
+        if (uppercase.includes('BUZÓN CENTRALIZADO') || uppercase.includes('BUZON CENTRALIZADO')) {
+          return 'NGSO';
+        }
+        return s;
+      });
+    return Array.from(new Set(normalized));
   }, [advisors, transfers]);
 
   const carteras = useMemo(() => {
-    const fromAdvisors = new Set(advisors.map(a => a.cartera).filter(Boolean));
-    const fromTransfers = new Set(transfers.map(t => t.cartera).filter(Boolean));
-    return Array.from(new Set([...Array.from(fromAdvisors), ...Array.from(fromTransfers)]));
-  }, [advisors, transfers]);
+    return ['Pre Jurídico', 'Jurídico', 'Desocupados', 'Cuotas al Día', 'Copropiedades', 'NGSO'];
+  }, []);
 
   const filteredTransfers = useMemo(() => {
     return transfers.filter(t => {
@@ -92,7 +98,7 @@ export function Ranking({ transfers, advisors }: RankingProps) {
       const receiverName = t.toAdvisorName || 'Pendiente';
 
       // 2. ENVIOS & VALOR GENERADO (PARA QUIEN CREA EL REGISTRO)
-      if (creatorEmail) {
+      if (creatorEmail && creatorEmail !== 'lidercartera2@ngsoabogados.com') {
         if (!counts[creatorEmail]) {
           counts[creatorEmail] = { count: 0, name: creatorName, email: creatorEmail, totalValue: 0, receiveCount: 0, linksCount: 0 };
         }
@@ -105,7 +111,7 @@ export function Ranking({ transfers, advisors }: RankingProps) {
       }
 
       // 3. RECIBIDOS (PARA QUIEN RECIBE EL CASO)
-      if (receiverEmail) {
+      if (receiverEmail && receiverEmail !== 'lidercartera2@ngsoabogados.com') {
         if (!counts[receiverEmail]) {
           counts[receiverEmail] = { count: 0, name: receiverName, email: receiverEmail, totalValue: 0, receiveCount: 0, linksCount: 0 };
         }

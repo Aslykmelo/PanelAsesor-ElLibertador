@@ -41,7 +41,8 @@ async function startServer() {
       requestNumber, 
       paymentLinkValue,
       observations,
-      canalGestion
+      canalGestion,
+      cartera
     } = req.body;
 
     const phone = req.body.contactPhones || req.body.phone || 'No registrado';
@@ -67,11 +68,15 @@ async function startServer() {
 
       const formattedDate = new Date().toLocaleString('es-CO', { timeZone: 'America/Bogota' });
 
+      const isNgso = (cartera || '').toUpperCase().trim() === 'NGSO' || 
+                     (toAdvisorEmail || '').toLowerCase().trim() === 'lidercartera2@ngsoabogados.com' ||
+                     (supervisorEmail || '').toLowerCase().trim() === 'lidercartera2@ngsoabogados.com';
+
       if (managementType.includes("Mensaje")) {
         mailOptions = {
           from: `"El Libertador" <${process.env.EMAIL_USER}>`,
-          to: toAdvisorEmail,
-          cc: supervisorEmail,
+          to: isNgso ? "lidercartera2@ngsoabogados.com" : toAdvisorEmail,
+          ...(isNgso ? {} : { cc: supervisorEmail }),
           subject: "🚨 Nueva transferencia asignada",
           html: `
             <div style="font-family: 'Segoe UI', Arial, sans-serif; max-width: 600px; margin: auto; border: 1px solid #e2e8f0; border-radius: 20px; background-color: white;">
@@ -104,7 +109,7 @@ async function startServer() {
         // LINK DE PAGO: Enviar a Supervisor y al Asesor que generó el link
         mailOptions = {
           from: `"El Libertador" <${process.env.EMAIL_USER}>`,
-          to: [supervisorEmail, fromAdvisorEmail],
+          to: isNgso ? ["lidercartera2@ngsoabogados.com"] : [supervisorEmail, fromAdvisorEmail],
           subject: "Link de Pago Generado",
           html: `
             <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color: #f8fafc; padding: 20px;">

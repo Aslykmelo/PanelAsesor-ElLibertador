@@ -549,7 +549,7 @@ export const TransferList: React.FC<TransferListProps> = ({ transfers, onStatusC
                                <div className="flex items-center gap-1.5">
                                   <div className="w-1.5 h-1.5 rounded-full bg-primary" />
                                   <p className="text-[10px] text-muted-foreground font-black uppercase tracking-tighter">
-                                    {t.cartera || 'Sin Cartera'}
+                                    {(t.cartera || '').toUpperCase() === 'NGSO' ? 'NGSO' : (t.cartera || 'Sin Cartera')}
                                   </p>
                                </div>
                                <div className="pt-1">
@@ -785,7 +785,7 @@ export const TransferList: React.FC<TransferListProps> = ({ transfers, onStatusC
                                         <div>
                                           <label className="text-[10px] font-bold uppercase text-muted-foreground tracking-wider block">Supervisor & Cartera</label>
                                           <p className="text-sm font-extrabold text-secondary dark:text-foreground">{t.supervisorName || 'No asignado'}</p>
-                                          <p className="text-[10px] font-black uppercase text-primary tracking-tight">{t.cartera || 'Sin Cartera'}</p>
+                                          <p className="text-[10px] font-black uppercase text-primary tracking-tight">{(t.cartera || '').toUpperCase() === 'NGSO' ? 'NGSO' : (t.cartera || 'Sin Cartera')}</p>
                                         </div>
                                       </div>
                                     </div>
