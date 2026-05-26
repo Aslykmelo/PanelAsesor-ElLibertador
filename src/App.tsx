@@ -390,18 +390,21 @@ export default function App() {
             transfers={filteredData.filter(t => {
               const creatorEmail = (t.createdByEmail || t.createdBy || '').toLowerCase().trim();
               const fromEmail = (t.fromAdvisorEmail || '').toLowerCase().trim();
+              const toEmail = (t.toAdvisorEmail || '').toLowerCase().trim();
               const currentUserEmail = (currentUser?.email || '').toLowerCase().trim();
               const currentUserUid = currentUser?.uid || '';
               return (
                 creatorEmail === currentUserEmail || 
                 t.createdBy === currentUserUid || 
-                fromEmail === currentUserEmail
+                fromEmail === currentUserEmail ||
+                toEmail === currentUserEmail
               );
             })}
             onStatusChange={handleStatusChange}
             onDelete={handleDelete}
             userRole={effectiveRole}
             advisors={advisors}
+            currentUser={currentUser!}
           />
         );
 

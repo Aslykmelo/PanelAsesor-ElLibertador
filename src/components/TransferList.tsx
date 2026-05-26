@@ -18,7 +18,7 @@ import {
 } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
 import { MANAGEMENT_TYPES, UserRole } from '@/constants';
-import { Transfer, Advisor } from '@/types';
+import { Transfer, Advisor, User } from '@/types';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { Search, Filter, Calendar, MessageSquare, Gift, MoreHorizontal, Mail, Check, Trash2, Eye, EyeOff, Copy } from 'lucide-react';
@@ -37,9 +37,10 @@ interface TransferListProps {
   userRole: UserRole;
   advisors: Advisor[];
   title?: string;
+  currentUser?: User;
 }
 
-export const TransferList: React.FC<TransferListProps> = ({ transfers, onStatusChange, onDelete, userRole, advisors, title }) => {
+export const TransferList: React.FC<TransferListProps> = ({ transfers, onStatusChange, onDelete, userRole, advisors, title, currentUser }) => {
   const getClientPhone = (t: any): string => {
     if (!t) return 'No especificado';
     return t.phone ||
@@ -54,10 +55,37 @@ export const TransferList: React.FC<TransferListProps> = ({ transfers, onStatusC
            'No especificado';
   };
 
+  const [advisorFilterTab, setAdvisorFilterTab] = useState<'todas' | 'enviadas' | 'recibidas'>('todas');
   const [searchTerm, setSearchTerm] = useState('');
   const [typeFilter, setTypeFilter] = useState('todos');
   const [supervisorFilter, setSupervisorFilter] = useState('todos');
   const [channelFilter, setChannelFilter] = useState('todos');
+
+  // Dynamic counts for Mis Gestiones tabs
+  const advisorCounts = useMemo(() => {
+    let enviadas = 0;
+    let recibidas = 0;
+    const userEmailLower = currentUser?.email?.toLowerCase().trim() || '';
+    const userUid = currentUser?.uid || '';
+    
+    transfers.forEach(t => {
+      const creatorEmail = (t.createdByEmail || t.createdBy || '').toLowerCase().trim();
+      const fromEmail = (t.fromAdvisorEmail || '').toLowerCase().trim();
+      const toEmail = (t.toAdvisorEmail || '').toLowerCase().trim();
+      
+      const isEnviada = (creatorEmail === userEmailLower || t.createdBy === userUid || fromEmail === userEmailLower);
+      const isRecibida = (toEmail === userEmailLower);
+      
+      if (isEnviada) enviadas++;
+      if (isRecibida) recibidas++;
+    });
+
+    return {
+      enviadas,
+      recibidas,
+      todas: transfers.length
+    };
+  }, [transfers, currentUser]);
 
   // Multi-row expanded states
   const [expandedRows, setExpandedRows] = useState<Record<string, boolean>>({});
@@ -101,6 +129,21 @@ export const TransferList: React.FC<TransferListProps> = ({ transfers, onStatusC
   const processedTransfers = useMemo(() => {
     // 1. Filter
     const filtered = transfers.filter(t => {
+      // Filter by advisor tab if title === "Mis Gestiones"
+      if (title === "Mis Gestiones" && currentUser) {
+        const userEmailLower = currentUser?.email?.toLowerCase().trim() || '';
+        const userUid = currentUser?.uid || '';
+        const creatorEmail = (t.createdByEmail || t.createdBy || '').toLowerCase().trim();
+        const fromEmail = (t.fromAdvisorEmail || '').toLowerCase().trim();
+        const toEmail = (t.toAdvisorEmail || '').toLowerCase().trim();
+        
+        const isEnviada = (creatorEmail === userEmailLower || t.createdBy === userUid || fromEmail === userEmailLower);
+        const isRecibida = (toEmail === userEmailLower);
+
+        if (advisorFilterTab === 'enviadas' && !isEnviada) return false;
+        if (advisorFilterTab === 'recibidas' && !isRecibida) return false;
+      }
+
       const searchLower = searchTerm.toLowerCase();
       const matchesSearch = 
         (t.customerName || '').toLowerCase().includes(searchLower) ||
@@ -135,7 +178,7 @@ export const TransferList: React.FC<TransferListProps> = ({ transfers, onStatusC
 
       return sortDirection === 'asc' ? comparison : -comparison;
     });
-  }, [transfers, searchTerm, typeFilter, supervisorFilter, channelFilter, sortField, sortDirection]);
+  }, [transfers, searchTerm, typeFilter, supervisorFilter, channelFilter, sortField, sortDirection, advisorFilterTab, title, currentUser]);
 
   // Pagination Calculations
   const totalItems = processedTransfers.length;
@@ -200,6 +243,115 @@ export const TransferList: React.FC<TransferListProps> = ({ transfers, onStatusC
           </Button>
         </div>
       </div>
+
+      {title === "Mis Gestiones" && (
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+          {/* Card: TODAS */}
+          <motion.div
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.98 }}
+            onClick={() => {
+              setAdvisorFilterTab('todas');
+              setCurrentPage(1);
+            }}
+            className={cn(
+              "p-6 rounded-[2rem] card-shadow cursor-pointer transition-all duration-300 border flex flex-col gap-2 relative overflow-hidden",
+              advisorFilterTab === 'todas'
+                ? "bg-card border-primary ring-2 ring-primary/20 shadow-[0_0_20px_rgba(239,68,68,0.15)] dark:shadow-[0_0_20px_rgba(239,68,68,0.25)]"
+                : "bg-card border-border/40 dark:border-border/10 opacity-75 hover:opacity-100"
+            )}
+          >
+            {advisorFilterTab === 'todas' && (
+              <div className="absolute top-0 right-0 w-24 h-24 bg-primary/5 rounded-full -mr-6 -mt-6" />
+            )}
+            <div className="flex items-center justify-between">
+              <span className="text-2xl">📋</span>
+              <span className={cn(
+                "text-xs font-black uppercase tracking-widest px-3 py-1 rounded-full",
+                advisorFilterTab === 'todas' ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground"
+              )}>
+                Todas
+              </span>
+            </div>
+            <div className="mt-2">
+              <span className="text-4xl font-black text-secondary dark:text-foreground">
+                {advisorCounts.todas}
+              </span>
+              <p className="text-xs font-extrabold text-muted-foreground uppercase tracking-widest mt-1">Total Gestiones</p>
+            </div>
+          </motion.div>
+
+          {/* Card: ENVIADAS */}
+          <motion.div
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.98 }}
+            onClick={() => {
+              setAdvisorFilterTab('enviadas');
+              setCurrentPage(1);
+            }}
+            className={cn(
+              "p-6 rounded-[2rem] card-shadow cursor-pointer transition-all duration-300 border flex flex-col gap-2 relative overflow-hidden",
+              advisorFilterTab === 'enviadas'
+                ? "bg-card border-primary ring-2 ring-primary/20 shadow-[0_0_20px_rgba(239,68,68,0.15)] dark:shadow-[0_0_20px_rgba(239,68,68,0.25)]"
+                : "bg-card border-border/40 dark:border-border/10 opacity-75 hover:opacity-100"
+            )}
+          >
+            {advisorFilterTab === 'enviadas' && (
+              <div className="absolute top-0 right-0 w-24 h-24 bg-primary/5 rounded-full -mr-6 -mt-6" />
+            )}
+            <div className="flex items-center justify-between">
+              <span className="text-2xl">📤</span>
+              <span className={cn(
+                "text-xs font-black uppercase tracking-widest px-3 py-1 rounded-full",
+                advisorFilterTab === 'enviadas' ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground"
+              )}>
+                Enviadas
+              </span>
+            </div>
+            <div className="mt-2">
+              <span className="text-4xl font-black text-secondary dark:text-foreground">
+                {advisorCounts.enviadas}
+              </span>
+              <p className="text-xs font-extrabold text-muted-foreground uppercase tracking-widest mt-1">Registradas por mí</p>
+            </div>
+          </motion.div>
+
+          {/* Card: RECIBIDAS */}
+          <motion.div
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.98 }}
+            onClick={() => {
+              setAdvisorFilterTab('recibidas');
+              setCurrentPage(1);
+            }}
+            className={cn(
+              "p-6 rounded-[2rem] card-shadow cursor-pointer transition-all duration-300 border flex flex-col gap-2 relative overflow-hidden",
+              advisorFilterTab === 'recibidas'
+                ? "bg-card border-primary ring-2 ring-primary/20 shadow-[0_0_20px_rgba(239,68,68,0.15)] dark:shadow-[0_0_20px_rgba(239,68,68,0.25)]"
+                : "bg-card border-border/40 dark:border-border/10 opacity-75 hover:opacity-100"
+            )}
+          >
+            {advisorFilterTab === 'recibidas' && (
+              <div className="absolute top-0 right-0 w-24 h-24 bg-primary/5 rounded-full -mr-6 -mt-6" />
+            )}
+            <div className="flex items-center justify-between">
+              <span className="text-2xl">📥</span>
+              <span className={cn(
+                "text-xs font-black uppercase tracking-widest px-3 py-1 rounded-full",
+                advisorFilterTab === 'recibidas' ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground"
+              )}>
+                Recibidas
+              </span>
+            </div>
+            <div className="mt-2">
+              <span className="text-4xl font-black text-secondary dark:text-foreground">
+                {advisorCounts.recibidas}
+              </span>
+              <p className="text-xs font-extrabold text-muted-foreground uppercase tracking-widest mt-1">Asignadas a mí</p>
+            </div>
+          </motion.div>
+        </div>
+      )}
 
       <div className="p-4 md:p-6 bg-card rounded-[2rem] card-shadow border border-border/40 dark:border-border/10 flex flex-col gap-6">
         <div className="flex flex-col md:flex-row w-full gap-4 items-end">
@@ -297,12 +449,14 @@ export const TransferList: React.FC<TransferListProps> = ({ transfers, onStatusC
                   CLIENTE / SOLICITUD {sortField === 'customerName' && (sortDirection === 'asc' ? '▲' : '▼')}
                 </TableHead>
                 <TableHead className="font-black text-[10px] uppercase tracking-[0.2em] h-16 text-primary">TIPO & CARTERA</TableHead>
-                <TableHead 
-                  onClick={() => toggleSort('status')}
-                  className="font-black text-[10px] uppercase tracking-[0.2em] h-16 text-center text-primary cursor-pointer select-none"
-                >
-                  ESTADO {sortField === 'status' && (sortDirection === 'asc' ? '▲' : '▼')}
-                </TableHead>
+                {title !== "Mis Gestiones" && (
+                  <TableHead 
+                    onClick={() => toggleSort('status')}
+                    className="font-black text-[10px] uppercase tracking-[0.2em] h-16 text-center text-primary cursor-pointer select-none"
+                  >
+                    ESTADO {sortField === 'status' && (sortDirection === 'asc' ? '▲' : '▼')}
+                  </TableHead>
+                )}
                 <TableHead className="font-black text-[10px] uppercase tracking-[0.2em] h-16 text-primary">EQUIPO (DE/PARA)</TableHead>
                 <TableHead 
                   onClick={() => toggleSort('createdAt')}
@@ -316,7 +470,7 @@ export const TransferList: React.FC<TransferListProps> = ({ transfers, onStatusC
             <TableBody>
               {paginatedTransfers.length === 0 ? (
                 <TableRow>
-                    <TableCell colSpan={6} className="text-center py-20">
+                    <TableCell colSpan={title === "Mis Gestiones" ? 5 : 6} className="text-center py-20">
                       <div className="flex flex-col items-center gap-4 opacity-40">
                         <Search className="w-12 h-12" />
                         <p className="font-black text-lg">Sin resultados que coincidan</p>
@@ -410,16 +564,18 @@ export const TransferList: React.FC<TransferListProps> = ({ transfers, onStatusC
                             </div>
                           </TableCell>
     
-                          <TableCell className="text-center">
-                            <div className="flex justify-center">
-                              <span className={cn(
-                                "px-3 py-1 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-sm",
-                                t.status === 'gestionado' ? "bg-green-100 text-green-700 dark:bg-green-950/45 dark:text-green-400" : "bg-yellow-100 text-yellow-700 dark:bg-yellow-950/45 dark:text-yellow-400"
-                              )}>
-                                {t.status}
-                              </span>
-                            </div>
-                          </TableCell>
+                          {title !== "Mis Gestiones" && (
+                            <TableCell className="text-center">
+                              <div className="flex justify-center">
+                                <span className={cn(
+                                  "px-3 py-1 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-sm",
+                                  t.status === 'gestionado' ? "bg-green-100 text-green-700 dark:bg-green-950/45 dark:text-green-400" : "bg-yellow-100 text-yellow-700 dark:bg-yellow-950/45 dark:text-yellow-400"
+                                )}>
+                                  {t.status}
+                                </span>
+                              </div>
+                            </TableCell>
+                          )}
     
                           <TableCell>
                             <div className="flex items-center gap-3">
@@ -502,7 +658,7 @@ export const TransferList: React.FC<TransferListProps> = ({ transfers, onStatusC
                         {/* Collapsible Expanded Details subrow */}
                         {isExpanded && (
                           <TableRow className="bg-muted/15 dark:bg-muted/5 hover:bg-transparent border-b border-border/20">
-                            <TableCell colSpan={6} className="p-4 sm:p-6 md:p-8 pl-8 pr-8">
+                            <TableCell colSpan={title === "Mis Gestiones" ? 5 : 6} className="p-4 sm:p-6 md:p-8 pl-8 pr-8">
                               <motion.div
                                 initial={{ opacity: 0, height: 0 }}
                                 animate={{ opacity: 1, height: 'auto' }}

@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Transfer, User } from '../types';
+import { cn } from '@/lib/utils';
 import { 
   Plus, 
   Send, 
@@ -19,7 +20,10 @@ import {
   MessageSquare,
   Gift,
   Phone,
-  Award
+  Award,
+  Coins,
+  ShieldCheck,
+  BarChart3
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -39,7 +43,15 @@ interface DashboardAdvisorProps {
 
 export function DashboardAdviser({ transfers, user, onNewTransfer }: DashboardAdvisorProps) {
   const [searchQuery, setSearchQuery] = useState('');
-  const [statusFilter, setStatusFilter] = useState('todos');
+  const [activeTab, setActiveTab] = useState<'all' | 'sent' | 'received' | 'payments' | 'transfers' | 'whatsapp' | 'calls'>('all');
+
+  const handleToggleFilter = (id: 'all' | 'sent' | 'received' | 'payments' | 'transfers' | 'whatsapp' | 'calls') => {
+    setActiveTab(id);
+  };
+
+  const checkFilterActive = (id: string) => {
+    return activeTab === id;
+  };
 
   // Expanded card state for recent activities on Dashboard Asesor
   const [expandedActivity, setExpandedActivity] = useState<Record<string, boolean>>({});
@@ -70,26 +82,221 @@ export function DashboardAdviser({ transfers, user, onNewTransfer }: DashboardAd
     }
   };
 
+  const personalStats = useMemo(() => {
+    const isActivityToday = (t: Transfer) => {
+      const date = t.createdAt instanceof Date ? t.createdAt : (typeof (t.createdAt as any)?.toDate === 'function' ? (t.createdAt as any).toDate() : new Date(t.createdAt));
+      const today = new Date();
+      return date.getDate() === today.getDate() &&
+             date.getMonth() === today.getMonth() &&
+             date.getFullYear() === today.getFullYear();
+    };
+
+    const isCreatedByMe = (t: Transfer) => {
+      const creatorEmail = (t.createdByEmail || t.createdBy || '').toLowerCase().trim();
+      const fromEmail = (t.fromAdvisorEmail || '').toLowerCase().trim();
+      const userEmailLower = (user.email || '').toLowerCase().trim();
+      return creatorEmail === userEmailLower || fromEmail === userEmailLower;
+    };
+
+    const myTransfers = transfers.filter(isCreatedByMe);
+    const myTransfersToday = myTransfers.filter(isActivityToday);
+
+    const totalToday = myTransfersToday.length;
+    
+    const hasPaymentLink = (t: Transfer) => t.paymentLinkValue && t.paymentLinkValue > 0;
+    const paymentLinksCount = myTransfers.filter(hasPaymentLink).length;
+    const paymentLinksValueSum = myTransfers.filter(hasPaymentLink).reduce((sum, t) => sum + (t.paymentLinkValue || 0), 0);
+
+    const paymentLinksToday = myTransfersToday.filter(hasPaymentLink).length;
+    const paymentValueToday = myTransfersToday.filter(hasPaymentLink).reduce((sum, t) => sum + (t.paymentLinkValue || 0), 0);
+
+    const messagesCount = myTransfers.filter(t => t.type === 'mensaje').length;
+    const transfersCount = myTransfers.length - messagesCount;
+
+    const whatsappCount = myTransfers.filter(t => (t.canalGestion || 'Llamada') === 'WhatsApp').length;
+    const callCount = myTransfers.filter(t => (t.canalGestion || 'Llamada') !== 'WhatsApp').length;
+    
+    let mostUsedChannel = 'Ninguno';
+    if (whatsappCount > 0 || callCount > 0) {
+      mostUsedChannel = whatsappCount >= callCount ? '💬 WhatsApp' : '📞 Llamada';
+    }
+
+    const sortedMyTransfers = [...myTransfers].sort((a, b) => {
+      const dateA = a.createdAt instanceof Date ? a.createdAt : (typeof (a.createdAt as any)?.toDate === 'function' ? (a.createdAt as any).toDate() : new Date(a.createdAt));
+      const dateB = b.createdAt instanceof Date ? b.createdAt : (typeof (b.createdAt as any)?.toDate === 'function' ? (b.createdAt as any).toDate() : new Date(b.createdAt));
+      return dateB.getTime() - dateA.getTime();
+    });
+    
+    const lastManagement = sortedMyTransfers[0] 
+      ? `${sortedMyTransfers[0].customerName || 'Cliente sin nombre'} (${sortedMyTransfers[0].managementType})` 
+      : 'Sin registros';
+
+    let progress = 0;
+    if (totalToday === 0) progress = 0;
+    else if (totalToday <= 2) progress = 25;
+    else if (totalToday <= 5) progress = 50;
+    else if (totalToday <= 9) progress = 75;
+    else progress = 100;
+
+    let motivationText = 'Sin actividad registrada';
+    if (totalToday >= 1 && totalToday <= 2) motivationText = '¡Buen inicio! Sigue sumando registros';
+    else if (totalToday >= 3 && totalToday <= 5) motivationText = 'Buen ritmo operativo 👍';
+    else if (totalToday >= 6 && totalToday <= 9) motivationText = 'Excelente productividad ⚡';
+    else if (totalToday >= 10) motivationText = '¡Nivel operativo máximo! 🏆';
+
+    // Top Cartera where registered
+    const carteraCounts: Record<string, number> = {};
+    myTransfers.forEach(t => {
+      const c = t.cartera || 'Sin Cartera';
+      carteraCounts[c] = (carteraCounts[c] || 0) + 1;
+    });
+    let topCartera = 'Ninguna';
+    let maxCount = 0;
+    Object.entries(carteraCounts).forEach(([cartera, count]) => {
+      if (count > maxCount) {
+        maxCount = count;
+        topCartera = cartera;
+      }
+    });
+
+    // Real Weekly Trend
+    const oneDay = 24 * 60 * 60 * 1000;
+    const now = new Date();
+    const last7DaysCount = myTransfers.filter(t => {
+      const date = t.createdAt instanceof Date ? t.createdAt : (typeof (t.createdAt as any)?.toDate === 'function' ? (t.createdAt as any).toDate() : new Date(t.createdAt));
+      return now.getTime() - date.getTime() <= 7 * oneDay;
+    }).length;
+
+    const prev7DaysCount = myTransfers.filter(t => {
+      const date = t.createdAt instanceof Date ? t.createdAt : (typeof (t.createdAt as any)?.toDate === 'function' ? (t.createdAt as any).toDate() : new Date(t.createdAt));
+      const diff = now.getTime() - date.getTime();
+      return diff > 7 * oneDay && diff <= 14 * oneDay;
+    }).length;
+
+    let trendString = "Estable";
+    if (last7DaysCount > prev7DaysCount) {
+      trendString = `+${Math.round(((last7DaysCount - prev7DaysCount) / Math.max(1, prev7DaysCount)) * 100)}% esta semana 📈`;
+    } else if (last7DaysCount < prev7DaysCount) {
+      trendString = `-${Math.round(((prev7DaysCount - last7DaysCount) / Math.max(1, prev7DaysCount)) * 100)}% esta semana 📉`;
+    } else if (last7DaysCount > 0) {
+      trendString = "Consistente ➡️";
+    } else {
+      trendString = "Sin registros recientes";
+    }
+
+    return {
+      totalToday,
+      paymentLinksCount,
+      paymentLinksValueSum,
+      paymentLinksToday,
+      paymentValueToday,
+      messagesCount,
+      transfersCount,
+      mostUsedChannel,
+      lastManagement,
+      progress,
+      motivationText,
+      topCartera,
+      whatsappCount,
+      callCount,
+      trendString
+    };
+  }, [transfers, user.email]);
+
   const filteredData = useMemo(() => {
+    const userEmailLower = (user.email || '').toLowerCase().trim();
+    const userNameLower = (user.name || '').toLowerCase().trim();
+
     return transfers.filter(t => {
+      // 1. Search Query
       const searchLower = searchQuery.toLowerCase();
       const matchesSearch = 
         (t.customerName || '').toLowerCase().includes(searchLower) || 
         (t.requestNumber || '').toLowerCase().includes(searchLower) ||
         (t.fromAdvisorName || '').toLowerCase().includes(searchLower) ||
         (t.toAdvisorName || '').toLowerCase().includes(searchLower) ||
-        (t.observations || '').toLowerCase().includes(searchLower);
-      const matchesStatus = statusFilter === 'todos' || t.status === statusFilter;
-      return matchesSearch && matchesStatus;
+        (t.observations || '').toLowerCase().includes(searchLower) ||
+        (t.cartera || '').toLowerCase().includes(searchLower);
+      
+      if (!matchesSearch) return false;
+
+      // 2. Normalize fields for flexible and single/exclusive filtering
+      const creatorEmail = (t.createdByEmail || t.createdBy || '').toLowerCase().trim();
+      const fromEmail = (t.fromAdvisorEmail || '').toLowerCase().trim();
+      const fromName = (t.fromAdvisorName || '').toLowerCase().trim();
+      
+      const matchesSent = creatorEmail === userEmailLower || 
+                          fromEmail === userEmailLower || 
+                          fromName === userNameLower || 
+                          t.createdBy === user.uid;
+
+      const toEmail = (t.toAdvisorEmail || '').toLowerCase().trim();
+      const toName = (t.toAdvisorName || '').toLowerCase().trim();
+      const matchesReceived = toEmail === userEmailLower || toName === userNameLower;
+
+      const managementTypeStr = (t.managementType || '').toLowerCase().trim();
+      const typeStr = (t.type || '').toLowerCase().trim();
+      
+      const esLink = managementTypeStr.includes('regalo') || 
+                     managementTypeStr.includes('link') ||
+                     typeStr.includes('regalo') ||
+                     typeStr.includes('link');
+
+      const esTransferencia = managementTypeStr.includes('mensaje') || 
+                              managementTypeStr.includes('transferencia') ||
+                              typeStr.includes('mensaje') ||
+                              typeStr.includes('transferencia');
+
+      const canalStr = (t.canalGestion || 'llamada').toLowerCase().trim();
+      const esWhatsApp = canalStr.includes('whatsapp');
+      const esLlamada = canalStr.includes('llamada') || canalStr.includes('llamar');
+
+      // 3. Apply exclusive tab filter
+      switch (activeTab) {
+        case 'sent':
+          return matchesSent;
+        case 'received':
+          return matchesReceived;
+        case 'payments':
+          return esLink;
+        case 'transfers':
+          return esTransferencia;
+        case 'whatsapp':
+          return esWhatsApp;
+        case 'calls':
+          return esLlamada;
+        case 'all':
+        default:
+          return true;
+      }
     });
-  }, [transfers, searchQuery, statusFilter]);
+  }, [transfers, searchQuery, activeTab, user.email, user.name, user.uid]);
   
   const stats = useMemo(() => {
-    const sent = transfers.filter(t => t.fromAdvisorEmail === user.email).length;
-    const received = transfers.filter(t => t.toAdvisorEmail === user.email).length;
-    const pending = transfers.filter(t => t.toAdvisorEmail === user.email && t.status === 'pendiente').length;
+    const isActivityToday = (t: Transfer) => {
+      const date = t.createdAt instanceof Date ? t.createdAt : (typeof (t.createdAt as any)?.toDate === 'function' ? (t.createdAt as any).toDate() : new Date(t.createdAt));
+      const today = new Date();
+      return date.getDate() === today.getDate() &&
+             date.getMonth() === today.getMonth() &&
+             date.getFullYear() === today.getFullYear();
+    };
+
+    const isCreatedByMe = (t: Transfer) => {
+      const creatorEmail = (t.createdByEmail || t.createdBy || '').toLowerCase().trim();
+      const fromEmail = (t.fromAdvisorEmail || '').toLowerCase().trim();
+      const userEmailLower = (user.email || '').toLowerCase().trim();
+      return creatorEmail === userEmailLower || fromEmail === userEmailLower;
+    };
+
+    const isResponsibleFor = (t: Transfer) => {
+      return (t.toAdvisorEmail || '').toLowerCase().trim() === (user.email || '').toLowerCase().trim();
+    };
+
+    const sent = transfers.filter(isCreatedByMe).length;
+    const received = transfers.filter(isResponsibleFor).length;
+    const totalToday = transfers.filter(t => (isCreatedByMe(t) || isResponsibleFor(t)) && isActivityToday(t)).length;
     
-    return { sent, received, pending };
+    return { sent, received, totalToday };
   }, [transfers, user.email]);
 
   const recentActivities = useMemo(() => {
@@ -110,7 +317,7 @@ export function DashboardAdviser({ transfers, user, onNewTransfer }: DashboardAd
           <div className="text-center md:text-left">
             <h1 className="text-4xl md:text-5xl font-black tracking-tight mb-2 uppercase italic">Mi Gestión</h1>
             <p className="text-slate-300 text-lg font-medium max-w-md">
-              Hola {(user.name || 'Asesor').split(' ')[0]}, tienes <span className="text-white font-bold">{stats.pending} gestiones esperando</span> tu acción.
+              Hola, {(user.name || 'Asesor').split(' ')[0]} 👋 Bienvenido a tu panel operativo diario.
             </p>
             <div className="mt-8 flex flex-wrap gap-4 justify-center md:justify-start">
               <Button 
@@ -141,22 +348,30 @@ export function DashboardAdviser({ transfers, user, onNewTransfer }: DashboardAd
       {/* STATS ROW */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         {[
-          { label: 'Enviadas', value: stats.sent, icon: Send, color: 'text-primary', bg: 'bg-primary/5' },
-          { label: 'Recibidas', value: stats.received, icon: Inbox, color: 'text-secondary', bg: 'bg-secondary/5' },
-          { label: 'Pendientes', value: stats.pending, icon: Clock, color: 'text-yellow-600', bg: 'bg-yellow-50' },
+          { label: 'Enviadas', value: stats.sent, desc: 'Creadas por mí', icon: Send, color: 'text-rose-500 dark:text-rose-400', bg: 'bg-rose-500/10' },
+          { label: 'Recibidas', value: stats.received, desc: 'Asignadas a mí', icon: Inbox, color: 'text-amber-500 dark:text-amber-400', bg: 'bg-amber-500/10' },
+          { label: 'Total del Día', value: stats.totalToday, desc: 'Mis registros de hoy', icon: Calendar, color: 'text-emerald-500 dark:text-emerald-400', bg: 'bg-emerald-500/10' },
         ].map((stat, i) => (
-          <motion.div key={stat.label} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.1 }}>
-            <Card className="border-none card-shadow rounded-3xl overflow-hidden group">
+          <motion.div 
+            key={stat.label} 
+            initial={{ opacity: 0, y: 20 }} 
+            animate={{ opacity: 1, y: 0 }} 
+            transition={{ delay: i * 0.1 }}
+            whileHover={{ y: -5 }}
+            className="group cursor-pointer"
+          >
+            <Card className="border-none shadow-md hover:shadow-xl dark:shadow-black/25 rounded-3xl overflow-hidden transition-all duration-300 bg-card/70 backdrop-blur-md border border-border/40 dark:border-border/10">
               <CardContent className="p-8">
                 <div className="flex justify-between items-start">
-                  <div className={`w-14 h-14 ${stat.bg} ${stat.color} rounded-2xl flex items-center justify-center`}>
+                  <div className={`w-14 h-14 ${stat.bg} ${stat.color} rounded-2xl flex items-center justify-center transition-all duration-300 group-hover:scale-110 shadow-sm`}>
                     <stat.icon className="w-7 h-7" />
                   </div>
-                  <ArrowUpRight className="w-5 h-5 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+                  <ArrowUpRight className="w-5 h-5 text-muted-foreground opacity-30 group-hover:opacity-100 transition-opacity" />
                 </div>
                 <div className="mt-6">
-                  <p className="text-4xl font-black text-secondary">{stat.value}</p>
-                  <p className="text-sm font-bold text-muted-foreground uppercase tracking-wider mt-1">{stat.label}</p>
+                  <p className="text-4xl font-black text-secondary dark:text-foreground tracking-tight transition-transform duration-300 group-hover:translate-x-1">{stat.value}</p>
+                  <p className="text-sm font-black text-secondary dark:text-foreground uppercase tracking-wider mt-1">{stat.label}</p>
+                  <p className="text-xs text-muted-foreground font-medium mt-0.5">{stat.desc}</p>
                 </div>
               </CardContent>
             </Card>
@@ -166,9 +381,9 @@ export function DashboardAdviser({ transfers, user, onNewTransfer }: DashboardAd
 
       {/* FILTERS SECTION */}
       <Card className="rounded-[2.5rem] border-none card-shadow bg-card/60 backdrop-blur-xl">
-        <CardContent className="p-8">
-          <div className="flex flex-col md:flex-row gap-6">
-            <div className="flex-1 space-y-2">
+        <CardContent className="p-8 space-y-6">
+          <div className="flex flex-col gap-6">
+            <div className="w-full space-y-2">
               <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">Búsqueda Rápida</Label>
               <div className="relative group">
                 <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground group-focus-within:text-primary transition-colors" />
@@ -180,18 +395,37 @@ export function DashboardAdviser({ transfers, user, onNewTransfer }: DashboardAd
                 />
               </div>
             </div>
-            <div className="w-full md:w-64 space-y-2">
-              <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">Estado de Gestión</Label>
-              <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger className="h-12 bg-muted/30 border-none rounded-2xl font-bold">
-                  <SelectValue placeholder="Estado" />
-                </SelectTrigger>
-                <SelectContent className="rounded-2xl border-none shadow-2xl">
-                  <SelectItem value="todos" className="font-bold">Todos los estados</SelectItem>
-                  <SelectItem value="pendiente" className="font-bold">Pendientes</SelectItem>
-                  <SelectItem value="gestionado" className="font-bold">Gestionados</SelectItem>
-                </SelectContent>
-              </Select>
+            
+            <div className="space-y-2">
+              <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">Filtros Rápidos</Label>
+              <div className="flex flex-wrap gap-2">
+                {[
+                  { id: 'all', label: 'Todas', emoji: '📋', activeColor: 'bg-secondary text-white' },
+                  { id: 'sent', label: 'Enviadas por mí', emoji: '📤', activeColor: 'bg-primary text-white shadow-primary/20 shadow-md' },
+                  { id: 'received', label: 'Recibidas', emoji: '📥', activeColor: 'bg-amber-600 text-white shadow-amber-600/25 shadow-md' },
+                  { id: 'payments', label: 'Links de pago', emoji: '💳', activeColor: 'bg-emerald-600 text-white shadow-emerald-600/25 shadow-md' },
+                  { id: 'transfers', label: 'Transferencias', emoji: '🔄', activeColor: 'bg-indigo-600 text-white shadow-indigo-600/25 shadow-md' },
+                  { id: 'whatsapp', label: 'WhatsApp', emoji: '💬', activeColor: 'bg-green-600 text-white shadow-green-600/25 shadow-md' },
+                  { id: 'calls', label: 'Llamadas', emoji: '📞', activeColor: 'bg-rose-600 text-white shadow-rose-600/25 shadow-md' }
+                ].map((tab) => {
+                  const isActive = checkFilterActive(tab.id);
+                  return (
+                    <button
+                      key={tab.id}
+                      onClick={() => handleToggleFilter(tab.id as any)}
+                      className={cn(
+                        "px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider transition-all duration-300 flex items-center gap-1.5 active:scale-95 border",
+                        isActive
+                          ? `${tab.activeColor} border-transparent scale-105`
+                          : "bg-muted/40 hover:bg-muted/80 text-muted-foreground border-border/40 dark:border-border/10"
+                      )}
+                    >
+                      <span className="text-sm">{tab.emoji}</span>
+                      <span>{tab.label}</span>
+                    </button>
+                  );
+                })}
+              </div>
             </div>
           </div>
         </CardContent>
@@ -232,8 +466,11 @@ export function DashboardAdviser({ transfers, user, onNewTransfer }: DashboardAd
                     }`}
                   >
                     <div className="flex items-center gap-4">
-                      <div className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-transform group-hover:scale-105 ${activity.status === 'gestionado' ? 'bg-green-50 text-green-600 dark:bg-green-950/35 dark:text-green-300' : 'bg-yellow-50 text-yellow-600 dark:bg-yellow-950/35 dark:text-yellow-300'}`}>
-                        {activity.status === 'gestionado' ? <CheckCircle2 className="w-6 h-6" /> : <Clock className="w-6 h-6" />}
+                      <div className={cn(
+                        "w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 shadow-lg shadow-black/5 transition-transform group-hover:scale-105",
+                        activity.type === 'mensaje' ? "bg-primary/10 text-primary" : "bg-secondary/10 text-secondary"
+                      )}>
+                        {activity.type === 'mensaje' ? <MessageSquare className="w-6 h-6" /> : <Gift className="w-6 h-6" />}
                       </div>
                       <div>
                         <h3 className="font-black text-secondary dark:text-foreground text-sm sm:text-base">{activity.customerName}</h3>
@@ -255,8 +492,8 @@ export function DashboardAdviser({ transfers, user, onNewTransfer }: DashboardAd
                     <div className="flex items-center gap-4">
                       <div className="text-right hidden sm:block">
                         <p className="text-sm font-black text-secondary dark:text-foreground">#{activity.requestNumber}</p>
-                        <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-md ${activity.status === 'gestionado' ? 'bg-green-100 text-green-700 dark:bg-green-950/30 dark:text-green-300' : 'bg-yellow-100 text-yellow-700 dark:bg-yellow-950/30 dark:text-yellow-300'}`}>
-                          {activity.status}
+                        <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-md bg-muted text-muted-foreground border border-border/20">
+                          {activity.cartera || 'Sin Cartera'}
                         </span>
                       </div>
                       <div className="text-muted-foreground p-1 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors">
@@ -428,28 +665,150 @@ export function DashboardAdviser({ transfers, user, onNewTransfer }: DashboardAd
 
         {/* SIDE BAR DASHBOARD */}
         <div className="space-y-6">
-          <h2 className="text-xl font-black text-secondary">Mi Perfil Diario</h2>
-          <Card className="bg-primary text-white border-none rounded-[2rem] p-8 space-y-6 shadow-xl shadow-primary/20">
+          <h2 className="text-xl font-black text-secondary dark:text-foreground">Mi Perfil Diario</h2>
+          
+          {/* Main profile card with Seguros Bolívar design premium flair and automatic compliance indicator */}
+          <Card className="bg-primary text-white border-none rounded-[2rem] p-8 space-y-6 shadow-xl shadow-primary/20 relative overflow-hidden group">
+            <div className="absolute top-0 right-0 w-32 h-32 bg-white/5 rounded-full -mr-8 -mt-8" />
+            
             <div>
               <p className="text-primary-foreground/70 font-bold text-xs uppercase tracking-widest">Cartera Asignada</p>
-              <p className="text-2xl font-black mt-1">{user.cartera}</p>
+              <p className="text-2xl font-black mt-1">{user.cartera || 'No asignada'}</p>
             </div>
             <div className="h-px bg-white/10" />
             <div>
               <p className="text-primary-foreground/70 font-bold text-xs uppercase tracking-widest">Supervisor</p>
-              <p className="text-xl font-bold mt-1">{user.supervisorName}</p>
-              <p className="text-xs text-primary-foreground/60">{user.supervisorEmail}</p>
+              <p className="text-xl font-bold mt-1">{user.supervisorName || 'No asignado'}</p>
+              <p className="text-xs text-primary-foreground/60">{user.supervisorEmail || ''}</p>
             </div>
-            <div className="pt-4">
-              <div className="bg-white/10 rounded-2xl p-4">
-                <div className="flex justify-between text-xs font-bold mb-2">
-                  <span>Cumplimiento del día</span>
-                  <span>75%</span>
+            
+            <div className="pt-2">
+              <div className="bg-white/10 rounded-2xl p-5 space-y-3">
+                <div className="flex justify-between text-xs font-black uppercase tracking-wider">
+                  <span>Cumplimiento Diario</span>
+                  <span>{personalStats.progress}%</span>
                 </div>
                 <div className="h-2 bg-white/20 rounded-full overflow-hidden">
-                  <div className="h-full bg-white w-3/4 rounded-full" />
+                  <motion.div 
+                    initial={{ width: 0 }}
+                    animate={{ width: `${personalStats.progress}%` }}
+                    transition={{ duration: 1, ease: 'easeOut' }}
+                    className="h-full bg-white rounded-full" 
+                  />
+                </div>
+                <p className="text-[11px] font-black italic tracking-wide text-white/95 text-center pt-1">
+                  💡 {personalStats.motivationText}
+                </p>
+              </div>
+            </div>
+
+            {/* Extra profile metrics inside panel */}
+            <div className="text-xs font-medium space-y-2 pt-1 border-t border-white/10">
+              <div className="flex justify-between text-primary-foreground/80">
+                <span>Total Hoy:</span>
+                <span className="font-extrabold text-white">{personalStats.totalToday} gestiones</span>
+              </div>
+              <div className="flex justify-between text-primary-foreground/80">
+                <span>Canal Favorito:</span>
+                <span className="font-extrabold text-white">{personalStats.mostUsedChannel}</span>
+              </div>
+            </div>
+          </Card>
+
+          {/* SECOND CARD: Productividad de Hoy */}
+          <Card className="border-none shadow-md rounded-[2rem] p-6 bg-card border border-border/40 dark:border-border/10 space-y-4">
+            <div className="flex items-center gap-2 pb-2 border-b border-border/30">
+              <Award className="w-5 h-5 text-rose-500" />
+              <h3 className="font-black text-secondary dark:text-foreground text-sm uppercase tracking-wider">Productividad de Hoy</h3>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="bg-muted/10 dark:bg-slate-900/40 p-3 rounded-2xl">
+                <span className="text-[9px] font-bold text-muted-foreground block uppercase">Gestiones Hoy</span>
+                <span className="text-xl font-black text-secondary dark:text-foreground">{personalStats.totalToday}</span>
+              </div>
+              <div className="bg-muted/10 dark:bg-slate-900/40 p-3 rounded-2xl">
+                <span className="text-[9px] font-bold text-muted-foreground block uppercase">Links Generados</span>
+                <span className="text-xl font-black text-secondary dark:text-foreground">{personalStats.paymentLinksToday}</span>
+              </div>
+              <div className="col-span-2 bg-emerald-500/5 dark:bg-emerald-950/20 border border-emerald-500/10 p-3 rounded-2xl">
+                <span className="text-[9px] font-bold text-emerald-600 dark:text-emerald-400 block uppercase">Monto Recaudado Hoy</span>
+                <span className="text-lg font-black text-emerald-600 dark:text-emerald-400">
+                  ${personalStats.paymentValueToday.toLocaleString('es-CO')}
+                </span>
+              </div>
+            </div>
+          </Card>
+
+          {/* THIRD CARD: Rendimiento General */}
+          <Card className="border-none shadow-md rounded-[2rem] p-6 bg-card border border-border/40 dark:border-border/10 space-y-5">
+            <div className="flex items-center gap-2 pb-2 border-b border-border/30">
+              <BarChart3 className="w-5 h-5 text-indigo-500" />
+              <h3 className="font-black text-secondary dark:text-foreground text-sm uppercase tracking-wider">Estadísticas Clave</h3>
+            </div>
+            
+            <div className="space-y-3 text-xs">
+              
+              <div className="flex items-center justify-between p-2 rounded-xl bg-muted/10 dark:bg-slate-900/35">
+                <span className="font-bold text-muted-foreground">Cartera Frecuente:</span>
+                <span className="font-black text-primary uppercase">{personalStats.topCartera}</span>
+              </div>
+              
+              <div className="flex items-center justify-between p-2 rounded-xl bg-muted/10 dark:bg-slate-900/35">
+                <span className="font-bold text-muted-foreground">Tendencia Semanal:</span>
+                <span className="font-bold text-orange-500 dark:text-orange-400">{personalStats.trendString}</span>
+              </div>
+
+              {/* Comparativo de Canales as small styled labels with nice horizontal bars */}
+              <div className="space-y-1.5 pt-1">
+                <div className="flex justify-between text-[11px] font-black uppercase text-muted-foreground">
+                  <span>Llamadas vs WhatsApp</span>
+                  <span>{personalStats.callCount} vs {personalStats.whatsappCount}</span>
+                </div>
+                <div className="h-1.5 bg-muted/40 rounded-full overflow-hidden flex">
+                  {personalStats.callCount + personalStats.whatsappCount > 0 ? (
+                    <>
+                      <div 
+                        className="bg-rose-500 h-full"
+                        style={{ width: `${(personalStats.callCount / (personalStats.callCount + personalStats.whatsappCount)) * 100}%` }}
+                      />
+                      <div 
+                        className="bg-green-500 h-full"
+                        style={{ width: `${(personalStats.whatsappCount / (personalStats.callCount + personalStats.whatsappCount)) * 100}%` }}
+                      />
+                    </>
+                  ) : (
+                    <div className="bg-slate-300 dark:bg-slate-800 w-full h-full" />
+                  )}
+                </div>
+                <div className="flex justify-between text-[8px] font-extrabold text-muted-foreground uppercase">
+                  <span className="text-rose-500">📞 Llamadas</span>
+                  <span className="text-green-500">💬 WhatsApp</span>
                 </div>
               </div>
+
+              <div className="h-px bg-border/20 my-2" />
+
+              <div className="space-y-1 text-muted-foreground">
+                <div className="flex justify-between">
+                  <span>Monto Total Links:</span>
+                  <span className="font-extrabold text-secondary dark:text-foreground">${personalStats.paymentLinksValueSum.toLocaleString('es-CO')}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Links Generados:</span>
+                  <span className="font-extrabold text-secondary dark:text-foreground">{personalStats.paymentLinksCount}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Mensajes Enviados:</span>
+                  <span className="font-extrabold text-secondary dark:text-foreground">{personalStats.messagesCount}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Última Gestión:</span>
+                  <span className="font-bold text-secondary dark:text-foreground truncate max-w-[130px] inline-block" title={personalStats.lastManagement}>
+                    {personalStats.lastManagement}
+                  </span>
+                </div>
+              </div>
+
             </div>
           </Card>
         </div>
