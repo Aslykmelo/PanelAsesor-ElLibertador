@@ -144,6 +144,7 @@ export function DashboardAdmin({ transfers, user, advisors }: DashboardAdminProp
   const [filterAdvisor, setFilterAdvisor] = useState<string>('todos');
   const [filterSupervisor, setFilterSupervisor] = useState<string>('todos');
   const [filterChannel, setFilterChannel] = useState<string>('todos');
+  const [filterManagementType, setFilterManagementType] = useState<string>('todos');
   const [searchQuery, setSearchQuery] = useState('');
   const [dateFrom, setDateFrom] = useState<string>('');
   const [dateTo, setDateTo] = useState<string>('');
@@ -202,9 +203,13 @@ export function DashboardAdmin({ transfers, user, advisors }: DashboardAdminProp
       const matchesChannel = filterChannel === 'todos' || 
         getChan(t) === filterChannel.toLowerCase().trim();
       
-      return matchesCartera && matchesAdvisor && matchesSupervisor && matchesSearch && matchesDate && matchesChannel;
+      const matchesManagementType = filterManagementType === 'todos' ||
+        (filterManagementType.toLowerCase() === 'mensaje' && t.type === 'mensaje') ||
+        (filterManagementType.toLowerCase() === 'regalo' && t.type === 'regalo');
+      
+      return matchesCartera && matchesAdvisor && matchesSupervisor && matchesSearch && matchesDate && matchesChannel && matchesManagementType;
     });
-  }, [transfers, filterCartera, filterAdvisor, filterSupervisor, searchQuery, dateFrom, dateTo, filterChannel, advisors, user.cartera]);
+  }, [transfers, filterCartera, filterAdvisor, filterSupervisor, searchQuery, dateFrom, dateTo, filterChannel, filterManagementType, advisors, user.cartera]);
 
   // CARTERA STATED GROUPINGS
   const carterasStats = useMemo(() => {
@@ -475,53 +480,79 @@ export function DashboardAdmin({ transfers, user, advisors }: DashboardAdminProp
     return Array.from(map.entries());
   }, [transfers, advisors]);
 
-  const exportPDF = () => {
+  const exportCSV = () => {
     try {
-      const doc = new jsPDF();
-      doc.setFontSize(20);
-      doc.setTextColor(239, 13, 13); // Deep red corporate Seguros Bolívar style
-      doc.text('Seguros Bolívar - El Libertador', 14, 22);
-      
-      doc.setFontSize(11);
-      doc.setTextColor(100);
-      doc.text(`Reporte de Control Administrativo de Transferencias`, 14, 28);
-      doc.text(`Generado por: ${user.name} (${user.role.toUpperCase()})`, 14, 34);
-      doc.text(`Fecha: ${format(new Date(), 'PPP', { locale: es })}`, 14, 40);
-      doc.text(`Filtros: Cartera: ${filterCartera} | Supervisor: ${filterSupervisor} | Canal: ${filterChannel}`, 14, 46);
+      const formatDateValue = (val: any): string => {
+        if (!val) return '';
+        try {
+          let dateObj: Date;
+          if (val instanceof Date) {
+            dateObj = val;
+          } else if (typeof val === 'object' && val.seconds !== undefined) {
+            dateObj = new Date(val.seconds * 1000);
+          } else if (typeof val === 'object' && typeof val.toDate === 'function') {
+            dateObj = val.toDate();
+          } else {
+            dateObj = new Date(val);
+          }
+          if (isNaN(dateObj.getTime())) {
+            return String(val);
+          }
+          return format(dateObj, 'dd/MM/yyyy HH:mm:ss');
+        } catch {
+          return String(val);
+        }
+      };
 
-      // Simple overview KPIs
-      doc.setFontSize(12);
-      doc.setFont('Helvetica', 'bold');
-      doc.setTextColor(21, 49, 87);
-      doc.text(`Resumen: Total Gestiones: ${stats.total} | Valor Total: $${stats.totalValue.toLocaleString('es-CO')}`, 14, 56);
+      const columns = [
+        { label: 'Fecha y Hora', getValue: (t: Transfer, supervisor: string, cartera: string) => formatDateValue(t.createdAt) },
+        { label: 'Cliente', getValue: (t: Transfer) => t.customerName || (t as any).cliente || (t as any).nombreCliente || '' },
+        { label: 'Solicitud / Radicado', getValue: (t: Transfer) => t.requestNumber || (t as any).solicitud || (t as any).radicado || '' },
+        { label: 'Teléfono de Contacto', getValue: (t: Transfer) => t.phone || (t as any).contactPhones || (t as any).phoneNumber || (t as any).customerPhone || (t as any).telefono || (t as any).telefonoCliente || (t as any).contactPhone || (t as any).mobile || (t as any).celular || '' },
+        { label: 'Tipo de Gestión', getValue: (t: Transfer) => t.managementType || (t as any).tipoGestion || '' },
+        { label: 'Canal', getValue: (t: Transfer) => t.canalGestion || (t as any).channel || (t as any).canal || 'Llamada' },
+        { label: 'Valor del Link', getValue: (t: Transfer) => t.type === 'regalo' ? `$${(t.paymentLinkValue || 0).toLocaleString('es-CO')}` : '' },
+        { label: 'Asesor que Registró la Gestión', getValue: (t: Transfer) => t.fromAdvisorName || '' },
+        { label: 'Correo Asesor Emisor', getValue: (t: Transfer) => t.fromAdvisorEmail || '' },
+        { label: 'Asesor Responsable', getValue: (t: Transfer) => t.toAdvisorName || '' },
+        { label: 'Correo Asesor Responsable', getValue: (t: Transfer) => t.toAdvisorEmail || '' },
+        { label: 'Supervisor', getValue: (t: Transfer, supervisor: string) => supervisor },
+        { label: 'Cartera', getValue: (t: Transfer, supervisor: string, cartera: string) => cartera }
+      ];
 
-      const tableRows = filteredTransfers.map(t => [
-        format(new Date(t.createdAt), 'dd/MM/yyyy HH:mm'),
-        t.managementType || 'Contacto',
-        t.canalGestion || (t as any).channel || (t as any).canal || 'Llamada',
-        t.customerName || 'Cliente',
-        t.requestNumber || 'S/N',
-        t.fromAdvisorName || 'Desconocido',
-        t.toAdvisorName || 'Desconocido',
-        (t.status || 'Pendiente').toUpperCase(),
-        `$${(t.paymentLinkValue || 0).toLocaleString('es-CO')}`
-      ]);
+      const headers = columns.map(col => col.label);
+      const csvRows = [headers.join(';')];
 
-      autoTable(doc, {
-        startY: 62,
-        head: [['Fecha', 'Tipo', 'Canal', 'Cliente', 'Solicitud', 'De Asesor', 'Para Asesor', 'Estado', 'Valor']],
-        body: tableRows,
-        headStyles: { fillColor: [4, 20, 48] }, // Dark corporate blue
-        alternateRowStyles: { fillColor: [248, 250, 252] },
-        theme: 'striped',
-        styles: { fontSize: 8, overflow: 'linebreak' }
+      filteredTransfers.forEach(t => {
+        const creatorEmail = (t.createdByEmail || t.fromAdvisorEmail || '').toLowerCase().trim();
+        const advisorObj = advisors.find(a => a.email.toLowerCase().trim() === creatorEmail);
+        const supervisor = advisorObj?.supervisor || t.supervisorName || 'NGSO';
+        const rawCartera = resolveTransferCarteraKey(t, advisors, user.cartera);
+        const cartera = getOfficialCarteraName(rawCartera) || rawCartera || t.cartera || 'NGSO';
+
+        const row = columns.map(col => col.getValue(t, supervisor, cartera));
+
+        const escapedRow = row.map(val => {
+          const str = val.replace(/"/g, '""');
+          return `"${str}"`;
+        });
+
+        csvRows.push(escapedRow.join(';'));
       });
 
-      doc.save(`Reporte_Seguros_Bolivar_${format(new Date(), 'yyyyMMdd_HHmmss')}.pdf`);
-      toast.success("PDF descargado exitosamente");
+      const csvContent = "\uFEFF" + csvRows.join('\n');
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.setAttribute('href', url);
+      link.setAttribute('download', `Reporte_Seguros_Bolivar_${format(new Date(), 'yyyyMMdd_HHmmss')}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      toast.success("CSV descargado exitosamente");
     } catch (e) {
       console.error(e);
-      toast.error("Error al exportar archivo PDF");
+      toast.error("Error al exportar archivo CSV");
     }
   };
 
@@ -538,17 +569,17 @@ export function DashboardAdmin({ transfers, user, advisors }: DashboardAdminProp
             Bienvenido al Sistema de Transferencia de Llamadas de Seguros Bolívar
           </h2>
           <p className="text-slate-400 text-xs mt-1.5 font-medium">
-            Monitoreo en tiempo real de transferencias, links de pago y productividad operativa.
+            Monitoreo en tiempo real de transferencias, links de pago and productividad operativa.
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-3">
           <Button 
             className="bg-[#EF0D0D] hover:bg-[#d80c0c] text-white font-extrabold rounded-xl text-xs px-6 h-12 shadow-lg shadow-rose-600/30 transition-all hover:scale-[1.03] active:scale-[0.98] border border-rose-500/10"
-            onClick={exportPDF}
+            onClick={exportCSV}
             disabled={filteredTransfers.length === 0}
           >
             <Download className="w-4 h-4 mr-2" />
-            EXPORTAR PDF CORPORATIVO
+            EXPORTAR CSV CORPORATIVO
           </Button>
         </div>
       </div>
@@ -604,7 +635,7 @@ export function DashboardAdmin({ transfers, user, advisors }: DashboardAdminProp
                 </div>
                 
                 {/* Dropdowns Filters Grid */}
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-6">
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7 gap-6">
                   <div className="space-y-2">
                     <Label className="text-[10px] font-black text-slate-500 dark:text-slate-300 flex items-center gap-1.5 ml-1 uppercase tracking-widest">
                       <Calendar className="w-4 h-4 text-[#EF0D0D]" /> Fecha Desde
@@ -695,6 +726,22 @@ export function DashboardAdmin({ transfers, user, advisors }: DashboardAdminProp
                       </SelectContent>
                     </Select>
                   </div>
+
+                  <div className="space-y-2">
+                    <Label className="text-[10px] font-black text-slate-500 dark:text-slate-300 flex items-center gap-1.5 ml-1 uppercase tracking-widest">
+                      <FileText className="w-4 h-4 text-[#EF0D0D]" /> Tipo de Gestión
+                    </Label>
+                    <Select value={filterManagementType} onValueChange={setFilterManagementType}>
+                      <SelectTrigger className="h-12 bg-muted/40 border border-slate-100 dark:border-slate-800 rounded-2xl font-bold focus:ring-[#EF0D0D] text-xs">
+                        <SelectValue placeholder="Todos" />
+                      </SelectTrigger>
+                      <SelectContent className="rounded-2xl border-none shadow-2xl">
+                        <SelectItem value="todos" className="font-extrabold uppercase text-[10px] text-rose-600">Ver Todos</SelectItem>
+                        <SelectItem value="mensaje" className="font-bold text-xs">✉️ Mensaje</SelectItem>
+                        <SelectItem value="regalo" className="font-bold text-xs">💳 Regalo</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
 
                 <div className="flex justify-end items-center pt-2 border-t border-border/40 dark:border-border/10">
@@ -706,6 +753,7 @@ export function DashboardAdmin({ transfers, user, advisors }: DashboardAdminProp
                       setFilterAdvisor('todos');
                       setFilterSupervisor('todos');
                       setFilterChannel('todos');
+                      setFilterManagementType('todos');
                       setSearchQuery('');
                       setDateFrom('');
                       setDateTo('');
@@ -752,12 +800,12 @@ export function DashboardAdmin({ transfers, user, advisors }: DashboardAdminProp
             border: 'border-l-[5px] border-l-[#6366F1]' 
           },
           { 
-            label: 'Valor Recuperado', 
+            label: '💳 Links Acordados', 
             value: `$${stats.totalValue.toLocaleString('es-CO')}`, 
             description: 'Pesos Colombianos ($)',
             icon: DollarSign, 
             iconBg: 'bg-emerald-500/10 text-emerald-500 dark:bg-emerald-500/20 dark:text-emerald-400',
-            trend: 'Recaudación total',
+            trend: 'Valor total de links registrados',
             border: 'border-l-[5px] border-l-[#10B981]' 
           },
           { 
