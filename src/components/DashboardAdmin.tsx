@@ -511,7 +511,7 @@ export function DashboardAdmin({ transfers, user, advisors }: DashboardAdminProp
         { label: 'Teléfono de Contacto', getValue: (t: Transfer) => t.phone || (t as any).contactPhones || (t as any).phoneNumber || (t as any).customerPhone || (t as any).telefono || (t as any).telefonoCliente || (t as any).contactPhone || (t as any).mobile || (t as any).celular || '' },
         { label: 'Tipo de Gestión', getValue: (t: Transfer) => t.managementType || (t as any).tipoGestion || '' },
         { label: 'Canal', getValue: (t: Transfer) => t.canalGestion || (t as any).channel || (t as any).canal || 'Llamada' },
-        { label: 'Valor del Link', getValue: (t: Transfer) => t.type === 'regalo' ? `$${(t.paymentLinkValue || 0).toLocaleString('es-CO')}` : '' },
+        { label: 'Valor del Link', getValue: (t: Transfer) => t.type === 'regalo' ? `$${Math.round(t.paymentLinkValue || 0).toLocaleString('es-CO')}` : '' },
         { label: 'Asesor que Registró la Gestión', getValue: (t: Transfer) => t.fromAdvisorName || '' },
         { label: 'Correo Asesor Emisor', getValue: (t: Transfer) => t.fromAdvisorEmail || '' },
         { label: 'Asesor Responsable', getValue: (t: Transfer) => t.toAdvisorName || '' },
@@ -801,7 +801,7 @@ export function DashboardAdmin({ transfers, user, advisors }: DashboardAdminProp
           },
           { 
             label: '💳 Links Acordados', 
-            value: `$${stats.totalValue.toLocaleString('es-CO')}`, 
+            value: `$${Math.round(stats.totalValue).toLocaleString('es-CO')}`, 
             description: 'Pesos Colombianos ($)',
             icon: DollarSign, 
             iconBg: 'bg-emerald-500/10 text-emerald-500 dark:bg-emerald-500/20 dark:text-emerald-400',
@@ -1105,7 +1105,7 @@ export function DashboardAdmin({ transfers, user, advisors }: DashboardAdminProp
                       </div>
                     </div>
                     <div className="text-right">
-                      <p className="text-base font-black text-rose-500 dark:text-rose-400">${adv.value.toLocaleString('es-CO')}</p>
+                      <p className="text-base font-black text-rose-500 dark:text-rose-400">${Math.round(adv.value).toLocaleString('es-CO')}</p>
                     </div>
                   </div>
                   {/* Progress bar to represent comparative volume */}

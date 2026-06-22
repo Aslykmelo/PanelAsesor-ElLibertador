@@ -4,17 +4,34 @@ import path from "path";
 import { fileURLToPath } from "url";
 import nodemailer from "nodemailer";
 import dotenv from "dotenv";
+import { createClient } from "@supabase/supabase-js";
 
 dotenv.config();
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
 
 async function startServer() {
   const app = express();
   const PORT = 3000;
 
-  app.use(express.json());
+  // Set generous limit for massive dataset uploads (20k-50k+ records)
+  app.use(express.json({ limit: "50mb" }));
+  app.use(express.urlencoded({ limit: "50mb", extended: true }));
+
+  // Initialize Supabase Client for backend operations
+  const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
+  const supabaseAnonKey = process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY;
+  const isSupabaseConfigured = !!supabaseUrl && !!supabaseAnonKey;
+  
+  const supabase = isSupabaseConfigured 
+    ? createClient(supabaseUrl!, supabaseAnonKey!, {
+        auth: { persistSession: false }
+      })
+    : null;
+
+  if (isSupabaseConfigured) {
+    console.log("Supabase client initialized successfully on El Libertador server.");
+  } else {
+    console.warn("Supabase NOT configured on the server. Falling back to local/Firebase operations.");
+  }
 
   // Configuración de Nodemailer
   const getTransporter = () => {
@@ -207,6 +224,7 @@ async function startServer() {
     res.json({
       emailUserSet: !!process.env.EMAIL_USER,
       emailPassSet: !!process.env.EMAIL_PASS,
+      supabaseConfigured: isSupabaseConfigured
     });
   });
 

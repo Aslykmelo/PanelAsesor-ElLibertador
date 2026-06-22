@@ -12,7 +12,8 @@ import {
   ShieldCheck,
   ChevronLeft,
   X,
-  Menu
+  Menu,
+  DollarSign
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -45,6 +46,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     { id: 'dashboard', label: isAsesor ? 'Mi Gestión' : 'Tablero', icon: LayoutDashboard },
     { id: 'new-transfer', label: 'Nueva Gestión', icon: PhoneForwarded },
     { id: 'my-tasks', label: 'Mis Gestiones', icon: ClipboardList },
+    { id: 'recaudo', label: 'Seguimiento Recaudo', icon: DollarSign, role: ['admin', 'supervisor'] },
     { id: 'advisor-management', label: 'Gestión Asesores', icon: Users, role: ['admin', 'supervisor'] },
     { id: 'ranking', label: 'Clasificación', icon: Trophy, role: ['admin', 'supervisor'] },
     { id: 'user-management', label: 'Usuarios', icon: UserCircle, role: ['admin'] },

@@ -370,7 +370,7 @@ export function Profile({ user, transfers }: ProfileProps) {
                   <Shield className="w-6 h-6 text-secondary" />
                 </div>
                 <p className="text-4xl font-black text-secondary">
-                  ${totalValue.toLocaleString('es-CO')}
+                  ${Math.round(totalValue).toLocaleString('es-CO')}
                 </p>
                 <p className="text-sm font-bold text-muted-foreground uppercase mt-1">Valor Total en Links</p>
               </div>

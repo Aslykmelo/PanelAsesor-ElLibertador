@@ -301,7 +301,11 @@ export function DashboardAdviser({ transfers, user, onNewTransfer }: DashboardAd
 
   const recentActivities = useMemo(() => {
     return [...filteredData]
-      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+      .sort((a, b) => {
+        const dateA = a.createdAt instanceof Date ? a.createdAt : (typeof (a.createdAt as any)?.toDate === 'function' ? (a.createdAt as any).toDate() : new Date(a.createdAt));
+        const dateB = b.createdAt instanceof Date ? b.createdAt : (typeof (b.createdAt as any)?.toDate === 'function' ? (b.createdAt as any).toDate() : new Date(b.createdAt));
+        return dateB.getTime() - dateA.getTime();
+      })
       .slice(0, 5);
   }, [filteredData]);
 

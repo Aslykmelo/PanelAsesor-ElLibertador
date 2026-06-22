@@ -35,6 +35,22 @@ if (configDbId && configDbId.trim() !== "" && configDbId !== "(default)" && conf
 
 export const db = finalDbId ? getFirestore(app, finalDbId) : getFirestore(app);
 
+// 🔥 FIRESTORE MONITOR: Tracks read/write calls to detect redundant patterns
+export const FirestoreTracer = {
+  counters: {} as Record<string, number>,
+  track(queryName: string, component: string, type: 'onSnapshot' | 'getDocs' | 'getDoc' | 'write' | 'delete') {
+    const key = `[${type.toUpperCase()}] ${queryName} (Componente: ${component})`;
+    this.counters[key] = (this.counters[key] || 0) + 1;
+    console.log(
+      `%c🔥 [FIRESTORE MONITOR] ${key} | Llamado #${this.counters[key]} en esta sesión`, 
+      "color: #ff9900; font-weight: bold; background-color: rgba(255, 153, 0, 0.05); padding: 2px 5px; border-radius: 4px;"
+    );
+    if (this.counters[key] > 5) {
+      console.warn(`%c⚠️ CRITICAL: Consulta ${key} se ha ejecutado ${this.counters[key]} veces. ¡Posible bucle de actualización detectado!`, "color: #ff3333; font-weight: bold; font-size: 13px;");
+    }
+  }
+};
+
 // 🔍 TEST CONNECTION
 async function testConnection() {
   if (!firebaseConfig.apiKey) {
@@ -42,6 +58,7 @@ async function testConnection() {
     return;
   }
   try {
+    FirestoreTracer.track('connection-test', 'firebase.ts/testConnection', 'getDoc');
     await getDocFromServer(doc(db, 'asesores', 'connection-test'));
     console.log("Firestore connection verified");
   } catch (error: any) {
@@ -52,7 +69,7 @@ async function testConnection() {
     }
   }
 }
-testConnection();
+// testConnection();
 
 enum OperationType {
   CREATE = 'create',
@@ -119,6 +136,7 @@ export const signIn = async () => {
   const userRef = doc(db, 'users', firebaseUser.uid);
   let userSnap;
   try {
+    FirestoreTracer.track(`users/${firebaseUser.uid}`, 'firebase.ts/signIn', 'getDoc');
     userSnap = await getDoc(userRef);
   } catch (e) {
     handleFirestoreError(e, OperationType.GET, `users/${firebaseUser.uid}`);
@@ -166,6 +184,7 @@ export const signIn = async () => {
         status: 'online' as const
       };
 
+      FirestoreTracer.track(`users/${firebaseUser.uid}`, 'firebase.ts/signIn', 'write');
       await setDoc(userRef, newUser);
     } catch (createErr) {
       console.warn("No se pudo crear/inicializar el documento de usuario:", createErr);
@@ -187,10 +206,12 @@ export const signIn = async () => {
     }
     
     try {
+      FirestoreTracer.track(`users/${firebaseUser.uid}`, 'firebase.ts/signIn', 'write');
       await updateDoc(userRef, updates);
     } catch (e) {
       console.warn("No se pudo actualizar el perfil completo en el login:", e);
       try {
+        FirestoreTracer.track(`users/${firebaseUser.uid}`, 'firebase.ts/signIn(fallback)', 'write');
         await updateDoc(userRef, { lastLoginAt: serverTimestamp(), status: 'online' });
       } catch (innerError) {
         console.warn("Error silenciado al actualizar status de usuario:", innerError);
@@ -201,6 +222,7 @@ export const signIn = async () => {
   // REGISTRAR LOG DE ACCESO
   try {
     const logRef = collection(db, 'login_logs');
+    FirestoreTracer.track('login_logs', 'firebase.ts/signIn', 'write');
     await addDoc(logRef, {
       uid: firebaseUser.uid,
       name: firebaseUser.displayName || 'Asesor',
@@ -225,6 +247,7 @@ export const signOut = async () => {
     // si falla o tarda mucho
     try {
       // Usamos una promesa con un timeout corto para no colgar el botón de cerrar sesión
+      FirestoreTracer.track(`users/${user.uid}`, 'firebase.ts/signOut', 'write');
       const updatePromise = updateDoc(doc(db, 'users', user.uid), { status: 'offline' });
       const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 1000));
       

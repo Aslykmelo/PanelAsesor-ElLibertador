@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { db } from '@/firebase';
+import { db, FirestoreTracer } from '@/firebase';
 import { collection, onSnapshot, query, orderBy, addDoc, serverTimestamp, deleteDoc, doc, updateDoc } from 'firebase/firestore';
 import { cn } from '@/lib/utils';
 import { Advisor } from '../types';
@@ -70,6 +70,7 @@ export function AdvisorManagement() {
 
   useEffect(() => {
     const q = query(collection(db, 'asesores'), orderBy('createdAt', 'desc'));
+    FirestoreTracer.track('asesores (Management Feed)', 'AdvisorManagement', 'onSnapshot');
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const data = snapshot.docs.map(doc => ({
         ...doc.data(),

@@ -169,7 +169,43 @@ export const TransferForm: React.FC<TransferFormProps> = ({ onSubmit, currentUse
         createdByEmail: currentUser.email.toLowerCase()
       };
 
-      const docRef = await addDoc(collection(db, 'registros'), docData);
+      let docRef: any = null;
+      let isLocalOnly = false;
+      try {
+        docRef = await addDoc(collection(db, 'registros'), docData);
+      } catch (dbError: any) {
+        console.error("Firestore error while saving doc:", dbError);
+        const isQuota = dbError.code === 'resource-exhausted' || dbError.message?.toLowerCase().includes('quota exceeded') || dbError.message?.toLowerCase().includes('quota-exceeded');
+        
+        if (isQuota) {
+          isLocalOnly = true;
+          const localId = 'local-' + Math.random().toString(36).substring(7);
+          docRef = { id: localId };
+          
+          try {
+            const cached = localStorage.getItem('cached_registros');
+            let parsed = cached ? JSON.parse(cached) : [];
+            if (!Array.isArray(parsed)) {
+              parsed = [];
+            }
+            const newLocalData = { 
+              ...docData, 
+              id: localId, 
+              isLocalOnly: true,
+              createdAt: new Date().toISOString(),
+              updatedAt: new Date().toISOString()
+            };
+            localStorage.setItem('cached_registros', JSON.stringify([newLocalData, ...parsed]));
+            
+            // Dispatch a custom event so App state reloads instantly!
+            window.dispatchEvent(new CustomEvent('local-registros-updated'));
+          } catch (e) {
+            console.error("Failed to save local registry:", e);
+          }
+        } else {
+          throw dbError;
+        }
+      }
       
       // Intentar enviar el correo mediante la API del servidor
       try {
@@ -185,10 +221,27 @@ export const TransferForm: React.FC<TransferFormProps> = ({ onSubmit, currentUse
           });
           
           // Actualizamos el registro en Firestore para marcarlo como notificado visualmente
-          await updateDoc(doc(db, 'registros', docRef.id), {
-            notified: true,
-            notifiedAt: serverTimestamp()
-          });
+          if (!isLocalOnly && docRef?.id) {
+            await updateDoc(doc(db, 'registros', docRef.id), {
+              notified: true,
+              notifiedAt: serverTimestamp()
+            });
+          } else if (isLocalOnly) {
+            // Update local storage
+            try {
+              const cached = localStorage.getItem('cached_registros');
+              if (cached) {
+                const parsed = JSON.parse(cached);
+                if (Array.isArray(parsed)) {
+                  const updated = parsed.map(t => t.id === docRef.id ? { ...t, notified: true, notifiedAt: new Date().toISOString() } : t);
+                  localStorage.setItem('cached_registros', JSON.stringify(updated));
+                  window.dispatchEvent(new CustomEvent('local-registros-updated'));
+                }
+              }
+            } catch (e) {
+              console.error("Failed local notify update:", e);
+            }
+          }
         } else {
           let errorData;
           try {
@@ -209,10 +262,20 @@ export const TransferForm: React.FC<TransferFormProps> = ({ onSubmit, currentUse
         });
       }
       
-      toast.success(type === 'mensaje' 
-        ? 'Transferencia registrada exitosamente' 
-        : 'Link de pago registrado exitosamente'
-      );
+      if (isLocalOnly) {
+        toast.warning(type === 'mensaje' 
+          ? 'Transferencia registrada localmente (Cuota Base de Datos Superada)' 
+          : 'Link de pago registrado localmente (Cuota Base de Datos Superada)',
+          {
+            description: 'Guardado en tu navegador. El aplicativo procedió con la notificación por correo con normalidad.'
+          }
+        );
+      } else {
+        toast.success(type === 'mensaje' 
+          ? 'Transferencia registrada exitosamente' 
+          : 'Link de pago registrado exitosamente'
+        );
+      }
 
       onSubmit?.(docData);
 

@@ -13,30 +13,49 @@ service cloud.firestore {
     }
 
     function getEmail() {
-      return isSignedIn() ? request.auth.token.get('email', '').lower() : "";
+      return (isSignedIn() && request.auth.token.email != null) ? request.auth.token.email.lower() : "";
+    }
+
+    function isKnownAdminEmail(email) {
+      return email == "taliana.moreno@segurosbolivar.com" || 
+             email == "helen.pantoja@segurosbolivar.com";
+    }
+
+    function isKnownSupervisorEmail(email) {
+      return email == "sergio.llanos@segurosbolivar.com" ||
+             email == "luis.mondragon@segurosbolivar.com" ||
+             email == "yulieth.moreno@segurosbolivar.com" ||
+             email == "ana.gutierrez@segurosbolivar.com" ||
+             email == "mabel.elizabeth.andrade@segurosbolivar.com" ||
+             email == "lizeth.osma@segurosbolivar.com" ||
+             email == "juliana.garcia@segurosbolivar.com";
+    }
+
+    function isAllowedRole(newRole, email) {
+      return newRole == 'asesor' ||
+             (newRole == 'supervisor' && (isKnownSupervisorEmail(email) || isKnownAdminEmail(email))) ||
+             (newRole == 'admin' && isKnownAdminEmail(email));
     }
 
     function isSuperAdmin() {
       let email = getEmail();
-      return email == "taliana.moreno@segurosbolivar.com" || 
-             email == "helen.pantoja@segurosbolivar.com" ||
+      return isKnownAdminEmail(email) || 
              request.auth.uid == "tdev4fgZqwRxFNb9ujNsZHld5ZB3";
     }
 
     function isAdmin() {
+      let email = getEmail();
       return isSignedIn() && (
-        isSuperAdmin() || 
-        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
-         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('role', 'asesor') == "admin")
+        isKnownAdminEmail(email) || 
+        request.auth.uid == "tdev4fgZqwRxFNb9ujNsZHld5ZB3"
       );
     }
 
     function isSupervisor() {
       let email = getEmail();
       return isSignedIn() && (
-        email == "sergio.llanos@segurosbolivar.com" ||
-        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
-         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('role', 'asesor') == "supervisor")
+        isKnownSupervisorEmail(email) ||
+        isKnownAdminEmail(email)
       );
     }
 
@@ -44,38 +63,28 @@ service cloud.firestore {
 
     // 1. Usuarios (Directorio y Perfiles)
     match /users/{userId} {
-      allow get: if isSignedIn() && (request.auth.uid == userId || isAdmin() || isSupervisor());
-      allow list: if isSignedIn();
-      
-      allow create: if isSignedIn() && request.auth.uid == userId;
-      
-      allow update: if isSignedIn() && (
-        (request.auth.uid == userId && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['role', 'email'])) ||
-        isAdmin() ||
-        isSuperAdmin()
-      );
+      allow read, write: if isSignedIn();
     }
 
     // 2. Logs de Acceso
     match /login_logs/{logId} {
       allow create: if isSignedIn();
-      allow read: if isAdmin() || isSuperAdmin() || isSupervisor();
+      allow read: if isSignedIn() && (isAdmin() || isSupervisor());
     }
 
     // 3. Asesores (Directorio de Receptores)
     match /asesores/{advisorId} {
       allow read: if isSignedIn();
-      allow write: if isAdmin() || isSuperAdmin();
+      allow write: if isSignedIn();
     }
     
     match /advisors/{advisorId} {
       allow read: if isSignedIn();
-      allow write: if isAdmin() || isSuperAdmin();
+      allow write: if isSignedIn();
     }
 
     // 4. Gestiones (Registros de transferencias)
     function isOwner(data) {
-      // Importante: No usar .lower() sobre data.field para permitir queries de listado
       return isSignedIn() && getEmail() != "" && (
         (data.get('fromAdvisorEmail', '') == getEmail()) || 
         (data.get('toAdvisorEmail', '') == getEmail()) ||
@@ -85,20 +94,10 @@ service cloud.firestore {
 
     match /registros/{registroId} {
       allow read: if isSignedIn() && (isAdmin() || isSupervisor() || isOwner(resource.data));
-      
-      allow create: if isSignedIn() && (
-        request.resource.data.get('fromAdvisorEmail', '') == getEmail() || 
-        isAdmin() || 
-        isSupervisor()
-      );
-      
-      allow update: if isSignedIn() && (
-        isAdmin() || 
-        isSupervisor() ||
-        (isOwner(resource.data) && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['fromAdvisorEmail', 'createdAt']))
-      );
-      
-      allow delete: if isAdmin() || isSuperAdmin();
+      allow create: if isSignedIn();
+      allow update: if isSignedIn() && (isAdmin() || isSupervisor() || isOwner(resource.data));
+      allow delete: if isSignedIn() && (isAdmin() || isSupervisor());
     }
+
   }
 }

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { db } from '@/firebase';
+import { db, FirestoreTracer } from '@/firebase';
 import { collection, onSnapshot, query, orderBy } from 'firebase/firestore';
 import { User } from '../types';
 import { 
@@ -36,6 +36,7 @@ export function UserManagement() {
 
   useEffect(() => {
     const q = query(collection(db, 'users'), orderBy('lastLoginAt', 'desc'));
+    FirestoreTracer.track('users (Management Directory)', 'UserManagement', 'onSnapshot');
     const unsubscribeUsers = onSnapshot(q, (snapshot) => {
       const data = snapshot.docs.map(doc => ({
         ...doc.data(),
@@ -53,6 +54,7 @@ export function UserManagement() {
     });
 
     const lq = query(collection(db, 'login_logs'), orderBy('timestamp', 'desc'));
+    FirestoreTracer.track('login_logs (Audits Feed)', 'UserManagement', 'onSnapshot');
     const unsubscribeLogs = onSnapshot(lq, (snapshot) => {
       const data = snapshot.docs.map(doc => ({
         ...doc.data(),

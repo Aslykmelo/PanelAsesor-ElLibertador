@@ -163,7 +163,7 @@ export function Ranking({ transfers, advisors }: RankingProps) {
         adv.count,
         adv.receiveCount,
         adv.linksCount,
-        `$${adv.totalValue.toLocaleString('es-CO')}`
+        `$${Math.round(adv.totalValue).toLocaleString('es-CO')}`
       ]),
       headStyles: { 
         fillColor: [161, 22, 27], 
@@ -283,7 +283,7 @@ export function Ranking({ transfers, advisors }: RankingProps) {
                   </div>
                   <div>
                     <p className="font-black text-secondary text-sm leading-tight uppercase">{adv.name}</p>
-                    <p className="text-[10px] font-bold text-secondary/40 whitespace-nowrap">${adv.totalValue.toLocaleString('es-CO')}</p>
+                    <p className="text-[10px] font-bold text-secondary/40 whitespace-nowrap">${Math.round(adv.totalValue).toLocaleString('es-CO')}</p>
                   </div>
                 </div>
                 <div className="text-right">
@@ -401,7 +401,7 @@ export function Ranking({ transfers, advisors }: RankingProps) {
                       <td className="px-6 py-6 font-medium text-muted-foreground text-xs">{adv.email}</td>
                       <td className="px-6 py-6 text-right font-black text-primary text-lg">{adv.count}</td>
                       <td className="px-6 py-6 text-right font-black text-secondary text-lg">{adv.receiveCount}</td>
-                      <td className="px-8 py-6 text-right font-black text-secondary text-lg">${adv.totalValue.toLocaleString('es-CO')}</td>
+                      <td className="px-8 py-6 text-right font-black text-secondary text-lg">${Math.round(adv.totalValue).toLocaleString('es-CO')}</td>
                     </motion.tr>
                   ))}
                 </AnimatePresence>

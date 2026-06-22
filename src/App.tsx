@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { Sidebar } from './components/Sidebar';
 import { DashboardAdmin } from './components/DashboardAdmin';
 import { useTheme } from 'next-themes';
@@ -9,6 +9,7 @@ import { Ranking } from './components/Ranking';
 import { Profile } from './components/Profile';
 import { UserManagement } from './components/UserManagement';
 import { AdvisorManagement } from './components/AdvisorManagement';
+import { RecaudoTracking } from './components/RecaudoTracking';
 import { Notifications, Notification } from './components/Notifications';
 import { UserMenu } from './components/UserMenu';
 import { Login } from './components/Login';
@@ -20,9 +21,9 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 
-import { auth, db, signOut } from './firebase';
+import { auth, db, signOut, FirestoreTracer } from './firebase';
 import { onAuthStateChanged } from 'firebase/auth';
-import { collection, query, orderBy, onSnapshot, updateDoc, doc, Timestamp, deleteDoc, where, or, addDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, query, orderBy, onSnapshot, updateDoc, doc, Timestamp, deleteDoc, where, or, addDoc, serverTimestamp, getDocs } from 'firebase/firestore';
 import { useAutoSyncAdvisors } from './hooks/useAutoSyncAdvisors';
 
 export default function App() {
@@ -34,9 +35,40 @@ export default function App() {
   
   // 🔥 AUTOMATIC DATA SYNC
   useAutoSyncAdvisors(currentUser);
-  const [transfers, setTransfers] = useState<Transfer[]>([]);
-  const [advisors, setAdvisors] = useState<Advisor[]>([]);
+  const [transfers, setTransfers] = useState<Transfer[]>(() => {
+    try {
+      const cached = localStorage.getItem('cached_registros');
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (Array.isArray(parsed)) {
+          return parsed.map((t: any) => ({
+            ...t,
+            createdAt: t.createdAt ? new Date(t.createdAt) : new Date(),
+            updatedAt: t.updatedAt ? new Date(t.updatedAt) : undefined,
+          }));
+        }
+      }
+    } catch (e) {
+      console.warn("Error parsing cached_registros on init:", e);
+    }
+    return [];
+  });
+  const [advisors, setAdvisors] = useState<Advisor[]>(() => {
+    try {
+      const cached = localStorage.getItem('cached_asesores');
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (Array.isArray(parsed)) {
+          return parsed;
+        }
+      }
+    } catch (e) {
+      console.warn("Error parsing cached_asesores on init:", e);
+    }
+    return [];
+  });
   const [syncError, setSyncError] = useState<string | null>(null);
+  const [quotaExceeded, setQuotaExceeded] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(() => {
     if (typeof window !== 'undefined') {
       return window.innerWidth >= 768;
@@ -53,8 +85,98 @@ export default function App() {
       return;
     }
     
-    setNotifications(currentUser.notifications);
-  }, [currentUser]);
+    const curJson = JSON.stringify(currentUser.notifications);
+    const prevJson = JSON.stringify(notifications);
+    if (curJson !== prevJson) {
+      setNotifications(currentUser.notifications);
+    }
+  }, [currentUser?.notifications]);
+
+  // 🔥 DATABASE QUOTA EXHAUSTION FALLBACK LAYER
+  const loadFallbackData = (collectionName: 'asesores' | 'registros') => {
+    setQuotaExceeded(true);
+    const cached = localStorage.getItem(`cached_${collectionName}`);
+    if (cached) {
+      try {
+        const parsed = JSON.parse(cached);
+        if (collectionName === 'asesores') {
+          setAdvisors(Array.isArray(parsed) ? parsed : []);
+        } else if (collectionName === 'registros') {
+          if (Array.isArray(parsed)) {
+            const parsedTransfers = parsed.map((t: any) => ({
+              ...t,
+              createdAt: t.createdAt ? new Date(t.createdAt) : new Date(),
+              updatedAt: t.updatedAt ? new Date(t.updatedAt) : undefined,
+            })) as Transfer[];
+            setTransfers(parsedTransfers);
+          }
+        }
+      } catch (e) {
+        console.error(`Error parsing cached_${collectionName}:`, e);
+      }
+    } else {
+      // Direct hard fallback if nothing is cached
+      if (collectionName === 'asesores') {
+        const initialAdvisors = [
+          { id: '1', name: 'Ana María Gómez', email: 'ana.gomez@segurosbolivar.com', role: 'advisor', supervisor: 'Gerencia', active: true, cartera: 'Comercial' },
+          { id: '2', name: 'Carlos Mario Ruiz', email: 'carlos.ruiz@segurosbolivar.com', role: 'advisor', supervisor: 'Gerencia', active: true, cartera: 'Soporte' }
+        ];
+        setAdvisors(initialAdvisors);
+        localStorage.setItem('cached_asesores', JSON.stringify(initialAdvisors));
+      } else if (collectionName === 'registros') {
+        const initialTransfers = [
+          {
+            id: 'mock-1',
+            type: 'regalo',
+            requestNumber: '112233',
+            fromAdvisorName: 'Asesor Demostración',
+            fromAdvisorEmail: currentUser?.email || 'test@gmail.com',
+            toAdvisorName: 'Soporte',
+            toAdvisorEmail: 'soporte@segurosbolivar.com',
+            supervisorName: 'Soporte',
+            supervisorEmail: 'soporte@segurosbolivar.com',
+            cartera: 'Soporte',
+            managementType: 'Llamada Directa',
+            canalGestion: 'Llamada',
+            observations: 'Ejemplo de registro local (cuota Firebase superada)',
+            status: 'pendiente',
+            createdAt: new Date(),
+          } as any as Transfer
+        ];
+        setTransfers(initialTransfers);
+        localStorage.setItem('cached_registros', JSON.stringify(initialTransfers));
+      }
+    }
+  };
+
+  // Listen for local updates in case of quota exhaustion fallback
+  useEffect(() => {
+    const handleLocalUpdates = () => {
+      console.log("Local registrations updated event received!");
+      const cached = localStorage.getItem('cached_registros');
+      if (cached) {
+        try {
+          const parsed = JSON.parse(cached);
+          if (Array.isArray(parsed)) {
+            const parsedTransfers = parsed.map((t: any) => ({
+              ...t,
+              createdAt: t.createdAt ? new Date(t.createdAt) : new Date(),
+              updatedAt: t.updatedAt ? new Date(t.updatedAt) : undefined,
+            })) as Transfer[];
+            setTransfers(parsedTransfers);
+          }
+        } catch (e) {
+          console.error("Local storage update parse error:", e);
+        }
+      }
+    };
+
+    window.addEventListener('local-registros-updated', handleLocalUpdates);
+
+    return () => {
+      window.removeEventListener('local-registros-updated', handleLocalUpdates);
+    };
+  }, []);
 
   const effectiveRole = useMemo(() => {
     if (!currentUser) return 'asesor';
@@ -92,6 +214,7 @@ export default function App() {
         }, 15000);
 
         userUnsubscribe = onSnapshot(userRef, (docSnap) => {
+          FirestoreTracer.track(`users/${firebaseUser.uid}`, 'App/AuthUserSync', 'onSnapshot');
           if (docSnap.exists()) {
             clearTimeout(timeoutId);
             const userData = { ...docSnap.data(), uid: docSnap.id } as User;
@@ -146,7 +269,7 @@ export default function App() {
     };
   }, []);
 
-  // 🔥 FIRESTORE DATA SYNC
+  // 🔥 FIRESTORE DATA SYNC (Advisors)
   useEffect(() => {
     if (!currentUser) {
       setAdvisors([]);
@@ -154,12 +277,14 @@ export default function App() {
     }
 
     const q = query(collection(db, 'asesores'), orderBy('name', 'asc'));
+    FirestoreTracer.track('asesores', 'App/AsesoresSync', 'onSnapshot');
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const data = snapshot.docs.map(doc => ({
         ...doc.data(),
         id: doc.id
       })) as Advisor[];
       setAdvisors(data);
+      localStorage.setItem('cached_asesores', JSON.stringify(data));
     }, (error) => {
       console.error("Advisors global sync error details:", {
         code: error.code,
@@ -167,23 +292,28 @@ export default function App() {
         uid: auth.currentUser?.uid,
         email: auth.currentUser?.email
       });
-      if (error.code === 'permission-denied') {
+      if (error.code === 'resource-exhausted' || error.message?.includes('Quota exceeded') || error.message?.includes('quota-exceeded')) {
+        loadFallbackData('asesores');
+      } else if (error.code === 'permission-denied') {
         toast.error('Error de permisos al cargar asesores. Si eres administrador, contacta a soporte técnico.');
       }
     });
 
     return () => unsubscribe();
-  }, [currentUser]);
+  }, [currentUser?.uid]);
+
+
 
   useEffect(() => {
     if (!currentUser) return;
 
     const isAsesor = effectiveRole === 'asesor';
-    const userEmail = currentUser.email.toLowerCase();
+    const userEmail = (currentUser.email || '').toLowerCase();
     
     // Si es admin/supervisor, traemos todo en una sola query
     if (!isAsesor) {
       const q = query(collection(db, 'registros'), orderBy('createdAt', 'desc'));
+      FirestoreTracer.track('registros (Admin Global Sync)', 'App/RegistrosSync', 'onSnapshot');
       const unsubscribe = onSnapshot(q, (snapshot) => {
         const data = snapshot.docs.map(doc => ({
           ...doc.data(),
@@ -192,11 +322,13 @@ export default function App() {
           updatedAt: doc.data().updatedAt?.toDate?.()
         })) as Transfer[];
         setTransfers(data);
+        localStorage.setItem('cached_registros', JSON.stringify(data));
         setSyncError(null);
       }, (error) => {
         console.error("Admin sync error:", error);
-        // SI HAY ERROR DE PERMISOS PARA ADMIN
-        if (error.code === 'permission-denied') {
+        if (error.code === 'resource-exhausted' || error.message?.includes('Quota exceeded') || error.message?.includes('quota-exceeded')) {
+          loadFallbackData('registros');
+        } else if (error.code === 'permission-denied') {
           setSyncError(`Acceso restringido: Tus permisos de administrador aún se están sincronizando en la base de datos.`);
           console.warn("TIP: Como administrador, asegúrate de que tu correo esté en la lista blanca de Firebase Rules.");
         } else {
@@ -215,8 +347,13 @@ export default function App() {
       const combined = [...sentData, ...receivedData];
       // Eliminar duplicados por ID y ordenar por fecha
       const unique = new Map(combined.map(item => [item.id, item]));
-      const sorted = Array.from(unique.values()).sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+      const sorted = Array.from(unique.values()).sort((a, b) => {
+        const dateA = a.createdAt instanceof Date ? a.createdAt : (typeof (a.createdAt as any)?.toDate === 'function' ? (a.createdAt as any).toDate() : new Date(a.createdAt));
+        const dateB = b.createdAt instanceof Date ? b.createdAt : (typeof (b.createdAt as any)?.toDate === 'function' ? (b.createdAt as any).toDate() : new Date(b.createdAt));
+        return dateB.getTime() - dateA.getTime();
+      });
       setTransfers(sorted);
+      localStorage.setItem('cached_registros', JSON.stringify(sorted));
       setSyncError(null);
     };
 
@@ -230,6 +367,7 @@ export default function App() {
       where('toAdvisorEmail', '==', userEmail)
     );
 
+    FirestoreTracer.track('registros (Asesor Sent Sync)', 'App/RegistrosSync', 'onSnapshot');
     const unsubSent = onSnapshot(qSent, (snapshot) => {
       sentData = snapshot.docs.map(doc => ({
         ...doc.data(),
@@ -240,9 +378,14 @@ export default function App() {
       updateAsesorData();
     }, (error) => {
       console.error("Sent items sync error:", error);
-      setSyncError(`Error al cargar gestiones enviadas. Verifica tu conexión.`);
+      if (error.code === 'resource-exhausted' || error.message?.includes('Quota exceeded') || error.message?.includes('quota-exceeded')) {
+        loadFallbackData('registros');
+      } else {
+        setSyncError(`Error al cargar gestiones enviadas. Verifica tu conexión.`);
+      }
     });
 
+    FirestoreTracer.track('registros (Asesor Received Sync)', 'App/RegistrosSync', 'onSnapshot');
     const unsubReceived = onSnapshot(qReceived, (snapshot) => {
       receivedData = snapshot.docs.map(doc => ({
         ...doc.data(),
@@ -253,14 +396,18 @@ export default function App() {
       updateAsesorData();
     }, (error) => {
       console.error("Received items sync error:", error);
-      setSyncError(`Error al cargar gestiones recibidas. Verifica tu conexión.`);
+      if (error.code === 'resource-exhausted' || error.message?.includes('Quota exceeded') || error.message?.includes('quota-exceeded')) {
+        loadFallbackData('registros');
+      } else {
+        setSyncError(`Error al cargar gestiones recibidas. Verifica tu conexión.`);
+      }
     });
 
     return () => {
       unsubSent();
       unsubReceived();
     };
-  }, [currentUser, effectiveRole]);
+  }, [currentUser?.uid, currentUser?.email, effectiveRole]);
 
   const handleTabChange = (tab: string) => {
     setActiveTab(tab);
@@ -308,9 +455,25 @@ export default function App() {
         updatedAt: Timestamp.now()
       });
       toast.success(`Registro marcado como ${status}`);
-    } catch (error) {
-      console.error("Error:", error);
-      toast.error("Error al actualizar estado");
+    } catch (error: any) {
+      console.error("Error updates status:", error);
+      const isQuota = error.code === 'resource-exhausted' || error.message?.toLowerCase().includes('quota exceeded') || error.message?.toLowerCase().includes('quota-exceeded');
+      if (isQuota) {
+        try {
+          const cached = localStorage.getItem('cached_registros');
+          if (cached) {
+            const parsed = JSON.parse(cached) as any[];
+            const updated = parsed.map(t => t.id === id ? { ...t, status, updatedAt: new Date().toISOString() } : t);
+            localStorage.setItem('cached_registros', JSON.stringify(updated));
+            window.dispatchEvent(new CustomEvent('local-registros-updated'));
+            toast.success(`Registro marcado como ${status} (Guardado localmente)`);
+          }
+        } catch (e) {
+          console.error("Fallback update error:", e);
+        }
+      } else {
+        toast.error("Error al actualizar estado");
+      }
     }
   };
 
@@ -318,9 +481,25 @@ export default function App() {
     try {
       await deleteDoc(doc(db, 'registros', id));
       toast.success("Registro eliminado permanentemente");
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error:", error);
-      toast.error("No tienes permisos para eliminar este registro");
+      const isQuota = error.code === 'resource-exhausted' || error.message?.toLowerCase().includes('quota exceeded') || error.message?.toLowerCase().includes('quota-exceeded');
+      if (isQuota) {
+        try {
+          const cached = localStorage.getItem('cached_registros');
+          if (cached) {
+            const parsed = JSON.parse(cached) as any[];
+            const updated = parsed.filter(t => t.id !== id);
+            localStorage.setItem('cached_registros', JSON.stringify(updated));
+            window.dispatchEvent(new CustomEvent('local-registros-updated'));
+            toast.success("Registro eliminado (Localmente)");
+          }
+        } catch (e) {
+          console.error("Fallback delete error:", e);
+        }
+      } else {
+        toast.error("No tienes permisos para eliminar este registro o la cuota de Firebase se excedió.");
+      }
     }
   };
 
@@ -426,6 +605,20 @@ export default function App() {
         }
         return <Ranking transfers={filteredData} advisors={advisors} />;
 
+      case 'recaudo':
+        if (isAsesor) {
+          setActiveTab('dashboard');
+          return null;
+        }
+        return (
+          <RecaudoTracking
+            transfers={filteredData}
+            user={currentUser!}
+          />
+        );
+
+
+
       case 'profile':
         return <Profile user={currentUser!} transfers={filteredData.filter(t => t.fromAdvisorEmail === currentUser!.email)} />;
 
@@ -525,6 +718,22 @@ export default function App() {
 
         {/* MAIN */}
         <main className="flex-1 overflow-y-auto p-4 md:p-8 custom-scrollbar">
+          {quotaExceeded && (
+            <div className="mb-6 p-4 bg-amber-500/10 border-l-4 border-amber-500 text-amber-800 dark:text-amber-200 rounded-r-xl animate-in slide-in-from-top-2 duration-300">
+              <div className="flex items-start gap-3">
+                <Shield className="w-5 h-5 text-amber-600 dark:text-amber-400 mt-0.5 shrink-0" />
+                <div className="flex-1">
+                  <p className="font-black text-sm">Base de datos en modo local</p>
+                  <p className="text-xs font-medium mt-0.5">
+                    La cuota gratuita de base de datos de Firebase se ha completado temporalmente. El aplicativo ha activado automáticamente el <strong>motor de persistencia local</strong> para que puedas seguir de forma fluida agregando, aprobando y consultando registros y enviando correos normalmente.
+                  </p>
+                </div>
+                <div className="text-[10px] bg-amber-500/20 text-amber-850 dark:text-amber-300 px-2 py-0.5 rounded-full font-bold uppercase tracking-wider shrink-0">
+                  Modo Local Activo
+                </div>
+              </div>
+            </div>
+          )}
           {effectiveRole !== 'asesor' && syncError && (
             <div className="mb-6 p-4 bg-orange-100 border-l-4 border-orange-500 text-orange-700 rounded-r-xl animate-in slide-in-from-top-2 duration-300">
               <div className="flex items-center gap-3">
