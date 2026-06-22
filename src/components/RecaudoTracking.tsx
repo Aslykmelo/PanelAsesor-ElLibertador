@@ -64,7 +64,14 @@ interface RecaudoTrackingProps {
 }
 
 export const RecaudoTracking: React.FC<RecaudoTrackingProps> = ({ transfers, user }) => {
-  const [bankRecords, setBankRecords] = useState<RecaudoHistoricoDB[]>([]);
+  const [bankRecords, setBankRecords] = useState<RecaudoHistoricoDB[]>(() => {
+    try {
+      const cached = localStorage.getItem('recaudo_historico_local_cache');
+      return cached ? JSON.parse(cached) : [];
+    } catch {
+      return [];
+    }
+  });
   const [metadata, setMetadata] = useState<ExcelMetadata | null>(() => {
     try {
       const cached = localStorage.getItem('recaudo_excel_metadata_v2');
@@ -215,7 +222,14 @@ export const RecaudoTracking: React.FC<RecaudoTrackingProps> = ({ transfers, use
               recordCount: Number(metaRec.valor_liquidacion) || 0
             });
           }
-          setBankRecords(data.filter(r => r.id_registro_crm !== 'METADATA_RECORD'));
+          const filteredRecords = data.filter(r => r.id_registro_crm !== 'METADATA_RECORD');
+          setBankRecords(filteredRecords);
+          
+          try {
+            localStorage.setItem('recaudo_historico_local_cache', JSON.stringify(filteredRecords));
+          } catch (e) {
+            console.error("Local storage sync error:", e);
+          }
         }
       } catch (err) {
         console.error(err);
@@ -225,6 +239,19 @@ export const RecaudoTracking: React.FC<RecaudoTrackingProps> = ({ transfers, use
     };
     fetchFromSupabase();
   }, []);
+
+  // Save bankRecords to local cache
+  useEffect(() => {
+    try {
+      if (bankRecords && bankRecords.length > 0) {
+        localStorage.setItem('recaudo_historico_local_cache', JSON.stringify(bankRecords));
+      } else {
+        localStorage.removeItem('recaudo_historico_local_cache');
+      }
+    } catch (e) {
+      console.error("Error writing to local storage:", e);
+    }
+  }, [bankRecords]);
 
   // Save metadata changes to cache
   useEffect(() => {
@@ -527,6 +554,12 @@ export const RecaudoTracking: React.FC<RecaudoTrackingProps> = ({ transfers, use
       }
       setBankRecords([]);
       setMetadata(null);
+      try {
+        localStorage.removeItem('recaudo_historico_local_cache');
+        localStorage.removeItem('recaudo_excel_metadata_v2');
+      } catch (e) {
+        console.error("Error cleaning local cache on reset:", e);
+      }
       setLogs([`🗑️ [REINICIO] Base de datos vaciada por completo a las ${new Date().toLocaleString('es-CO')}.`]);
       toast.success('Módulo de recaudo reiniciado con éxito.');
     } catch (err: any) {
