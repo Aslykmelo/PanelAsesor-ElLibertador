@@ -99,5 +99,10 @@ service cloud.firestore {
       allow delete: if isSignedIn() && (isAdmin() || isSupervisor());
     }
 
+    // 5. Recaudo Histórico (Conciliaciones)
+    match /recaudo_historico/{recordId} {
+      allow read, write: if isSignedIn();
+    }
+
   }
 }

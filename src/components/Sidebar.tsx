@@ -13,7 +13,8 @@ import {
   ChevronLeft,
   X,
   Menu,
-  DollarSign
+  DollarSign,
+  TrendingUp
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -44,6 +45,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   
   const menuItems = [
     { id: 'dashboard', label: isAsesor ? 'Mi Gestión' : 'Tablero', icon: LayoutDashboard },
+    { id: 'executive-dashboard', label: 'Dashboard Ejecutivo', icon: TrendingUp, role: ['admin', 'supervisor'] },
     { id: 'new-transfer', label: 'Nueva Gestión', icon: PhoneForwarded },
     { id: 'my-tasks', label: 'Mis Gestiones', icon: ClipboardList },
     { id: 'recaudo', label: 'Seguimiento Recaudo', icon: DollarSign, role: ['admin', 'supervisor'] },

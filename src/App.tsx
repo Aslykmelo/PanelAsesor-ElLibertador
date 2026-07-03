@@ -10,6 +10,7 @@ import { Profile } from './components/Profile';
 import { UserManagement } from './components/UserManagement';
 import { AdvisorManagement } from './components/AdvisorManagement';
 import { RecaudoTracking } from './components/RecaudoTracking';
+import { ExecutiveDashboard } from './components/ExecutiveDashboard';
 import { Notifications, Notification } from './components/Notifications';
 import { UserMenu } from './components/UserMenu';
 import { Login } from './components/Login';
@@ -614,6 +615,19 @@ export default function App() {
           <RecaudoTracking
             transfers={filteredData}
             user={currentUser!}
+          />
+        );
+
+      case 'executive-dashboard':
+        if (isAsesor) {
+          setActiveTab('dashboard');
+          return null;
+        }
+        return (
+          <ExecutiveDashboard
+            transfers={filteredData}
+            user={currentUser!}
+            advisors={advisors}
           />
         );
 

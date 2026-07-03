@@ -105,6 +105,27 @@
         "userAgent": { "type": "string" }
       },
       "required": ["uid", "name", "email", "timestamp"]
+    },
+    "RecaudoRecord": {
+      "title": "Recaudo Histórico",
+      "description": "Record of a payment reconciliation entry.",
+      "type": "object",
+      "properties": {
+        "id_registro_crm": { "type": "string" },
+        "solicitud": { "type": "string" },
+        "cliente": { "type": "string" },
+        "estado_recibo": { "type": "string" },
+        "valor_link_crm": { "type": "number" },
+        "valor_liquidacion": { "type": "number" },
+        "funcionario": { "type": "string" },
+        "fecha_generacion_link": { "type": "string" },
+        "fecha_vencimiento_link": { "type": "string" },
+        "fecha_pago": { "type": "string" },
+        "archivo_origen": { "type": "string" },
+        "usuario_importacion": { "type": "string" },
+        "tipo_recaudo": { "type": "string" }
+      },
+      "required": ["id_registro_crm", "solicitud", "cliente", "estado_recibo"]
     }
   },
   "firestore": {
@@ -123,6 +144,10 @@
     "/login_logs/{logId}": {
       "schema": "LoginLog",
       "description": "Collection of user login history logs"
+    },
+    "/recaudo_historico/{recordId}": {
+      "schema": "RecaudoRecord",
+      "description": "Collection of payment reconciliation entries"
     }
   }
 }

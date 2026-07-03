@@ -198,46 +198,84 @@ export const RecaudoTracking: React.FC<RecaudoTrackingProps> = ({ transfers, use
     return transfers.filter(t => t.type === 'regalo');
   }, [transfers]);
 
-  // Load from Supabase on mount
+  // Load from Supabase or Firestore on mount
   useEffect(() => {
-    const fetchFromSupabase = async () => {
-      if (!supabase) return;
+    const loadRecaudoData = async () => {
       setIsLoadingDb(true);
-      try {
-        const { data, error } = await supabase
-          .from('recaudo_historico')
-          .select('*');
-        if (error) {
-          console.error("Error fetching recaudo_historico:", error);
-          toast.error("Error al sincronizar con Supabase.");
-        } else if (data) {
-          const metaRec = data.find(r => r.id_registro_crm === 'METADATA_RECORD');
-          if (metaRec) {
-            setMetadata({
-              fileName: metaRec.archivo_origen || '-',
-              uploadedAtDate: metaRec.fecha_generacion_link || '-',
-              uploadedAtTime: metaRec.fecha_vencimiento_link || '-',
-              uploaderName: metaRec.cliente || '-',
-              uploaderEmail: metaRec.solicitud || '-',
-              recordCount: Number(metaRec.valor_liquidacion) || 0
-            });
+      let success = false;
+      let records: any[] = [];
+
+      // 1. Try Supabase first if available
+      if (supabase) {
+        try {
+          const { data, error } = await supabase
+            .from('recaudo_historico')
+            .select('*');
+          if (!error && data && data.length > 0) {
+            records = data;
+            success = true;
+            console.log("Cargado de recaudo desde Supabase exitoso.");
+          } else if (error) {
+            console.error("Error fetching from Supabase:", error);
           }
-          const filteredRecords = data.filter(r => r.id_registro_crm !== 'METADATA_RECORD');
-          setBankRecords(filteredRecords);
-          
-          try {
-            localStorage.setItem('recaudo_historico_local_cache', JSON.stringify(filteredRecords));
-          } catch (e) {
-            console.error("Local storage sync error:", e);
-          }
+        } catch (sErr) {
+          console.error("Supabase fetch exception:", sErr);
         }
-      } catch (err) {
-        console.error(err);
-      } finally {
-        setIsLoadingDb(false);
       }
+
+      // 2. Fallback to Firestore if Supabase was not configured or failed to return records
+      if (!success) {
+        try {
+          const { collection, getDocs } = await import('firebase/firestore');
+          const { db } = await import('@/firebase');
+          const querySnapshot = await getDocs(collection(db, 'recaudo_historico'));
+          const fData: any[] = [];
+          querySnapshot.forEach((doc) => {
+            fData.push(doc.data());
+          });
+          if (fData.length > 0) {
+            records = fData;
+            success = true;
+            console.log("Cargado de recaudo desde Firestore (Fallback de producción).");
+          }
+        } catch (fErr) {
+          console.error("Firestore load backup error:", fErr);
+        }
+      }
+
+      if (success && records.length > 0) {
+        const metaRec = records.find(r => r.id_registro_crm === 'METADATA_RECORD');
+        if (metaRec) {
+          setMetadata({
+            fileName: metaRec.archivo_origen || '-',
+            uploadedAtDate: metaRec.fecha_generacion_link || '-',
+            uploadedAtTime: metaRec.fecha_vencimiento_link || '-',
+            uploaderName: metaRec.cliente || '-',
+            uploaderEmail: metaRec.solicitud || '-',
+            recordCount: Number(metaRec.valor_liquidacion) || 0
+          });
+        }
+        const filteredRecords = records.filter(r => r.id_registro_crm !== 'METADATA_RECORD');
+        setBankRecords(filteredRecords);
+        
+        try {
+          localStorage.setItem('recaudo_historico_local_cache', JSON.stringify(filteredRecords));
+        } catch (e) {
+          console.error("Local storage sync error:", e);
+        }
+      } else {
+        // Fallback to local storage cache if absolutely nothing was found in DBs
+        try {
+          const cached = localStorage.getItem('recaudo_historico_local_cache');
+          if (cached) {
+            setBankRecords(JSON.parse(cached));
+          }
+        } catch {}
+      }
+      setIsLoadingDb(false);
     };
-    fetchFromSupabase();
+
+    loadRecaudoData();
   }, []);
 
   // Save bankRecords to local cache
@@ -439,6 +477,30 @@ export const RecaudoTracking: React.FC<RecaudoTrackingProps> = ({ transfers, use
       const nextRecords = Array.from(recordsMap.values());
       setBankRecords(nextRecords);
 
+      // Dual-write or Fallback to Firestore to guarantee persistent records in production
+      let uploadedToFirebase = false;
+      if (newUpserts.length > 0) {
+        try {
+          const { doc, writeBatch } = await import('firebase/firestore');
+          const { db } = await import('@/firebase');
+          
+          const batchSize = 500;
+          for (let i = 0; i < newUpserts.length; i += batchSize) {
+            const chunk = newUpserts.slice(i, i + batchSize);
+            const batch = writeBatch(db);
+            chunk.forEach(item => {
+              const docRef = doc(db, 'recaudo_historico', item.id_registro_crm);
+              batch.set(docRef, item, { merge: true });
+            });
+            await batch.commit();
+          }
+          uploadedToFirebase = true;
+          console.log("Sincronización de recaudo con Firestore exitosa.");
+        } catch (fErr) {
+          console.error("Firestore backup write error:", fErr);
+        }
+      }
+
       if (supabase && newUpserts.length > 0) {
         const { error } = await supabase
           .from('recaudo_historico')
@@ -446,9 +508,19 @@ export const RecaudoTracking: React.FC<RecaudoTrackingProps> = ({ transfers, use
 
         if (error) {
           console.error("Supabase upsert error:", error);
-          toast.error("Error al subir conciliación en Supabase.");
+          if (!uploadedToFirebase) {
+            toast.error("Error al subir conciliación en base de datos.");
+          } else {
+            toast.success(`Consolidados ${newUpserts.length} cambios en base de datos de respaldo (Firestore).`);
+          }
         } else {
           toast.success(`Consolidados ${newUpserts.length} cambios en Supabase.`);
+        }
+      } else if (newUpserts.length > 0) {
+        if (uploadedToFirebase) {
+          toast.success(`Consolidados ${newUpserts.length} cambios en base de datos (Firestore).`);
+        } else {
+          toast.warning(`Sincronizado localmente, pero falló la escritura a base de datos.`);
         }
       }
 
@@ -464,23 +536,32 @@ export const RecaudoTracking: React.FC<RecaudoTrackingProps> = ({ transfers, use
       };
       setMetadata(nextMeta);
 
-      if (supabase) {
-        const metadataRecord = {
-          id_registro_crm: 'METADATA_RECORD',
-          solicitud: nextMeta.uploaderEmail,
-          cliente: nextMeta.uploaderName,
-          estado_recibo: 'METADATA',
-          valor_link_crm: 0,
-          valor_liquidacion: nextMeta.recordCount,
-          funcionario: '-',
-          fecha_generacion_link: nextMeta.uploadedAtDate,
-          fecha_vencimiento_link: nextMeta.uploadedAtTime,
-          fecha_pago: null,
-          archivo_origen: nextMeta.fileName,
-          usuario_importacion: user.email || user.name || 'Usuario',
-          tipo_recaudo: 'METADATA'
-        };
+      const metadataRecord = {
+        id_registro_crm: 'METADATA_RECORD',
+        solicitud: nextMeta.uploaderEmail,
+        cliente: nextMeta.uploaderName,
+        estado_recibo: 'METADATA',
+        valor_link_crm: 0,
+        valor_liquidacion: nextMeta.recordCount,
+        funcionario: '-',
+        fecha_generacion_link: nextMeta.uploadedAtDate,
+        fecha_vencimiento_link: nextMeta.uploadedAtTime,
+        fecha_pago: null,
+        archivo_origen: nextMeta.fileName,
+        usuario_importacion: user.email || user.name || 'Usuario',
+        tipo_recaudo: 'METADATA'
+      };
 
+      try {
+        const { doc, setDoc } = await import('firebase/firestore');
+        const { db } = await import('@/firebase');
+        await setDoc(doc(db, 'recaudo_historico', 'METADATA_RECORD'), metadataRecord, { merge: true });
+        console.log("Metadata de recaudo sincronizada con Firestore.");
+      } catch (fMetaErr) {
+        console.error("Firestore metadata write error:", fMetaErr);
+      }
+
+      if (supabase) {
         const { error: metaErr } = await supabase
           .from('recaudo_historico')
           .upsert([metadataRecord], { onConflict: 'id_registro_crm' });

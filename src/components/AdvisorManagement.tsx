@@ -48,7 +48,6 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { motion, AnimatePresence } from 'motion/react';
 import { toast } from 'sonner';
-import { ADVISORS } from '@/constants'; 
 
 export function AdvisorManagement() {
   const [advisors, setAdvisors] = useState<Advisor[]>([]);

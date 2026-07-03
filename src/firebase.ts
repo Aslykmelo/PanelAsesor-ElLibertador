@@ -1,6 +1,6 @@
 import { initializeApp } from 'firebase/app';
 import { getAuth, GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
-import { getFirestore, doc, getDoc, setDoc, updateDoc, serverTimestamp, collection, addDoc, getDocFromServer } from 'firebase/firestore';
+import { getFirestore, doc, getDoc, setDoc, updateDoc, serverTimestamp, collection, addDoc, getDocFromServer, query, where, getDocs } from 'firebase/firestore';
 import { ADVISORS } from './constants';
 
 // Prioridad: 1. Environment variables (manual or injected by platform)
@@ -160,16 +160,56 @@ export const signIn = async () => {
 
   const userEmail = firebaseUser.email?.toLowerCase() || '';
 
+  let advisorInfo = null;
+  let isSupervisor = false;
+
+  try {
+    const asesoresRef = collection(db, 'asesores');
+    const qAsesor = query(asesoresRef, where('email', '==', userEmail));
+    FirestoreTracer.track('asesores (Login Lookup)', 'firebase.ts/signIn', 'getDocs');
+    const snapAsesor = await getDocs(qAsesor);
+    
+    if (!snapAsesor.empty) {
+      const docData = snapAsesor.docs[0].data();
+      advisorInfo = {
+        nombre: docData.name,
+        correo: docData.email,
+        correo_supervisor: docData.supervisorEmail || '',
+        supervisor: docData.supervisor || '',
+        cartera: docData.cartera || '',
+        role: docData.role || 'advisor',
+        active: docData.active ?? true
+      };
+      isSupervisor = docData.role === 'supervisor';
+    } else {
+      // Fallback a ADVISORS estático si no está en Firestore aún
+      const staticMatch = ADVISORS.find(a => a.correo.toLowerCase() === userEmail);
+      if (staticMatch) {
+        advisorInfo = staticMatch;
+      }
+    }
+
+    // Chequeamos si su email es supervisor de algún asesor en Firestore
+    if (!isSupervisor) {
+      const qSuper = query(asesoresRef, where('supervisorEmail', '==', userEmail));
+      FirestoreTracer.track('asesores (Login Supervisor Check)', 'firebase.ts/signIn', 'getDocs');
+      const snapSuper = await getDocs(qSuper);
+      isSupervisor = SUPERVISORS.includes(userEmail) || !snapSuper.empty || ADVISORS.some(a => a.correo_supervisor.toLowerCase() === userEmail);
+    }
+  } catch (err) {
+    console.warn("Error consultando asesores en Firestore para el login, usando fallbacks:", err);
+    const staticMatch = ADVISORS.find(a => a.correo.toLowerCase() === userEmail);
+    if (staticMatch) {
+      advisorInfo = staticMatch;
+    }
+    isSupervisor = SUPERVISORS.includes(userEmail) || ADVISORS.some(a => a.correo_supervisor.toLowerCase() === userEmail);
+  }
+
+  const isAdmin = ADMINS.includes(userEmail);
+
   if (!userSnap || !userSnap.exists()) {
     // Si no existe o no pudimos leerlo, intentamos crearlo solo si es necesario (y si podemos)
     try {
-      // Buscar info del asesor en la lista precargada
-      const advisorInfo = ADVISORS.find(a => a.correo.toLowerCase() === userEmail);
-      
-      // Si no está en ADVISORS, pero está en la lista de SUPERVISORS, le damos ese rol
-      const isSupervisor = SUPERVISORS.includes(userEmail) || ADVISORS.some(a => a.correo_supervisor.toLowerCase() === userEmail);
-      const isAdmin = ADMINS.includes(userEmail);
-
       const newUser = {
         uid: firebaseUser.uid,
         name: firebaseUser.displayName || advisorInfo?.nombre || (isAdmin ? 'Administrador' : isSupervisor ? 'Supervisor' : 'Asesor'),
@@ -190,15 +230,17 @@ export const signIn = async () => {
       console.warn("No se pudo crear/inicializar el documento de usuario:", createErr);
     }
   } else {
-    // Si ya existe, actualizamos último login y status
+    // Si ya existe, actualizamos último login, status, y sincronizamos datos del asesor actualizados desde Gestión de Asesores
     const existingRole = userSnap.data()?.role;
-    const isSupervisor = SUPERVISORS.includes(userEmail) || ADVISORS.some(a => a.correo_supervisor.toLowerCase() === userEmail);
-    const isAdmin = ADMINS.includes(userEmail);
     const calculatedRole = isAdmin ? 'admin' : (isSupervisor ? 'supervisor' : 'asesor');
     
     const updates: any = { 
       lastLoginAt: serverTimestamp(),
-      status: 'online'
+      status: 'online',
+      name: firebaseUser.displayName || advisorInfo?.nombre || userSnap.data()?.name || 'Asesor',
+      supervisorEmail: advisorInfo?.correo_supervisor || userSnap.data()?.supervisorEmail || '',
+      supervisorName: advisorInfo?.supervisor || userSnap.data()?.supervisorName || '',
+      cartera: advisorInfo?.cartera || userSnap.data()?.cartera || 'Sin asignar'
     };
     
     if (existingRole !== calculatedRole) {

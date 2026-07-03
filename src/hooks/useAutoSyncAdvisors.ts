@@ -80,19 +80,10 @@ export function useAutoSyncAdvisors(currentUser: any) {
           };
 
           if (existingDoc) {
-            // Update if changed
-            const currentData = existingDoc.data();
-            const hasChanged = 
-              currentData.name !== advisorData.name ||
-              currentData.supervisor !== advisorData.supervisor ||
-              currentData.supervisorEmail !== advisorData.supervisorEmail ||
-              currentData.cartera !== advisorData.cartera;
-
-            if (hasChanged) {
-              finalBatch.update(existingDoc.ref, advisorData);
-              finalBatchOps.push({ collection: 'asesores', docId: existingDoc.id, operation: 'update', data: advisorData });
-              syncedCount++;
-            }
+            // El asesor ya existe en la base de datos.
+            // Para mantener una única fuente de verdad, respetamos completamente cualquier cambio
+            // realizado por los administradores en el módulo "Gestión de Asesores".
+            // NO sobreescribimos la información con constantes de código.
           } else {
             // Create new
             const newPartnerRef = doc(advisorsRef);
@@ -124,61 +115,7 @@ export function useAutoSyncAdvisors(currentUser: any) {
           console.log("==========================================");
           await finalBatch.commit();
           if (deletedCount > 0) console.log(`Automatic Sync: Deleted ${deletedCount} duplicate advisors.`);
-          if (syncedCount > 0) console.log(`Automatic Sync: Added/Updated ${syncedCount} advisors from constants.`);
-        }
-
-        // 2. AUTO-CORRECT LUIS G. EMAILS
-        const targetEmail = 'luis.gonzalez@segurosbolivar.com';
-        const correctionBatch = writeBatch(db);
-        const correctionBatchOps: Array<{ collection: string; docId: string; operation: string; data?: any }> = [];
-        let correctionsCount = 0;
-
-        const luisVariants = ['Luis Alejandro González Piñeros', 'Luis Alejandro González'];
-        
-        for (const variant of luisVariants) {
-          const q = query(advisorsRef, where('supervisor', '==', variant));
-          if (snapshot.docs.length > 0) {
-            // Let's filter in memory instead of executing 2 query lookups!
-            // This is brilliant: we already fetched all advisors above, so we can just filter them in-memory instead of executing new queries!
-            const matchingDocs = snapshot.docs.filter(d => d.data().supervisor === variant);
-            matchingDocs.forEach(docSnap => {
-              const data = docSnap.data();
-              if (data.supervisorEmail !== targetEmail) {
-                correctionBatch.update(docSnap.ref, { supervisorEmail: targetEmail });
-                correctionBatchOps.push({ collection: 'asesores', docId: docSnap.id, operation: 'update', data: { supervisorEmail: targetEmail } });
-                correctionsCount++;
-              }
-            });
-          } else {
-            // Fallback to query
-            FirestoreTracer.track(`asesores (Luis G variant: ${variant})`, 'useAutoSyncAdvisors', 'getDocs');
-            const snap = await getDocs(q);
-            snap.docs.forEach(docSnap => {
-              const data = docSnap.data();
-              if (data.supervisorEmail !== targetEmail) {
-                correctionBatch.update(docSnap.ref, { supervisorEmail: targetEmail });
-                correctionBatchOps.push({ collection: 'asesores', docId: docSnap.id, operation: 'update', data: { supervisorEmail: targetEmail } });
-                correctionsCount++;
-              }
-            });
-          }
-        }
-
-        if (correctionsCount > 0) {
-          FirestoreTracer.track('asesores (Luis G Batch Commit)', 'useAutoSyncAdvisors', 'write');
-          console.log("=== FIRESTORE BATCH CORRECTION COMMIT INICIO ===");
-          console.log("Usuario autenticado:", currentUser?.email, "UID:", currentUser?.uid);
-          correctionBatchOps.forEach((op, index) => {
-            console.log(`[Operación ${index + 1}/${correctionBatchOps.length}]`, {
-              colección: op.collection,
-              documento: op.docId,
-              operación: op.operation,
-              datos: op.data
-            });
-          });
-          console.log("================================================");
-          await correctionBatch.commit();
-          console.log(`Automatic Sync: Corrected ${correctionsCount} supervisor emails for Luis G.`);
+          if (syncedCount > 0) console.log(`Automatic Sync: Added ${syncedCount} new advisors from constants.`);
         }
 
         if (typeof window !== 'undefined') {
