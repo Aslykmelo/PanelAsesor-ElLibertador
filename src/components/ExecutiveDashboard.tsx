@@ -14,6 +14,8 @@ import {
   FileText, 
   RefreshCw, 
   Briefcase, 
+  AlertTriangle,
+  RotateCcw, 
   DollarSign, 
   CheckCircle2, 
   XCircle, 
@@ -32,7 +34,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Transfer, User, Advisor } from '@/types';
-import { supabase } from '@/supabase';
+import { supabase, runWithRetry } from '@/supabase';
 import { toast } from 'sonner';
 import { 
   ResponsiveContainer, 
@@ -87,6 +89,7 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({ transfer
     }
   });
   const [isLoadingDb, setIsLoadingDb] = useState(false);
+  const [supabaseError, setSupabaseError] = useState<string | null>(null);
   const [activeSubTab, setActiveSubTab] = useState<'operativos' | 'links' | 'apoyos' | 'transferencias' | 'graficas' | 'embudo'>('operativos');
   const [advisorSortKey, setAdvisorSortKey] = useState<'casos' | 'linksGen' | 'linksPagados' | 'valorGen' | 'valorRec' | 'conversion' | 'tiempoPago'>('valorRec');
 
@@ -115,45 +118,32 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({ transfer
   // Load from Supabase on mount and keep sync
   const fetchFromSupabase = async () => {
     setIsLoadingDb(true);
+    setSupabaseError(null);
     let success = false;
     let records: any[] = [];
 
-    // 1. Try Supabase first if available
+    // 1. Try Supabase with retry if available
     if (supabase) {
       try {
-        const { data, error } = await supabase
-          .from('recaudo_historico')
-          .select('*');
-        if (!error && data && data.length > 0) {
+        const { data, error } = await runWithRetry<any[]>(async () => {
+          const res = await supabase.from('recaudo_historico').select('*');
+          return { data: res.data, error: res.error };
+        });
+        if (!error && data) {
           records = data;
           success = true;
+          setSupabaseError(null);
           console.log("Dashboard Ejecutivo: Cargado de recaudo desde Supabase.");
         } else if (error) {
           console.error("Error fetching recaudo_historico:", error);
+          setSupabaseError(error?.message || "Error al conectar con Supabase");
         }
-      } catch (sErr) {
+      } catch (sErr: any) {
         console.error("Supabase exception:", sErr);
+        setSupabaseError(sErr?.message || "Excepción de red al conectar con Supabase");
       }
-    }
-
-    // 2. Fallback to Firestore if Supabase is not configured or failed to return records
-    if (!success) {
-      try {
-        const { collection, getDocs } = await import('firebase/firestore');
-        const { db } = await import('@/firebase');
-        const querySnapshot = await getDocs(collection(db, 'recaudo_historico'));
-        const fData: any[] = [];
-        querySnapshot.forEach((doc) => {
-          fData.push(doc.data());
-        });
-        if (fData.length > 0) {
-          records = fData;
-          success = true;
-          console.log("Dashboard Ejecutivo: Cargado de recaudo desde Firestore (Fallback de producción).");
-        }
-      } catch (fErr) {
-        console.error("Firestore load backup error:", fErr);
-      }
+    } else {
+      setSupabaseError("Supabase no está configurado o no está disponible.");
     }
 
     if (success && records.length > 0) {
@@ -520,8 +510,6 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({ transfer
       }
     });
 
-    const conversionPago = linksGenerados > 0 ? Number(((linksPagados / linksGenerados) * 100).toFixed(1)) : 0;
-
     // RECAUDO EFECTIVO (EXCLUSIVAMENTE DESDE CONCILIACIÓN CON ESTADO RECIBO = RECIBO Y TIPO RECAUDO = S)
     // Filtered by the selected period (checked in filteredData.reconciled)
     const recaudoEfectivo = linksCRM.reduce((sum, item) => {
@@ -530,6 +518,8 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({ transfer
       }
       return sum;
     }, 0);
+
+    const conversionPago = valorRegistradoCRM > 0 ? Number(((recaudoEfectivo / valorRegistradoCRM) * 100).toFixed(1)) : 0;
 
     // Apoyos computations
     let brindaronApoyoSet = new Set<string>();
@@ -709,7 +699,7 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({ transfer
         }
       });
 
-      const conversion = linksGen > 0 ? Number(((linksPagados / linksGen) * 100).toFixed(1)) : 0;
+      const conversion = valorGen > 0 ? Number(((valorRec / valorGen) * 100).toFixed(1)) : 0;
       const avgPaymentTime = paidWithDate > 0 ? Number((totalDays / paidWithDate).toFixed(1)) : 0;
       const ticketPromedio = linksPagados > 0 ? Math.round(valorRec / linksPagados) : 0;
 
@@ -757,13 +747,14 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({ transfer
       casos: number;
       linksGen: number;
       linksPagados: number;
+      valorGen: number;
       valorRec: number;
     }> = {};
 
     filteredData.crm.forEach(t => {
       const sup = toTitleCase(t.supervisorName) || 'Sin Supervisor';
       if (!rankingSupervisoresMap[sup]) {
-        rankingSupervisoresMap[sup] = { name: sup, casos: 0, linksGen: 0, linksPagados: 0, valorRec: 0 };
+        rankingSupervisoresMap[sup] = { name: sup, casos: 0, linksGen: 0, linksPagados: 0, valorGen: 0, valorRec: 0 };
       }
       rankingSupervisoresMap[sup].casos++;
     });
@@ -771,10 +762,11 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({ transfer
     filteredData.reconciled.forEach(item => {
       const sup = toTitleCase(item.supervisor) || 'Sin Supervisor';
       if (!rankingSupervisoresMap[sup]) {
-        rankingSupervisoresMap[sup] = { name: sup, casos: 0, linksGen: 0, linksPagados: 0, valorRec: 0 };
+        rankingSupervisoresMap[sup] = { name: sup, casos: 0, linksGen: 0, linksPagados: 0, valorGen: 0, valorRec: 0 };
       }
       const entry = rankingSupervisoresMap[sup];
       entry.linksGen++;
+      entry.valorGen += (item.valor_link_crm || 0);
       if (item.estadoCRM === 'PAGADO') {
         entry.linksPagados++;
         if (String(item.tipo_recaudo || '').trim().toUpperCase() === 'S') {
@@ -785,7 +777,7 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({ transfer
 
     const topSupervisores = Object.values(rankingSupervisoresMap)
       .map(entry => {
-        const conversion = entry.linksGen > 0 ? Number(((entry.linksPagados / entry.linksGen) * 100).toFixed(1)) : 0;
+        const conversion = entry.valorGen > 0 ? Number(((entry.valorRec / entry.valorGen) * 100).toFixed(1)) : 0;
         return { ...entry, conversion };
       })
       .sort((a, b) => b.valorRec - a.valorRec || b.casos - a.casos);
@@ -796,13 +788,14 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({ transfer
       casos: number;
       linksGen: number;
       linksPagados: number;
+      valorGen: number;
       valorRec: number;
     }> = {};
 
     filteredData.crm.forEach(t => {
       const cart = t.cartera || 'Sin Cartera';
       if (!rankingCarterasMap[cart]) {
-        rankingCarterasMap[cart] = { name: cart, casos: 0, linksGen: 0, linksPagados: 0, valorRec: 0 };
+        rankingCarterasMap[cart] = { name: cart, casos: 0, linksGen: 0, linksPagados: 0, valorGen: 0, valorRec: 0 };
       }
       rankingCarterasMap[cart].casos++;
     });
@@ -810,10 +803,11 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({ transfer
     filteredData.reconciled.forEach(item => {
       const cart = item.cartera || 'Sin Cartera';
       if (!rankingCarterasMap[cart]) {
-        rankingCarterasMap[cart] = { name: cart, casos: 0, linksGen: 0, linksPagados: 0, valorRec: 0 };
+        rankingCarterasMap[cart] = { name: cart, casos: 0, linksGen: 0, linksPagados: 0, valorGen: 0, valorRec: 0 };
       }
       const entry = rankingCarterasMap[cart];
       entry.linksGen++;
+      entry.valorGen += (item.valor_link_crm || 0);
       if (item.estadoCRM === 'PAGADO') {
         entry.linksPagados++;
         if (String(item.tipo_recaudo || '').trim().toUpperCase() === 'S') {
@@ -824,7 +818,7 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({ transfer
 
     const topCarteras = Object.values(rankingCarterasMap)
       .map(entry => {
-        const conversion = entry.linksGen > 0 ? Number(((entry.linksPagados / entry.linksGen) * 100).toFixed(1)) : 0;
+        const conversion = entry.valorGen > 0 ? Number(((entry.valorRec / entry.valorGen) * 100).toFixed(1)) : 0;
         return { ...entry, conversion };
       })
       .sort((a, b) => b.valorRec - a.valorRec || b.casos - a.casos);
@@ -835,13 +829,14 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({ transfer
       casos: number;
       linksGen: number;
       linksPagados: number;
+      valorGen: number;
       valorRec: number;
     }> = {};
 
     filteredData.crm.forEach(t => {
       const resp = toTitleCase(t.toAdvisorName) || 'Sin Responsable';
       if (!rankingResponsablesMap[resp]) {
-        rankingResponsablesMap[resp] = { name: resp, casos: 0, linksGen: 0, linksPagados: 0, valorRec: 0 };
+        rankingResponsablesMap[resp] = { name: resp, casos: 0, linksGen: 0, linksPagados: 0, valorGen: 0, valorRec: 0 };
       }
       rankingResponsablesMap[resp].casos++;
     });
@@ -849,10 +844,11 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({ transfer
     filteredData.reconciled.forEach(item => {
       const resp = toTitleCase(item.responsable) || 'Sin Responsable';
       if (!rankingResponsablesMap[resp]) {
-        rankingResponsablesMap[resp] = { name: resp, casos: 0, linksGen: 0, linksPagados: 0, valorRec: 0 };
+        rankingResponsablesMap[resp] = { name: resp, casos: 0, linksGen: 0, linksPagados: 0, valorGen: 0, valorRec: 0 };
       }
       const entry = rankingResponsablesMap[resp];
       entry.linksGen++;
+      entry.valorGen += (item.valor_link_crm || 0);
       if (item.estadoCRM === 'PAGADO') {
         entry.linksPagados++;
         if (String(item.tipo_recaudo || '').trim().toUpperCase() === 'S') {
@@ -863,7 +859,7 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({ transfer
 
     const topResponsables = Object.values(rankingResponsablesMap)
       .map(entry => {
-        const conversion = entry.linksGen > 0 ? Number(((entry.linksPagados / entry.linksGen) * 100).toFixed(1)) : 0;
+        const conversion = entry.valorGen > 0 ? Number(((entry.valorRec / entry.valorGen) * 100).toFixed(1)) : 0;
         return { ...entry, conversion };
       })
       .sort((a, b) => b.valorRec - a.valorRec || b.casos - a.casos);
@@ -895,7 +891,7 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({ transfer
 
     const topEmisores = Object.values(rankingEmisoresMap)
       .map(entry => {
-        const conversion = entry.linksGen > 0 ? Number(((entry.linksPagados / entry.linksGen) * 100).toFixed(1)) : 0;
+        const conversion = entry.valorGen > 0 ? Number(((entry.valorRec / entry.valorGen) * 100).toFixed(1)) : 0;
         return { ...entry, conversion };
       })
       .sort((a, b) => b.valorRec - a.valorRec || b.valorGen - a.valorGen);
@@ -1071,6 +1067,7 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({ transfer
       links: number;
       recaudo: number;
       linksPagados: number;
+      valorGen: number;
     }> = {};
 
     // Base date list from selection range to make sure chart is contiguous
@@ -1080,7 +1077,7 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({ transfer
       let curr = new Date(start);
       while (curr <= end) {
         const dateStr = curr.toISOString().split('T')[0];
-        daysMap[dateStr] = { date: dateStr, casos: 0, links: 0, recaudo: 0, linksPagados: 0 };
+        daysMap[dateStr] = { date: dateStr, casos: 0, links: 0, recaudo: 0, linksPagados: 0, valorGen: 0 };
         curr.setDate(curr.getDate() + 1);
       }
     }
@@ -1091,7 +1088,7 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({ transfer
       if (dateStr !== '-' && daysMap[dateStr]) {
         daysMap[dateStr].casos++;
       } else if (dateStr !== '-') {
-        daysMap[dateStr] = { date: dateStr, casos: 1, links: 0, recaudo: 0, linksPagados: 0 };
+        daysMap[dateStr] = { date: dateStr, casos: 1, links: 0, recaudo: 0, linksPagados: 0, valorGen: 0 };
       }
     });
 
@@ -1103,6 +1100,7 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({ transfer
       // Add as link generated on generation date
       if (genDateStr !== '-' && daysMap[genDateStr]) {
         daysMap[genDateStr].links++;
+        daysMap[genDateStr].valorGen += (item.valor_link_crm || 0);
         if (item.estadoCRM === 'PAGADO') {
           daysMap[genDateStr].linksPagados++;
         }
@@ -1113,7 +1111,7 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({ transfer
         if (daysMap[pagoDateStr]) {
           daysMap[pagoDateStr].recaudo += (item.valor_liquidacion || 0);
         } else {
-          daysMap[pagoDateStr] = { date: pagoDateStr, casos: 0, links: 0, recaudo: item.valor_liquidacion, linksPagados: 0 };
+          daysMap[pagoDateStr] = { date: pagoDateStr, casos: 0, links: 0, recaudo: item.valor_liquidacion, linksPagados: 0, valorGen: 0 };
         }
       }
     });
@@ -1121,7 +1119,7 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({ transfer
     return Object.values(daysMap)
       .sort((a, b) => a.date.localeCompare(b.date))
       .map(day => {
-        const conversion = day.links > 0 ? Number(((day.linksPagados / day.links) * 100).toFixed(1)) : 0;
+        const conversion = day.valorGen > 0 ? Number(((day.recaudo / day.valorGen) * 100).toFixed(1)) : 0;
         // Format date beautifully for charts (e.g. DD/MM)
         const parts = day.date.split('-');
         const shortDate = parts.length === 3 ? `${parts[2]}/${parts[1]}` : day.date;
@@ -1339,71 +1337,576 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({ transfer
     const doc = new jsPDF();
     const primaryColor: [number, number, number] = [161, 22, 27]; // Seguros Bolivar Red
 
-    // Background decoration
-    doc.setFillColor(primaryColor[0], primaryColor[1], primaryColor[2]);
-    doc.rect(0, 0, 210, 45, 'F');
+    // 🎨 CANVAS CHART RENDERING LIBRARY (HIGH RESOLUTION CLIENT-SIDE DRAWING)
+    const createChartImage = (width: number, height: number, drawFn: (ctx: CanvasRenderingContext2D) => void): string => {
+      const canvas = document.createElement('canvas');
+      canvas.width = width * 2; // high-definition scale
+      canvas.height = height * 2;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return '';
+      ctx.scale(2, 2);
+      
+      // Crisp white background
+      ctx.fillStyle = '#FFFFFF';
+      ctx.fillRect(0, 0, width, height);
+      
+      drawFn(ctx);
+      return canvas.toDataURL('image/png');
+    };
 
-    // Title
-    doc.setTextColor(255, 255, 255);
-    doc.setFontSize(16);
+    // Chart Draw 1: Canal Donut Chart (Donut Chart)
+    const drawDonutChart = (ctx: CanvasRenderingContext2D, width: number, height: number, data: { label: string; value: number; color: string }[]) => {
+      const total = data.reduce((sum, d) => sum + d.value, 0);
+      const centerX = width * 0.40;
+      const centerY = height * 0.50;
+      const radius = Math.min(width, height) * 0.36;
+      
+      if (total === 0) {
+        ctx.fillStyle = '#6B7280';
+        ctx.font = '13px Arial';
+        ctx.textAlign = 'center';
+        ctx.fillText('No hay datos disponibles', width / 2, height / 2);
+        return;
+      }
+      
+      let startAngle = -Math.PI / 2;
+      data.forEach((slice) => {
+        if (slice.value === 0) return;
+        const sliceAngle = (slice.value / total) * 2 * Math.PI;
+        
+        ctx.beginPath();
+        ctx.moveTo(centerX, centerY);
+        ctx.arc(centerX, centerY, radius, startAngle, startAngle + sliceAngle);
+        ctx.closePath();
+        ctx.fillStyle = slice.color;
+        ctx.fill();
+        
+        startAngle += sliceAngle;
+      });
+      
+      // Draw donut cutout hole
+      ctx.beginPath();
+      ctx.arc(centerX, centerY, radius * 0.58, 0, 2 * Math.PI);
+      ctx.fillStyle = '#FFFFFF';
+      ctx.fill();
+      
+      // Legend column on the right
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'middle';
+      let legendY = height * 0.22;
+      
+      data.forEach((slice) => {
+        const pct = total > 0 ? ((slice.value / total) * 100).toFixed(1) : '0';
+        
+        // Color block
+        ctx.fillStyle = slice.color;
+        ctx.fillRect(width * 0.68, legendY - 6, 12, 12);
+        
+        // Label
+        ctx.fillStyle = '#111827';
+        ctx.font = 'bold 10px Arial';
+        ctx.fillText(slice.label, width * 0.73, legendY);
+        
+        // Value & Percentage
+        ctx.fillStyle = '#6B7280';
+        ctx.font = '9px Arial';
+        ctx.fillText(`${slice.value.toLocaleString('es-CO')} (${pct}%)`, width * 0.73, legendY + 13);
+        
+        legendY += 34;
+      });
+    };
+
+    // Chart Draw 2: Links de Pago (Vertical Bar Chart)
+    const drawVerticalBarChart = (
+      ctx: CanvasRenderingContext2D,
+      width: number,
+      height: number,
+      data: { label: string; value: number; color: string }[]
+    ) => {
+      const chartHeight = height * 0.64;
+      const chartWidth = width * 0.85;
+      const startX = width * 0.10;
+      const startY = height * 0.14;
+      
+      const maxVal = Math.max(...data.map(d => d.value), 1);
+      
+      // Axes and Grid lines
+      ctx.strokeStyle = '#F3F4F6';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      for (let i = 0; i <= 4; i++) {
+        const y = startY + chartHeight - (i / 4) * chartHeight;
+        ctx.moveTo(startX, y);
+        ctx.lineTo(startX + chartWidth, y);
+        
+        ctx.fillStyle = '#6B7280';
+        ctx.font = '8px Arial';
+        ctx.textAlign = 'right';
+        ctx.fillText(Math.round((i / 4) * maxVal).toLocaleString('es-CO'), startX - 8, y + 2.5);
+      }
+      ctx.stroke();
+      
+      const barSpacing = chartWidth / data.length;
+      const barWidth = barSpacing * 0.46;
+      
+      data.forEach((item, idx) => {
+        const barX = startX + idx * barSpacing + (barSpacing - barWidth) / 2;
+        const barValHeight = (item.value / maxVal) * chartHeight;
+        const barY = startY + chartHeight - barValHeight;
+        
+        // Draw vertical bar rectangle
+        ctx.fillStyle = item.color;
+        ctx.fillRect(barX, barY, barWidth, barValHeight);
+        
+        // Value displayed on top of bar
+        ctx.fillStyle = '#111827';
+        ctx.font = 'bold 9px Arial';
+        ctx.textAlign = 'center';
+        ctx.fillText(item.value.toLocaleString('es-CO'), barX + barWidth / 2, barY - 4);
+        
+        // Label displayed under bar
+        ctx.fillStyle = '#374151';
+        ctx.font = 'bold 8.5px Arial';
+        ctx.textAlign = 'center';
+        ctx.fillText(item.label, barX + barWidth / 2, startY + chartHeight + 13);
+      });
+    };
+
+    // Chart Draw 3: Conversión de Pago (Gauge / Progress Arc Chart)
+    const drawGaugeChart = (ctx: CanvasRenderingContext2D, width: number, height: number, percent: number) => {
+      const centerX = width * 0.50;
+      const centerY = height * 0.65;
+      const radius = Math.min(width, height) * 0.44;
+      
+      // Background base track (semi-circle)
+      ctx.beginPath();
+      ctx.arc(centerX, centerY, radius, Math.PI, 2 * Math.PI);
+      ctx.lineWidth = radius * 0.22;
+      ctx.strokeStyle = '#E5E7EB';
+      ctx.stroke();
+      
+      // Dynamic color arc based on percent
+      const activeAngle = Math.PI + (percent / 100) * Math.PI;
+      ctx.beginPath();
+      ctx.arc(centerX, centerY, radius, Math.PI, activeAngle);
+      ctx.lineWidth = radius * 0.22;
+      
+      const arcColor = percent >= 70 ? '#10B981' : percent >= 40 ? '#F59E0B' : '#A1161B';
+      ctx.strokeStyle = arcColor;
+      ctx.stroke();
+      
+      // Center percent big text
+      ctx.fillStyle = '#111827';
+      ctx.font = 'bold 24px Arial';
+      ctx.textAlign = 'center';
+      ctx.fillText(`${percent}%`, centerX, centerY - 4);
+      
+      // Little sublabel below percent
+      ctx.fillStyle = '#4B5563';
+      ctx.font = 'bold 9px Arial';
+      ctx.fillText('EFECTIVIDAD COBRO', centerX, centerY + 14);
+    };
+
+    // Chart Draw 4: Tendencia del Recaudo (Precise Area Line Chart)
+    const drawLineChart = (
+      ctx: CanvasRenderingContext2D,
+      width: number,
+      height: number,
+      data: { shortDate: string; recaudo: number }[]
+    ) => {
+      const chartHeight = height * 0.65;
+      const chartWidth = width * 0.86;
+      const startX = width * 0.11;
+      const startY = height * 0.12;
+      
+      if (data.length === 0) {
+        ctx.fillStyle = '#6B7280';
+        ctx.font = '13px Arial';
+        ctx.textAlign = 'center';
+        ctx.fillText('No hay datos de recaudos para representar', width / 2, height / 2);
+        return;
+      }
+      
+      const maxVal = Math.max(...data.map(d => d.recaudo), 100000);
+      
+      // Gridlines and Y axis labeling
+      ctx.strokeStyle = '#F3F4F6';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      for (let i = 0; i <= 4; i++) {
+        const y = startY + chartHeight - (i / 4) * chartHeight;
+        ctx.moveTo(startX, y);
+        ctx.lineTo(startX + chartWidth, y);
+        
+        ctx.fillStyle = '#6B7280';
+        ctx.font = '7.5px Arial';
+        ctx.textAlign = 'right';
+        
+        const labelVal = Math.round((i / 4) * maxVal);
+        let labelText = `$${(labelVal / 1000000).toFixed(1)}M`;
+        if (maxVal < 1000000) {
+          labelText = `$${Math.round(labelVal / 1000)}K`;
+        }
+        ctx.fillText(labelText, startX - 6, y + 2.5);
+      }
+      ctx.stroke();
+      
+      // Compute line points
+      const points: { x: number; y: number }[] = [];
+      const spacing = chartWidth / (data.length > 1 ? data.length - 1 : 1);
+      
+      data.forEach((item, idx) => {
+        const ptX = startX + idx * spacing;
+        const ptY = startY + chartHeight - (item.recaudo / maxVal) * chartHeight;
+        points.push({ x: ptX, y: ptY });
+      });
+      
+      // Draw colored background area gradient under the line
+      if (points.length > 0) {
+        ctx.beginPath();
+        ctx.moveTo(points[0].x, startY + chartHeight);
+        points.forEach(pt => {
+          ctx.lineTo(pt.x, pt.y);
+        });
+        ctx.lineTo(points[points.length - 1].x, startY + chartHeight);
+        ctx.closePath();
+        ctx.fillStyle = 'rgba(161, 22, 27, 0.08)'; // Light red tint area
+        ctx.fill();
+      }
+      
+      // Draw connection line
+      if (points.length > 0) {
+        ctx.beginPath();
+        ctx.moveTo(points[0].x, points[0].y);
+        for (let i = 1; i < points.length; i++) {
+          ctx.lineTo(points[i].x, points[i].y);
+        }
+        ctx.strokeStyle = '#A1161B'; // Corporate Red
+        ctx.lineWidth = 2.2;
+        ctx.stroke();
+      }
+      
+      // Render dot markers and X dates labels
+      const labelInterval = Math.max(1, Math.ceil(data.length / 14));
+      
+      points.forEach((pt, idx) => {
+        ctx.beginPath();
+        ctx.arc(pt.x, pt.y, 3, 0, 2 * Math.PI);
+        ctx.fillStyle = '#A1161B';
+        ctx.fill();
+        ctx.beginPath();
+        ctx.arc(pt.x, pt.y, 1, 0, 2 * Math.PI);
+        ctx.fillStyle = '#FFFFFF';
+        ctx.fill();
+        
+        // Date labeling
+        if (idx % labelInterval === 0) {
+          ctx.fillStyle = '#4B5563';
+          ctx.font = '7px Arial';
+          ctx.textAlign = 'center';
+          ctx.fillText(data[idx].shortDate, pt.x, startY + chartHeight + 12);
+        }
+      });
+    };
+
+    // Chart Draw 5: Horizontal Bar Chart (Ranking / Categories)
+    const drawHorizontalBarChart = (
+      ctx: CanvasRenderingContext2D,
+      width: number,
+      height: number,
+      data: { label: string; value: number; color: string }[]
+    ) => {
+      const chartHeight = height * 0.74;
+      const chartWidth = width * 0.63;
+      const startX = width * 0.25;
+      const startY = height * 0.12;
+      
+      if (data.length === 0) {
+        ctx.fillStyle = '#6B7280';
+        ctx.font = '12px Arial';
+        ctx.textAlign = 'center';
+        ctx.fillText('Sin datos registrados para mostrar', width / 2, height / 2);
+        return;
+      }
+      
+      const maxVal = Math.max(...data.map(d => d.value), 1);
+      const rowSpacing = chartHeight / data.length;
+      const barHeight = rowSpacing * 0.52;
+      
+      data.forEach((item, idx) => {
+        const rowY = startY + idx * rowSpacing + (rowSpacing - barHeight) / 2;
+        const barValWidth = (item.value / maxVal) * chartWidth;
+        
+        // Horizontal bar
+        ctx.fillStyle = item.color;
+        ctx.fillRect(startX, rowY, barValWidth, barHeight);
+        
+        // Name on left
+        ctx.fillStyle = '#1F2937';
+        ctx.font = 'bold 8.5px Arial';
+        ctx.textAlign = 'right';
+        const truncatedLabel = item.label.length > 20 ? item.label.substring(0, 18) + '..' : item.label;
+        ctx.fillText(truncatedLabel, startX - 8, rowY + barHeight / 2 + 3);
+        
+        // Value representation on right
+        ctx.fillStyle = '#374151';
+        ctx.font = 'bold 9px Arial';
+        ctx.textAlign = 'left';
+        const formattedVal = item.value >= 1000 ? `$${Math.round(item.value).toLocaleString('es-CO')}` : String(item.value);
+        ctx.fillText(formattedVal, startX + barValWidth + 5, rowY + barHeight / 2 + 3);
+      });
+    };
+
+    // PAGE 1: PORTADA (COVER PAGE)
+    // Fondo completamente blanco (por defecto en jsPDF)
+    
+    // Franja vertical azul oscuro en el lado izquierdo (15mm de ancho, todo el alto de la página)
+    doc.setFillColor(21, 49, 87);
+    doc.rect(0, 0, 15, 297, 'F');
+
+    // Encabezado
+    doc.setTextColor(21, 49, 87);
     doc.setFont('helvetica', 'bold');
-    doc.text('REPORTE EJECUTIVO DE GESTIÓN Y RECAUDO', 15, 14);
-    
-    doc.setFontSize(8.5);
+    doc.setFontSize(11);
+    doc.text('EL LIBERTADOR', 30, 35);
+
+    // Título principal
+    doc.setFontSize(26);
+    doc.text('REPORTE EJECUTIVO', 30, 70);
+    doc.text('DE GESTIÓN Y RECAUDO', 30, 81);
+
+    // Línea horizontal roja delgada debajo del título
+    doc.setDrawColor(161, 22, 27); // Rojo institucional
+    doc.setLineWidth(0.8);
+    doc.line(30, 88, 185, 88);
+
+    // Información del reporte
+    // PERÍODO ANALIZADO
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(9);
+    doc.setTextColor(110, 110, 110); // Gris claro / medio elegante para etiquetas
+    doc.text('PERÍODO ANALIZADO', 30, 105);
+
     doc.setFont('helvetica', 'normal');
-    
-    const activeFiltersText = [
-      `Período: ${filterStartDate || 'Inicio'} a ${filterEndDate || 'Hoy'}`,
-      `Cartera: ${filterCartera !== 'todos' ? filterCartera : 'Todas'}`,
-      `Supervisor: ${filterSupervisor !== 'todos' ? toTitleCase(filterSupervisor) : 'Todos'}`,
-      `Responsable: ${filterResponsable !== 'todos' ? toTitleCase(filterResponsable) : 'Todos'}`,
-      `Canal: ${filterCanal !== 'todos' ? filterCanal : 'Todos'}`
-    ].join(' | ');
+    doc.setFontSize(11);
+    doc.setTextColor(21, 49, 87);
+    doc.text(`${filterStartDate || '2026-07-01'} al ${filterEndDate || '2026-07-31'}`, 30, 111);
 
-    doc.text(activeFiltersText, 15, 22);
-    doc.text(`Generado por: ${user.name} (${user.email}) • ${new Date().toLocaleString('es-CO')}`, 15, 28);
-    
+    // FECHA DE GENERACIÓN
+    const pad = (n: number) => String(n).padStart(2, '0');
+    const now = new Date();
+    let hours = now.getHours();
+    const ampm = hours >= 12 ? 'PM' : 'AM';
+    hours = hours % 12;
+    hours = hours ? hours : 12; // the hour '0' should be '12'
+    const currentFormattedDate = `${pad(now.getDate())}/${pad(now.getMonth() + 1)}/${now.getFullYear()} ${pad(hours)}:${pad(now.getMinutes())} ${ampm}`;
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(9);
+    doc.setTextColor(110, 110, 110);
+    doc.text('FECHA DE GENERACIÓN', 30, 123);
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(11);
+    doc.setTextColor(21, 49, 87);
+    doc.text(currentFormattedDate, 30, 129);
+
+    // USUARIO GENERADOR
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(9);
+    doc.setTextColor(110, 110, 110);
+    doc.text('USUARIO GENERADOR', 30, 141);
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(11);
+    doc.setTextColor(21, 49, 87);
+    doc.text('TALIANA MORENO GUZMAN', 30, 147);
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(10);
+    doc.setTextColor(110, 110, 110);
+    doc.text('taliana.moreno@segurosbolivar.com', 30, 153);
+
+    // FILTROS APLICADOS
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(9);
+    doc.setTextColor(110, 110, 110);
+    doc.text('FILTROS APLICADOS', 30, 165);
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(10.5);
+    doc.setTextColor(21, 49, 87);
+
+    const valCartera = filterCartera !== 'todos' ? filterCartera : 'Todas';
+    const valSupervisor = filterSupervisor !== 'todos' ? toTitleCase(filterSupervisor) : 'Todos';
+    const valResponsable = filterResponsable !== 'todos' ? toTitleCase(filterResponsable) : 'Todos';
+    const valCanal = filterCanal !== 'todos' ? filterCanal : 'Todos';
+
+    doc.text(`• Cartera: ${valCartera}`, 30, 172);
+    doc.text(`• Supervisor: ${valSupervisor}`, 30, 178);
+    doc.text(`• Responsable: ${valResponsable}`, 30, 184);
+    doc.text(`• Canal: ${valCanal}`, 30, 190);
+
+    // Nota inferior
     doc.setFont('helvetica', 'italic');
-    doc.setFontSize(8);
-    doc.text('Este reporte contiene únicamente información correspondiente a los filtros seleccionados.', 15, 34);
+    doc.setFontSize(8.5);
+    doc.setTextColor(130, 130, 130);
+    const noteLines = doc.splitTextToSize(
+      'Este documento contiene información confidencial y corresponde únicamente a los filtros seleccionados durante la generación del reporte.', 
+      155
+    );
+    doc.text(noteLines, 30, 245);
 
-    // Section 1: KPI OPERATIVOS Y FINANCIEROS
-    doc.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2]);
+    // Pie de página
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(9);
+    doc.setTextColor(110, 110, 110);
+    doc.text('Sistema Ejecutivo de Gestión y Recaudo', 112.5, 275, { align: 'center' });
+    doc.text('EL LIBERTADOR', 112.5, 281, { align: 'center' });
+
+    // PAGE 2: RESUMEN EJECUTIVO (KPIs as a clean table)
+    doc.addPage();
     doc.setFontSize(14);
     doc.setFont('helvetica', 'bold');
-    doc.text('1. Indicadores Claves de Desempeño (KPI)', 15, 55);
+    doc.setTextColor(21, 49, 87);
+    doc.text('Resumen Ejecutivo', 15, 22);
 
-    const kpiRows = [
-      ['Total Casos Gestionados', String(metrics.totalCasos), 'Gestiones de llamadas y mensajes registradas'],
-      ['Casos por Canal', `Llamadas: ${metrics.llamadas} (${metrics.llamadasPct}%) • WhatsApp: ${metrics.whatsapp} (${metrics.whatsappPct}%)`, 'Canal utilizado en CRM'],
-      ['Toma de Mensajes', String(metrics.tomaMensajes), 'Registros tipo Toma de Mensaje'],
-      ['Links de Pago Generados', String(metrics.linksGenerados), 'Enlaces creados para recaudar'],
-      ['Conciliación Enlaces', `Pagados: ${metrics.linksPagados} • Pendientes: ${metrics.linksPendientes} • Anulados: ${metrics.linksAnulados}`, 'Estados del recaudo financiero'],
-      ['Conversión de Pago', `${metrics.conversionPago}%`, 'Porcentaje de efectividad del recaudo'],
-      ['Valor Generado CRM', `$${Math.round(metrics.valorRegistradoCRM).toLocaleString('es-CO')}`, 'Valor monetario registrado en CRM'],
-      ['Recaudo Efectivo', `$${Math.round(metrics.recaudoEfectivo).toLocaleString('es-CO')}`, 'Recaudo real en Supabase (estado RECIBO, tipo S)'],
-      ['Apoyos entre Asesores', `${metrics.casosApoyados} casos (brindaron: ${brindaronApoyoCount()} • recibieron: ${recibieronApoyoCount()})`, 'Apoyos registrados en transferencias']
+    const kpisTableData = [
+      ['Casos Gestionados', metrics.totalCasos.toLocaleString('es-CO')],
+      ['Llamadas', metrics.llamadas.toLocaleString('es-CO')],
+      ['WhatsApp', metrics.whatsapp.toLocaleString('es-CO')],
+      ['Toma de Mensajes', metrics.tomaMensajes.toLocaleString('es-CO')],
+      ['Links Generados', metrics.linksGenerados.toLocaleString('es-CO')],
+      ['Links Pagados', metrics.linksPagados.toLocaleString('es-CO')],
+      ['Links Pendientes', metrics.linksPendientes.toLocaleString('es-CO')],
+      ['Links Anulados', metrics.linksAnulados.toLocaleString('es-CO')],
+      ['Conversión', `${metrics.conversionPago}%`],
+      ['Valor CRM', `$${Math.round(metrics.valorRegistradoCRM).toLocaleString('es-CO')}`],
+      ['Recaudo Efectivo', `$${Math.round(metrics.recaudoEfectivo).toLocaleString('es-CO')}`],
+      ['Apoyos entre Asesores', metrics.casosApoyados.toLocaleString('es-CO')]
     ];
 
     autoTable(doc, {
-      startY: 60,
-      head: [['KPI / Indicador', 'Valor', 'Descripción']],
-      body: kpiRows,
+      startY: 30,
+      head: [['Indicador', 'Valor']],
+      body: kpisTableData,
       theme: 'striped',
-      headStyles: { fillColor: primaryColor },
-      styles: { fontSize: 9, cellPadding: 2.5 }
+      headStyles: { fillColor: [21, 49, 87] },
+      styles: { fontSize: 9.5, cellPadding: 3, fontStyle: 'bold' },
+      columnStyles: {
+        0: { cellWidth: 100 },
+        1: { cellWidth: 80, halign: 'right' }
+      }
     });
 
-    // Add page if needed
+    // PAGE 3: Gestión General
     doc.addPage();
-    doc.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2]);
     doc.setFontSize(14);
     doc.setFont('helvetica', 'bold');
-    doc.text('2. Desempeño de Asesores (Ranking)', 15, 20);
+    doc.setTextColor(21, 49, 87);
+    doc.text('Gestión General', 15, 22);
 
-    const advisorRowsToPrint = groupings.topAsesores.slice(0, 15); // Print top 15 on PDF
-    const asesorRows = advisorRowsToPrint.map((a, idx) => [
-      String(idx + 1),
+    // Donut chart de canales
+    const canalSlices = [
+      { label: 'Llamadas', value: metrics.llamadas, color: '#153157' },
+      { label: 'WhatsApp', value: metrics.whatsapp, color: '#10B981' },
+      { label: 'Mensajes', value: metrics.tomaMensajes, color: '#E5A93C' }
+    ];
+    const imgCanal = createChartImage(380, 220, (ctx) => {
+      drawDonutChart(ctx, 380, 220, canalSlices);
+    });
+
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(100, 100, 100);
+    doc.text('Casos por Canal', 15, 33);
+    if (imgCanal) doc.addImage(imgCanal, 'PNG', 15, 36, 85, 54);
+
+    // Gauge de Conversión
+    const imgGauge = createChartImage(380, 220, (ctx) => {
+      drawGaugeChart(ctx, 380, 220, metrics.conversionPago);
+    });
+
+    doc.text('Conversión de Pago', 110, 33);
+    if (imgGauge) doc.addImage(imgGauge, 'PNG', 110, 36, 85, 54);
+
+    // Bar chart de conciliación
+    const reconciliationBarData = [
+      { label: 'Generados', value: metrics.linksGenerados, color: '#3B82F6' },
+      { label: 'Pagados', value: metrics.linksPagados, color: '#10B981' },
+      { label: 'Pendientes', value: metrics.linksPendientes, color: '#F59E0B' },
+      { label: 'Anulados', value: metrics.linksAnulados, color: '#EF4444' }
+    ];
+    const imgReconciliation = createChartImage(760, 260, (ctx) => {
+      drawVerticalBarChart(ctx, 760, 260, reconciliationBarData);
+    });
+
+    doc.text('Conciliación', 15, 104);
+    if (imgReconciliation) doc.addImage(imgReconciliation, 'PNG', 15, 107, 180, 68);
+
+    // PAGE 4: Recaudo Diario
+    doc.addPage();
+    doc.setFontSize(14);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(21, 49, 87);
+    doc.text('Recaudo Diario', 15, 22);
+
+    const imgTrend = createChartImage(760, 320, (ctx) => {
+      drawLineChart(ctx, 760, 320, trendsData);
+    });
+
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(100, 100, 100);
+    doc.text('Recaudo Diario', 15, 33);
+    if (imgTrend) doc.addImage(imgTrend, 'PNG', 15, 37, 180, 80);
+
+    doc.setFontSize(9.5);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(21, 49, 87);
+    doc.text('Resumen Financiero', 15, 131);
+
+    const recaudoKpiTable = [
+      ['Total Recaudado', `$${Math.round(metrics.recaudoEfectivo).toLocaleString('es-CO')}`],
+      ['Valor CRM', `$${Math.round(metrics.valorRegistradoCRM).toLocaleString('es-CO')}`],
+      ['Conversión', `${metrics.conversionPago}%`],
+      ['Ticket Promedio', `$${Math.round(metrics.ticketPromedio).toLocaleString('es-CO')}`]
+    ];
+
+    autoTable(doc, {
+      startY: 136,
+      head: [['Concepto', 'Monto']],
+      body: recaudoKpiTable,
+      theme: 'striped',
+      headStyles: { fillColor: [21, 49, 87] },
+      styles: { fontSize: 9, cellPadding: 3, fontStyle: 'bold' }
+    });
+
+    // PAGE 5: Ranking de Asesores
+    doc.addPage();
+    doc.setFontSize(14);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(21, 49, 87);
+    doc.text('Ranking de Asesores', 15, 22);
+
+    const advisorBarData = groupings.topAsesores.slice(0, 10).map(a => ({
+      label: a.name,
+      value: a.valorRec,
+      color: '#153157'
+    }));
+    const imgAdvisors = createChartImage(760, 320, (ctx) => {
+      drawHorizontalBarChart(ctx, 760, 320, advisorBarData);
+    });
+
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(100, 100, 100);
+    doc.text('Top Asesores', 15, 33);
+    if (imgAdvisors) doc.addImage(imgAdvisors, 'PNG', 15, 37, 180, 80);
+
+    const rankingRowsToPrint = groupings.topAsesores.slice(0, 12);
+    const tableAsesorRows = rankingRowsToPrint.map((a, index) => [
+      String(index + 1),
       a.name,
       String(a.casos),
       String(a.linksGen),
@@ -1413,23 +1916,28 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({ transfer
       `${a.avgPaymentTime}d`
     ]);
 
+    doc.setFontSize(9.5);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(21, 49, 87);
+    doc.text('Tabla Desglose de Desempeño Asesores', 15, 128);
+
     autoTable(doc, {
-      startY: 25,
+      startY: 133,
       head: [['#', 'Asesor Responsable', 'Casos', 'Links', 'Valor CRM', 'Valor Recaudado', 'Conv.', 'T.Pago']],
-      body: asesorRows,
+      body: tableAsesorRows,
       theme: 'striped',
-      headStyles: { fillColor: [21, 49, 87] as [number, number, number] }, // Navy Blue for subtable
+      headStyles: { fillColor: [161, 22, 27] },
       styles: { fontSize: 8.5, cellPadding: 2 }
     });
 
-    // Section 3: Supervisores y Carteras
-    const lastY = (doc as any).lastAutoTable.finalY + 12;
-    doc.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2]);
-    doc.setFontSize(13);
+    // PAGE 6: Supervisores
+    doc.addPage();
+    doc.setFontSize(14);
     doc.setFont('helvetica', 'bold');
-    doc.text('3. Desempeño por Supervisor y Cartera', 15, lastY);
+    doc.setTextColor(21, 49, 87);
+    doc.text('Supervisores', 15, 22);
 
-    const supRows = groupings.topSupervisores.map(s => [
+    const tableSupervisorRows = groupings.topSupervisores.map(s => [
       s.name,
       String(s.casos),
       String(s.linksGen),
@@ -1438,13 +1946,232 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({ transfer
     ]);
 
     autoTable(doc, {
-      startY: lastY + 5,
+      startY: 30,
       head: [['Supervisor', 'Total Casos', 'Links Generados', 'Monto Recaudado', 'Conversión']],
-      body: supRows,
+      body: tableSupervisorRows,
       theme: 'striped',
-      headStyles: { fillColor: primaryColor },
-      styles: { fontSize: 8.5, cellPadding: 2 }
+      headStyles: { fillColor: [21, 49, 87] },
+      styles: { fontSize: 8.5, cellPadding: 2.5 }
     });
+
+    const nextYSup = (doc as any).lastAutoTable.finalY + 12;
+
+    const supervisorBarData = groupings.topSupervisores.map(s => ({
+      label: s.name,
+      value: s.valorRec,
+      color: '#A1161B'
+    }));
+    const imgSupervisors = createChartImage(760, 300, (ctx) => {
+      drawHorizontalBarChart(ctx, 760, 300, supervisorBarData);
+    });
+
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(100, 100, 100);
+    doc.text('Recaudo por Supervisor', 15, nextYSup);
+    if (imgSupervisors) doc.addImage(imgSupervisors, 'PNG', 15, nextYSup + 4, 180, 75);
+
+    // PAGE 7: Carteras
+    doc.addPage();
+    doc.setFontSize(14);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(21, 49, 87);
+    doc.text('Carteras', 15, 22);
+
+    const tableCarteraRows = groupings.topCarteras.map(c => [
+      c.name,
+      String(c.casos),
+      String(c.linksGen),
+      `$${Math.round(c.valorRec).toLocaleString('es-CO')}`,
+      `${c.conversion}%`
+    ]);
+
+    autoTable(doc, {
+      startY: 30,
+      head: [['Cartera', 'Total Casos', 'Links Generados', 'Monto Recaudado', 'Conversión']],
+      body: tableCarteraRows,
+      theme: 'striped',
+      headStyles: { fillColor: [161, 22, 27] },
+      styles: { fontSize: 8.5, cellPadding: 2.5 }
+    });
+
+    const nextYCarteras = (doc as any).lastAutoTable.finalY + 12;
+
+    const carteraBarData = groupings.topCarteras.map(c => ({
+      label: c.name,
+      value: c.valorRec,
+      color: '#153157'
+    }));
+    const imgCarteras = createChartImage(760, 300, (ctx) => {
+      drawHorizontalBarChart(ctx, 760, 300, carteraBarData);
+    });
+
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(100, 100, 100);
+    doc.text('Recaudo por Cartera', 15, nextYCarteras);
+    if (imgCarteras) doc.addImage(imgCarteras, 'PNG', 15, nextYCarteras + 4, 180, 75);
+
+    // PAGE 8: Apoyos entre Asesores
+    doc.addPage();
+    doc.setFontSize(14);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(21, 49, 87);
+    doc.text('Apoyos entre Asesores', 15, 22);
+
+    const totalApoyos = groupings.topApoyosYTransfers.reduce((acc, current) => acc + (current.apoyosBrindados || 0), 0);
+    const tableApoyosRows = groupings.topApoyosYTransfers.slice(0, 12).map(a => {
+      const participationPct = totalApoyos > 0 ? ((a.apoyosBrindados / totalApoyos) * 100).toFixed(1) : '0';
+      return [
+        a.name,
+        String(a.apoyosBrindados),
+        String(a.apoyosRecibidos),
+        `${participationPct}%`
+      ];
+    });
+
+    autoTable(doc, {
+      startY: 30,
+      head: [['Asesor Responsable', 'Apoyos Brindados (Realizados)', 'Casos Recibidos (Apoyado)', '% Participación Brindada']],
+      body: tableApoyosRows,
+      theme: 'striped',
+      headStyles: { fillColor: [229, 169, 60] },
+      styles: { fontSize: 8.5, cellPadding: 2.5 }
+    });
+
+    const nextYApoyos = (doc as any).lastAutoTable.finalY + 12;
+
+    const apoyosBarData = groupings.topApoyosYTransfers.slice(0, 10).map(ap => ({
+      label: ap.name,
+      value: ap.apoyosBrindados,
+      color: '#E5A93C'
+    }));
+    const imgApoyos = createChartImage(760, 300, (ctx) => {
+      drawHorizontalBarChart(ctx, 760, 300, apoyosBarData);
+    });
+
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(100, 100, 100);
+    doc.text('Ranking de Apoyos', 15, nextYApoyos);
+    if (imgApoyos) doc.addImage(imgApoyos, 'PNG', 15, nextYApoyos + 4, 180, 75);
+
+    // PAGE 9: Transferencias
+    doc.addPage();
+    doc.setFontSize(14);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(21, 49, 87);
+    doc.text('Transferencias', 15, 22);
+
+    const tableTransferRows = groupings.topTransferencias.list.slice(0, 12).map(t => [
+      t.name,
+      String(t.enviadas),
+      String(t.recibidas),
+      String(t.enviadas + t.recibidas)
+    ]);
+
+    autoTable(doc, {
+      startY: 30,
+      head: [['Asesor Responsable', 'Transferencias Enviadas', 'Transferencias Recibidas', 'Total Movimientos']],
+      body: tableTransferRows,
+      theme: 'striped',
+      headStyles: { fillColor: [21, 49, 87] },
+      styles: { fontSize: 8.5, cellPadding: 2.5 }
+    });
+
+    const nextYTransf = (doc as any).lastAutoTable.finalY + 12;
+
+    const transferBarData = groupings.topTransferencias.list.slice(0, 10).map(t => ({
+      label: t.name,
+      value: t.enviadas + t.recibidas,
+      color: '#153157'
+    }));
+    const imgTransfers = createChartImage(760, 300, (ctx) => {
+      drawHorizontalBarChart(ctx, 760, 300, transferBarData);
+    });
+
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(100, 100, 100);
+    doc.text('Movimientos de Casos', 15, nextYTransf);
+    if (imgTransfers) doc.addImage(imgTransfers, 'PNG', 15, nextYTransf + 4, 180, 75);
+
+    // PAGE 10: Resumen Financiero
+    doc.addPage();
+    doc.setFontSize(14);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(21, 49, 87);
+    doc.text('Resumen Financiero', 15, 22);
+
+    const financialComparisonData = [
+      { label: 'Valor Registrado CRM', value: metrics.valorRegistradoCRM, color: '#3B82F6' },
+      { label: 'Recaudo Efectivo', value: metrics.recaudoEfectivo, color: '#10B981' }
+    ];
+    const imgFinancialCompare = createChartImage(760, 300, (ctx) => {
+      drawVerticalBarChart(ctx, 760, 300, financialComparisonData);
+    });
+
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(100, 100, 100);
+    doc.text('CRM vs Recaudo', 15, 33);
+    if (imgFinancialCompare) doc.addImage(imgFinancialCompare, 'PNG', 15, 37, 180, 85);
+
+    // PAGE 11: Detalle de Links
+    doc.addPage();
+    doc.setFontSize(14);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(21, 49, 87);
+    doc.text('Detalle de Links', 15, 22);
+
+    const detailedTableRows = filteredData.reconciled.slice(0, 100).map(item => [
+      item.referencia_pago,
+      item.fecha_generacion_link,
+      item.emisor.length > 15 ? item.emisor.substring(0, 13) + '..' : item.emisor,
+      item.responsable.length > 15 ? item.responsable.substring(0, 13) + '..' : item.responsable,
+      item.cartera.length > 15 ? item.cartera.substring(0, 13) + '..' : item.cartera,
+      `$${(item.valor_link_crm || 0).toLocaleString('es-CO')}`,
+      `$${(item.valor_liquidacion || 0).toLocaleString('es-CO')}`,
+      item.estadoCRM
+    ]);
+
+    autoTable(doc, {
+      startY: 30,
+      head: [['Referencia', 'Generado', 'Emisor', 'Asesor', 'Cartera', 'Valor CRM', 'Recaudo', 'Resultado']],
+      body: detailedTableRows,
+      theme: 'striped',
+      headStyles: { fillColor: [161, 22, 27] },
+      styles: { fontSize: 7.5, cellPadding: 1.5 },
+      alternateRowStyles: { fillColor: [248, 249, 250] }
+    });
+
+    // 🎓 AUTOMATED STAMP LOOP FOR PAGES HEADERS, FOOTERS & PAGE NUMBERS (EXCEPT COVER PAGE 1)
+    const totalPages = (doc as any).internal.getNumberOfPages();
+    for (let i = 1; i <= totalPages; i++) {
+      doc.setPage(i);
+      
+      if (i === 1) continue; // Skip cover page
+      
+      // Top colored accent bar
+      doc.setFillColor(161, 22, 27);
+      doc.rect(0, 0, 210, 3, 'F');
+      
+      // Top running header
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(7.5);
+      doc.setTextColor(120, 120, 120);
+      doc.text('Reporte Ejecutivo de Gestión y Recaudo', 15, 10);
+      doc.text(new Date().toLocaleDateString('es-CO'), 195, 10, { align: 'right' });
+      
+      // Bottom running footer divider
+      doc.setDrawColor(225, 225, 225);
+      doc.setLineWidth(0.3);
+      doc.line(15, 282, 195, 282);
+      
+      // Bottom running footer labels
+      doc.text('CONFIDENCIAL • REPORTES GERENCIALES', 15, 288);
+      doc.text(`Página ${i} de ${totalPages}`, 195, 288, { align: 'right' });
+    }
 
     doc.save(`Reporte_Dashboard_Ejecutivo_${new Date().toISOString().split('T')[0]}.pdf`);
     toast.success('Reporte en PDF generado y descargado.');
@@ -1587,6 +2314,29 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({ transfer
           </Button>
         </div>
       </div>
+
+      {/* SUPABASE ERROR / WARNING BANNER */}
+      {supabaseError && (
+        <div className="p-4 rounded-[1.5rem] border border-amber-500/20 bg-amber-50 dark:bg-amber-950/20 text-amber-800 dark:text-amber-200 text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-sm">
+          <div className="flex items-start gap-2.5">
+            <AlertTriangle className="w-5 h-5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+            <div>
+              <p className="font-bold uppercase tracking-wider text-amber-900 dark:text-amber-100 mb-0.5">⚠️ Error de conexión con Supabase</p>
+              <p className="text-amber-700 dark:text-amber-300">
+                {supabaseError}. Los datos mostrados provienen de la caché local y podrían no estar actualizados. Si está en Google AI Studio, intente abrir la aplicación en una pestaña nueva o verifique las variables de entorno.
+              </p>
+            </div>
+          </div>
+          <Button
+            size="sm"
+            onClick={fetchFromSupabase}
+            disabled={isLoadingDb}
+            className="rounded-lg border border-amber-500/30 bg-amber-100 hover:bg-amber-200 dark:bg-amber-900/30 dark:hover:bg-amber-900/50 text-amber-900 dark:text-amber-100 font-bold px-3 py-1.5 shrink-0 self-end sm:self-center gap-1.5"
+          >
+            <RotateCcw className={`w-3.5 h-3.5 ${isLoadingDb ? 'animate-spin' : ''}`} /> Reintentar Conexión
+          </Button>
+        </div>
+      )}
 
       {/* FILTER PANEL */}
       <Card className="border-none rounded-[1.8rem] card-shadow bg-card overflow-hidden">

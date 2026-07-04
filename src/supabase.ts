@@ -42,3 +42,34 @@ if (!isSupabaseConfigured) {
     "Set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in your environment to enable Supabase integration."
   );
 }
+
+/**
+ * Executes a Supabase query with automatic retries and delay.
+ * Useful for handling temporary connection drops, CORS issues in sandboxed frames,
+ * or rate limits.
+ */
+export async function runWithRetry<T>(
+  fn: () => Promise<{ data: T | null; error: any }>,
+  retries = 3,
+  delayMs = 1500
+): Promise<{ data: T | null; error: any }> {
+  let lastError: any = null;
+  for (let attempt = 1; attempt <= retries; attempt++) {
+    try {
+      const result = await fn();
+      if (!result.error) {
+        return result;
+      }
+      lastError = result.error;
+      console.warn(`Supabase operation failed (Attempt ${attempt}/${retries}):`, result.error);
+    } catch (err: any) {
+      lastError = err;
+      console.warn(`Supabase operation threw exception (Attempt ${attempt}/${retries}):`, err);
+    }
+    
+    if (attempt < retries) {
+      await new Promise((resolve) => setTimeout(resolve, delayMs));
+    }
+  }
+  return { data: null, error: lastError || new Error("Failed after maximum retry attempts") };
+}

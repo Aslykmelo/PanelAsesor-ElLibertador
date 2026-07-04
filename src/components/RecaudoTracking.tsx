@@ -28,7 +28,7 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Transfer, User } from '@/types';
 import { toast } from 'sonner';
-import { supabase } from '@/supabase';
+import { supabase, runWithRetry } from '@/supabase';
 
 interface ExcelMetadata {
   fileName: string;
@@ -83,6 +83,7 @@ export const RecaudoTracking: React.FC<RecaudoTrackingProps> = ({ transfers, use
   const [logs, setLogs] = useState<string[]>([]);
   const [isLogsExpanded, setIsLogsExpanded] = useState(false);
   const [isLoadingDb, setIsLoadingDb] = useState(false);
+  const [supabaseError, setSupabaseError] = useState<string | null>(null);
 
   // Filter States
   const [searchTerm, setSearchTerm] = useState('');
@@ -198,83 +199,70 @@ export const RecaudoTracking: React.FC<RecaudoTrackingProps> = ({ transfers, use
     return transfers.filter(t => t.type === 'regalo');
   }, [transfers]);
 
-  // Load from Supabase or Firestore on mount
+  // Load from Supabase on mount
+  const loadRecaudoData = async () => {
+    setIsLoadingDb(true);
+    setSupabaseError(null);
+    let success = false;
+    let records: any[] = [];
+
+    // 1. Try Supabase with retry if available
+    if (supabase) {
+      try {
+        const { data, error } = await runWithRetry<any[]>(async () => {
+          const res = await supabase.from('recaudo_historico').select('*');
+          return { data: res.data, error: res.error };
+        });
+        if (!error && data) {
+          records = data;
+          success = true;
+          setSupabaseError(null);
+          console.log("Cargado de recaudo desde Supabase exitoso.");
+        } else if (error) {
+          console.error("Error fetching from Supabase:", error);
+          setSupabaseError(error?.message || "Error de conexión con base de datos de Supabase");
+        }
+      } catch (sErr: any) {
+        console.error("Supabase fetch exception:", sErr);
+        setSupabaseError(sErr?.message || "Excepción al conectar con la base de datos de Supabase");
+      }
+    } else {
+      setSupabaseError("La base de datos de Supabase no está configurada o disponible.");
+    }
+
+    if (success && records.length > 0) {
+      const metaRec = records.find(r => r.id_registro_crm === 'METADATA_RECORD');
+      if (metaRec) {
+        setMetadata({
+          fileName: metaRec.archivo_origen || '-',
+          uploadedAtDate: metaRec.fecha_generacion_link || '-',
+          uploadedAtTime: metaRec.fecha_vencimiento_link || '-',
+          uploaderName: metaRec.cliente || '-',
+          uploaderEmail: metaRec.solicitud || '-',
+          recordCount: Number(metaRec.valor_liquidacion) || 0
+        });
+      }
+      const filteredRecords = records.filter(r => r.id_registro_crm !== 'METADATA_RECORD');
+      setBankRecords(filteredRecords);
+      
+      try {
+        localStorage.setItem('recaudo_historico_local_cache', JSON.stringify(filteredRecords));
+      } catch (e) {
+        console.error("Local storage sync error:", e);
+      }
+    } else {
+      // Fallback to local storage cache if absolutely nothing was found in DBs or on error
+      try {
+        const cached = localStorage.getItem('recaudo_historico_local_cache');
+        if (cached) {
+          setBankRecords(JSON.parse(cached));
+        }
+      } catch {}
+    }
+    setIsLoadingDb(false);
+  };
+
   useEffect(() => {
-    const loadRecaudoData = async () => {
-      setIsLoadingDb(true);
-      let success = false;
-      let records: any[] = [];
-
-      // 1. Try Supabase first if available
-      if (supabase) {
-        try {
-          const { data, error } = await supabase
-            .from('recaudo_historico')
-            .select('*');
-          if (!error && data && data.length > 0) {
-            records = data;
-            success = true;
-            console.log("Cargado de recaudo desde Supabase exitoso.");
-          } else if (error) {
-            console.error("Error fetching from Supabase:", error);
-          }
-        } catch (sErr) {
-          console.error("Supabase fetch exception:", sErr);
-        }
-      }
-
-      // 2. Fallback to Firestore if Supabase was not configured or failed to return records
-      if (!success) {
-        try {
-          const { collection, getDocs } = await import('firebase/firestore');
-          const { db } = await import('@/firebase');
-          const querySnapshot = await getDocs(collection(db, 'recaudo_historico'));
-          const fData: any[] = [];
-          querySnapshot.forEach((doc) => {
-            fData.push(doc.data());
-          });
-          if (fData.length > 0) {
-            records = fData;
-            success = true;
-            console.log("Cargado de recaudo desde Firestore (Fallback de producción).");
-          }
-        } catch (fErr) {
-          console.error("Firestore load backup error:", fErr);
-        }
-      }
-
-      if (success && records.length > 0) {
-        const metaRec = records.find(r => r.id_registro_crm === 'METADATA_RECORD');
-        if (metaRec) {
-          setMetadata({
-            fileName: metaRec.archivo_origen || '-',
-            uploadedAtDate: metaRec.fecha_generacion_link || '-',
-            uploadedAtTime: metaRec.fecha_vencimiento_link || '-',
-            uploaderName: metaRec.cliente || '-',
-            uploaderEmail: metaRec.solicitud || '-',
-            recordCount: Number(metaRec.valor_liquidacion) || 0
-          });
-        }
-        const filteredRecords = records.filter(r => r.id_registro_crm !== 'METADATA_RECORD');
-        setBankRecords(filteredRecords);
-        
-        try {
-          localStorage.setItem('recaudo_historico_local_cache', JSON.stringify(filteredRecords));
-        } catch (e) {
-          console.error("Local storage sync error:", e);
-        }
-      } else {
-        // Fallback to local storage cache if absolutely nothing was found in DBs
-        try {
-          const cached = localStorage.getItem('recaudo_historico_local_cache');
-          if (cached) {
-            setBankRecords(JSON.parse(cached));
-          }
-        } catch {}
-      }
-      setIsLoadingDb(false);
-    };
-
     loadRecaudoData();
   }, []);
 
@@ -477,51 +465,23 @@ export const RecaudoTracking: React.FC<RecaudoTrackingProps> = ({ transfers, use
       const nextRecords = Array.from(recordsMap.values());
       setBankRecords(nextRecords);
 
-      // Dual-write or Fallback to Firestore to guarantee persistent records in production
-      let uploadedToFirebase = false;
-      if (newUpserts.length > 0) {
-        try {
-          const { doc, writeBatch } = await import('firebase/firestore');
-          const { db } = await import('@/firebase');
-          
-          const batchSize = 500;
-          for (let i = 0; i < newUpserts.length; i += batchSize) {
-            const chunk = newUpserts.slice(i, i + batchSize);
-            const batch = writeBatch(db);
-            chunk.forEach(item => {
-              const docRef = doc(db, 'recaudo_historico', item.id_registro_crm);
-              batch.set(docRef, item, { merge: true });
-            });
-            await batch.commit();
-          }
-          uploadedToFirebase = true;
-          console.log("Sincronización de recaudo con Firestore exitosa.");
-        } catch (fErr) {
-          console.error("Firestore backup write error:", fErr);
-        }
-      }
-
+      // Write strictly to Supabase with runWithRetry
       if (supabase && newUpserts.length > 0) {
-        const { error } = await supabase
-          .from('recaudo_historico')
-          .upsert(newUpserts, { onConflict: 'id_registro_crm' });
+        const { error } = await runWithRetry<any>(async () => {
+          const res = await supabase
+            .from('recaudo_historico')
+            .upsert(newUpserts, { onConflict: 'id_registro_crm' });
+          return { data: res.data, error: res.error };
+        });
 
         if (error) {
           console.error("Supabase upsert error:", error);
-          if (!uploadedToFirebase) {
-            toast.error("Error al subir conciliación en base de datos.");
-          } else {
-            toast.success(`Consolidados ${newUpserts.length} cambios en base de datos de respaldo (Firestore).`);
-          }
+          toast.warning(`Sincronizado localmente, pero falló la escritura en Supabase. Error: ${error.message || error}`);
         } else {
           toast.success(`Consolidados ${newUpserts.length} cambios en Supabase.`);
         }
       } else if (newUpserts.length > 0) {
-        if (uploadedToFirebase) {
-          toast.success(`Consolidados ${newUpserts.length} cambios en base de datos (Firestore).`);
-        } else {
-          toast.warning(`Sincronizado localmente, pero falló la escritura a base de datos.`);
-        }
+        toast.warning(`Sincronizado localmente, pero la base de datos de Supabase no está configurada.`);
       }
 
       // Metadata update
@@ -552,22 +512,18 @@ export const RecaudoTracking: React.FC<RecaudoTrackingProps> = ({ transfers, use
         tipo_recaudo: 'METADATA'
       };
 
-      try {
-        const { doc, setDoc } = await import('firebase/firestore');
-        const { db } = await import('@/firebase');
-        await setDoc(doc(db, 'recaudo_historico', 'METADATA_RECORD'), metadataRecord, { merge: true });
-        console.log("Metadata de recaudo sincronizada con Firestore.");
-      } catch (fMetaErr) {
-        console.error("Firestore metadata write error:", fMetaErr);
-      }
-
       if (supabase) {
-        const { error: metaErr } = await supabase
-          .from('recaudo_historico')
-          .upsert([metadataRecord], { onConflict: 'id_registro_crm' });
+        const { error: metaErr } = await runWithRetry<any>(async () => {
+          const res = await supabase
+            .from('recaudo_historico')
+            .upsert([metadataRecord], { onConflict: 'id_registro_crm' });
+          return { data: res.data, error: res.error };
+        });
 
         if (metaErr) {
           console.error("Supabase metadata error:", metaErr);
+        } else {
+          console.log("Metadata de recaudo sincronizada con Supabase.");
         }
       }
 
@@ -732,7 +688,7 @@ export const RecaudoTracking: React.FC<RecaudoTrackingProps> = ({ transfers, use
       }
     });
 
-    const conversion = linksGenerados > 0 ? (linksPagados / linksGenerados) * 100 : 0;
+    const conversion = valueRegistrado > 0 ? (recaudoEfectivo / valueRegistrado) * 100 : 0;
 
     return {
       linksGenerados,
@@ -1002,6 +958,29 @@ export const RecaudoTracking: React.FC<RecaudoTrackingProps> = ({ transfers, use
           </Button>
         </div>
       </div>
+
+      {/* SUPABASE ERROR / WARNING BANNER */}
+      {supabaseError && (
+        <div className="p-4 rounded-xl border border-amber-500/20 bg-amber-50 dark:bg-amber-950/20 text-amber-800 dark:text-amber-200 text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-sm">
+          <div className="flex items-start gap-2.5">
+            <AlertTriangle className="w-5 h-5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+            <div>
+              <p className="font-bold uppercase tracking-wider text-amber-900 dark:text-amber-100 mb-0.5">⚠️ Error de conexión con Supabase</p>
+              <p className="text-amber-700 dark:text-amber-300">
+                {supabaseError}. Los datos mostrados provienen de la caché local y podrían no estar actualizados. Si está en Google AI Studio, intente abrir la aplicación en una pestaña nueva o verifique las variables de entorno.
+              </p>
+            </div>
+          </div>
+          <Button
+            size="sm"
+            onClick={loadRecaudoData}
+            disabled={isLoadingDb}
+            className="rounded-lg border border-amber-500/30 bg-amber-100 hover:bg-amber-200 dark:bg-amber-900/30 dark:hover:bg-amber-900/50 text-amber-900 dark:text-amber-100 font-bold px-3 py-1.5 shrink-0 self-end sm:self-center gap-1.5"
+          >
+            <RotateCcw className={`w-3.5 h-3.5 ${isLoadingDb ? 'animate-spin' : ''}`} /> Reintentar Conexión
+          </Button>
+        </div>
+      )}
 
       {/* METADATA VIEW */}
       {metadata && (
