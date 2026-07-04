@@ -17,7 +17,7 @@ import { Login } from './components/Login';
 import { ThemeToggle } from './components/ThemeToggle';
 import { Toaster } from '@/components/ui/sonner';
 import { Transfer, User, Advisor } from './types';
-import { Search, Menu, X, Loader2, User as UserIcon, Shield } from 'lucide-react';
+import { Search, Menu, X, Loader2, User as UserIcon, Shield, Database } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
@@ -26,6 +26,9 @@ import { auth, db, signOut, FirestoreTracer } from './firebase';
 import { onAuthStateChanged } from 'firebase/auth';
 import { collection, query, orderBy, onSnapshot, updateDoc, doc, Timestamp, deleteDoc, where, or, addDoc, serverTimestamp, getDocs } from 'firebase/firestore';
 import { useAutoSyncAdvisors } from './hooks/useAutoSyncAdvisors';
+import { runSupabaseHealthCheck, SupabaseHealthStatus } from './supabase';
+import { SupabaseHealthModal } from './components/SupabaseHealthModal';
+import { logError, logWarn } from './logger';
 
 export default function App() {
   const { resolvedTheme } = useTheme();
@@ -33,6 +36,27 @@ export default function App() {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('dashboard');
+  
+  const [supabaseHealth, setSupabaseHealth] = useState<SupabaseHealthStatus | null>(null);
+  const [isHealthModalOpen, setIsHealthModalOpen] = useState(false);
+
+  // Run Supabase Connection Health Check on mount
+  useEffect(() => {
+    const checkSupabase = async () => {
+      try {
+        const result = await runSupabaseHealthCheck();
+        setSupabaseHealth(result);
+        if (result.status === 'error') {
+          logWarn("⚠️ App mount: Supabase health check failed. " + result.message, "App/checkSupabase");
+        } else {
+          console.log("✅ App mount: Supabase health check succeeded.");
+        }
+      } catch (err) {
+        logError(err, "App/checkSupabase");
+      }
+    };
+    checkSupabase();
+  }, []);
   
   // 🔥 AUTOMATIC DATA SYNC
   useAutoSyncAdvisors(currentUser);
@@ -50,7 +74,7 @@ export default function App() {
         }
       }
     } catch (e) {
-      console.warn("Error parsing cached_registros on init:", e);
+      logWarn("Error parsing cached_registros on init: " + (e instanceof Error ? e.message : String(e)), "App/initCachedRegistros");
     }
     return [];
   });
@@ -64,7 +88,7 @@ export default function App() {
         }
       }
     } catch (e) {
-      console.warn("Error parsing cached_asesores on init:", e);
+      logWarn("Error parsing cached_asesores on init: " + (e instanceof Error ? e.message : String(e)), "App/initCachedAsesores");
     }
     return [];
   });
@@ -113,7 +137,7 @@ export default function App() {
           }
         }
       } catch (e) {
-        console.error(`Error parsing cached_${collectionName}:`, e);
+        logError(e, `App/loadFallbackData_${collectionName}`);
       }
     } else {
       // Direct hard fallback if nothing is cached
@@ -167,7 +191,7 @@ export default function App() {
             setTransfers(parsedTransfers);
           }
         } catch (e) {
-          console.error("Local storage update parse error:", e);
+          logError(e, "App/LocalStorageUpdateParseError");
         }
       }
     };
@@ -238,11 +262,11 @@ export default function App() {
             setLoading(false); // IMPORTANTE: dejar de cargar incluso en fallback
           }
         }, (error) => {
-          console.error("User sync error (uid: " + firebaseUser.uid + "):", error);
+          logError(error, "App/UserSync_" + firebaseUser.uid);
           clearTimeout(timeoutId);
           
           if (error.code === 'permission-denied') {
-            console.warn("Permisos insuficientes para sync. Usando info de Google Auth.");
+            logWarn("Permisos insuficientes para sync. Usando info de Google Auth.", "App/UserSyncPermissionDenied");
             const isAdmin = firebaseUser.email?.toLowerCase() === 'taliana.moreno@segurosbolivar.com' || 
                            firebaseUser.email?.toLowerCase() === 'helen.pantoja@segurosbolivar.com';
             
@@ -287,16 +311,9 @@ export default function App() {
       setAdvisors(data);
       localStorage.setItem('cached_asesores', JSON.stringify(data));
     }, (error) => {
-      console.error("Advisors global sync error details:", {
-        code: error.code,
-        message: error.message,
-        uid: auth.currentUser?.uid,
-        email: auth.currentUser?.email
-      });
+      logError(error, "App/AdvisorsGlobalSync");
       if (error.code === 'resource-exhausted' || error.message?.includes('Quota exceeded') || error.message?.includes('quota-exceeded')) {
         loadFallbackData('asesores');
-      } else if (error.code === 'permission-denied') {
-        toast.error('Error de permisos al cargar asesores. Si eres administrador, contacta a soporte técnico.');
       }
     });
 
@@ -326,12 +343,11 @@ export default function App() {
         localStorage.setItem('cached_registros', JSON.stringify(data));
         setSyncError(null);
       }, (error) => {
-        console.error("Admin sync error:", error);
+        logError(error, "App/AdminSync");
         if (error.code === 'resource-exhausted' || error.message?.includes('Quota exceeded') || error.message?.includes('quota-exceeded')) {
           loadFallbackData('registros');
         } else if (error.code === 'permission-denied') {
           setSyncError(`Acceso restringido: Tus permisos de administrador aún se están sincronizando en la base de datos.`);
-          console.warn("TIP: Como administrador, asegúrate de que tu correo esté en la lista blanca de Firebase Rules.");
         } else {
           setSyncError(`Error de conexión al cargar datos globales.`);
         }
@@ -378,7 +394,7 @@ export default function App() {
       })) as Transfer[];
       updateAsesorData();
     }, (error) => {
-      console.error("Sent items sync error:", error);
+      logError(error, "App/SentItemsSync");
       if (error.code === 'resource-exhausted' || error.message?.includes('Quota exceeded') || error.message?.includes('quota-exceeded')) {
         loadFallbackData('registros');
       } else {
@@ -396,7 +412,7 @@ export default function App() {
       })) as Transfer[];
       updateAsesorData();
     }, (error) => {
-      console.error("Received items sync error:", error);
+      logError(error, "App/ReceivedItemsSync");
       if (error.code === 'resource-exhausted' || error.message?.includes('Quota exceeded') || error.message?.includes('quota-exceeded')) {
         loadFallbackData('registros');
       } else {
@@ -442,7 +458,7 @@ export default function App() {
       });
       setActiveTab('history');
     } catch (error) {
-      console.error("Error saving notification to user document:", error);
+      logError(error, "App/SaveNotification");
       // Fallback local if server fails
       setNotifications(prev => [newNotif, ...prev]);
       setActiveTab('history');
@@ -457,7 +473,7 @@ export default function App() {
       });
       toast.success(`Registro marcado como ${status}`);
     } catch (error: any) {
-      console.error("Error updates status:", error);
+      logError(error, "App/UpdateStatus");
       const isQuota = error.code === 'resource-exhausted' || error.message?.toLowerCase().includes('quota exceeded') || error.message?.toLowerCase().includes('quota-exceeded');
       if (isQuota) {
         try {
@@ -470,10 +486,10 @@ export default function App() {
             toast.success(`Registro marcado como ${status} (Guardado localmente)`);
           }
         } catch (e) {
-          console.error("Fallback update error:", e);
+          logError(e, "App/FallbackUpdate");
         }
       } else {
-        toast.error("Error al actualizar estado");
+        toast.error("No fue posible guardar la información.");
       }
     }
   };
@@ -483,7 +499,7 @@ export default function App() {
       await deleteDoc(doc(db, 'registros', id));
       toast.success("Registro eliminado permanentemente");
     } catch (error: any) {
-      console.error("Error:", error);
+      logError(error, "App/DeleteRecord");
       const isQuota = error.code === 'resource-exhausted' || error.message?.toLowerCase().includes('quota exceeded') || error.message?.toLowerCase().includes('quota-exceeded');
       if (isQuota) {
         try {
@@ -496,10 +512,10 @@ export default function App() {
             toast.success("Registro eliminado (Localmente)");
           }
         } catch (e) {
-          console.error("Fallback delete error:", e);
+          logError(e, "App/FallbackDelete");
         }
       } else {
-        toast.error("No tienes permisos para eliminar este registro o la cuota de Firebase se excedió.");
+        toast.error("No fue posible eliminar el registro en este momento.");
       }
     }
   };
@@ -517,7 +533,7 @@ export default function App() {
         notifications: updatedNotifications
       });
     } catch (error) {
-      console.error("Error marking notification as read in user document:", error);
+      logError(error, "App/MarkNotificationAsRead");
       // Fallback local
       setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
     }

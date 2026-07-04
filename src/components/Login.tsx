@@ -5,6 +5,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { PhoneForwarded, ShieldCheck, Loader2 } from 'lucide-react';
 import { signIn } from '@/firebase';
 import { toast } from 'sonner';
+import { logError } from '../logger';
 
 export const Login: React.FC = () => {
   const [loading, setLoading] = useState(false);
@@ -28,8 +29,9 @@ export const Login: React.FC = () => {
     try {
       await signIn();
     } catch (error: any) {
-      console.error("Login error:", error);
-      toast.error(error.message || "Error al iniciar sesión con Google");
+      logError(error, "Login");
+      const isDomainError = error?.message === 'Solo correos corporativos @segurosbolivar.com';
+      toast.error(isDomainError ? error.message : "No fue posible iniciar sesión en este momento. Por favor, intente de nuevo.");
     } finally {
       setLoading(false);
     }

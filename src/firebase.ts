@@ -2,6 +2,7 @@ import { initializeApp } from 'firebase/app';
 import { getAuth, GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
 import { getFirestore, doc, getDoc, setDoc, updateDoc, serverTimestamp, collection, addDoc, getDocFromServer, query, where, getDocs } from 'firebase/firestore';
 import { ADVISORS } from './constants';
+import { logError, logWarn } from './logger';
 
 // Prioridad: 1. Environment variables (manual or injected by platform)
 let firebaseConfig = {
@@ -54,7 +55,7 @@ export const FirestoreTracer = {
 // 🔍 TEST CONNECTION
 async function testConnection() {
   if (!firebaseConfig.apiKey) {
-    console.warn("Firebase API Key is missing. Login might not work until configured.");
+    logWarn("Firebase API Key is missing. Login might not work until configured.", "Firebase/testConnection");
     return;
   }
   try {
@@ -63,9 +64,9 @@ async function testConnection() {
     console.log("Firestore connection verified");
   } catch (error: any) {
     if (error?.message?.includes('offline') || error?.code === 'failed-precondition') {
-      console.error("Firebase is offline or configuration is incorrect.");
+      logError(error, "Firebase/testConnectionOffline");
     } else {
-      console.warn("Firestore connection test result:", error.code);
+      logWarn("Firestore connection test result: " + error.code, "Firebase/testConnection");
     }
   }
 }
@@ -112,7 +113,7 @@ export function handleFirestoreError(error: unknown, operationType: OperationTyp
     operationType,
     path
   }
-  console.error('Firestore Error Detail: ', JSON.stringify(errInfo));
+  logError(errInfo, 'Firestore Operation');
   // No lanzamos error para que no rompa el flujo si se catching después, pero logueamos
   return errInfo;
 }
@@ -140,7 +141,7 @@ export const signIn = async () => {
     userSnap = await getDoc(userRef);
   } catch (e) {
     handleFirestoreError(e, OperationType.GET, `users/${firebaseUser.uid}`);
-    console.warn("No se pudo leer el perfil de usuario en el login (posiblemente por falta de permisos en Firestore):", e);
+    logWarn("No se pudo leer el perfil de usuario en el login (posiblemente por falta de permisos en Firestore): " + (e instanceof Error ? e.message : String(e)), "Firebase/signInUserRead");
     // Si falla la lectura, asumimos que no podemos acceder y permitimos continuar para que App.tsx use el fallback
   }
 
@@ -197,7 +198,7 @@ export const signIn = async () => {
       isSupervisor = SUPERVISORS.includes(userEmail) || !snapSuper.empty || ADVISORS.some(a => a.correo_supervisor.toLowerCase() === userEmail);
     }
   } catch (err) {
-    console.warn("Error consultando asesores en Firestore para el login, usando fallbacks:", err);
+    logWarn("Error consultando asesores en Firestore para el login, usando fallbacks: " + (err instanceof Error ? err.message : String(err)), "Firebase/signInAdvisorLookup");
     const staticMatch = ADVISORS.find(a => a.correo.toLowerCase() === userEmail);
     if (staticMatch) {
       advisorInfo = staticMatch;
@@ -227,7 +228,7 @@ export const signIn = async () => {
       FirestoreTracer.track(`users/${firebaseUser.uid}`, 'firebase.ts/signIn', 'write');
       await setDoc(userRef, newUser);
     } catch (createErr) {
-      console.warn("No se pudo crear/inicializar el documento de usuario:", createErr);
+      logWarn("No se pudo crear/inicializar el documento de usuario: " + (createErr instanceof Error ? createErr.message : String(createErr)), "Firebase/signInUserCreate");
     }
   } else {
     // Si ya existe, actualizamos último login, status, y sincronizamos datos del asesor actualizados desde Gestión de Asesores
@@ -251,12 +252,12 @@ export const signIn = async () => {
       FirestoreTracer.track(`users/${firebaseUser.uid}`, 'firebase.ts/signIn', 'write');
       await updateDoc(userRef, updates);
     } catch (e) {
-      console.warn("No se pudo actualizar el perfil completo en el login:", e);
+      logWarn("No se pudo actualizar el perfil completo en el login: " + (e instanceof Error ? e.message : String(e)), "Firebase/signInUserUpdate");
       try {
         FirestoreTracer.track(`users/${firebaseUser.uid}`, 'firebase.ts/signIn(fallback)', 'write');
         await updateDoc(userRef, { lastLoginAt: serverTimestamp(), status: 'online' });
       } catch (innerError) {
-        console.warn("Error silenciado al actualizar status de usuario:", innerError);
+        logWarn("Error silenciado al actualizar status de usuario: " + (innerError instanceof Error ? innerError.message : String(innerError)), "Firebase/signInUserUpdateFallback");
       }
     }
   }
@@ -275,7 +276,7 @@ export const signIn = async () => {
   } catch (e) {
     handleFirestoreError(e, OperationType.CREATE, 'login_logs');
     // Si falla el log por permisos, no bloqueamos el login del usuario
-    console.warn("Log de acceso no registrado (posible falta de reglas en Firebase):", e);
+    logWarn("Log de acceso no registrado (posible falta de reglas en Firebase): " + (e instanceof Error ? e.message : String(e)), "Firebase/signInLog");
   }
 
   return result;
@@ -295,7 +296,7 @@ export const signOut = async () => {
       
       await Promise.race([updatePromise, timeoutPromise]);
     } catch (e) {
-      console.warn("No se pudo actualizar el estado offline (posible cierre de sesión rápido):", e);
+      logWarn("No se pudo actualizar el estado offline (posible cierre de sesión rápido): " + (e instanceof Error ? e.message : String(e)), "Firebase/signOutOfflineStatus");
     }
   }
   

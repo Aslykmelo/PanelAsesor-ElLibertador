@@ -28,7 +28,8 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Transfer, User } from '@/types';
 import { toast } from 'sonner';
-import { supabase, runWithRetry } from '@/supabase';
+import { supabase, runWithRetry, runSupabaseHealthCheck, SupabaseHealthStatus } from '@/supabase';
+import { logError, logWarn } from '@/logger';
 
 interface ExcelMetadata {
   fileName: string;
@@ -84,6 +85,7 @@ export const RecaudoTracking: React.FC<RecaudoTrackingProps> = ({ transfers, use
   const [isLogsExpanded, setIsLogsExpanded] = useState(false);
   const [isLoadingDb, setIsLoadingDb] = useState(false);
   const [supabaseError, setSupabaseError] = useState<string | null>(null);
+  const [supabaseDiagnostic, setSupabaseDiagnostic] = useState<SupabaseHealthStatus | null>(null);
 
   // Filter States
   const [searchTerm, setSearchTerm] = useState('');
@@ -217,17 +219,16 @@ export const RecaudoTracking: React.FC<RecaudoTrackingProps> = ({ transfers, use
           records = data;
           success = true;
           setSupabaseError(null);
+          setSupabaseDiagnostic(null);
           console.log("Cargado de recaudo desde Supabase exitoso.");
         } else if (error) {
-          console.error("Error fetching from Supabase:", error);
-          setSupabaseError(error?.message || "Error de conexión con base de datos de Supabase");
+          logError(error, "Supabase/loadRecaudoData");
         }
       } catch (sErr: any) {
-        console.error("Supabase fetch exception:", sErr);
-        setSupabaseError(sErr?.message || "Excepción al conectar con la base de datos de Supabase");
+        logError(sErr, "Supabase/loadRecaudoDataException");
       }
     } else {
-      setSupabaseError("La base de datos de Supabase no está configurada o disponible.");
+      logWarn("Supabase not available, using offline cache fallback.", "Supabase/loadRecaudoData");
     }
 
     if (success && records.length > 0) {
@@ -248,7 +249,7 @@ export const RecaudoTracking: React.FC<RecaudoTrackingProps> = ({ transfers, use
       try {
         localStorage.setItem('recaudo_historico_local_cache', JSON.stringify(filteredRecords));
       } catch (e) {
-        console.error("Local storage sync error:", e);
+        logError(e, "RecaudoTracking/LocalStorageSyncError");
       }
     } else {
       // Fallback to local storage cache if absolutely nothing was found in DBs or on error
@@ -275,7 +276,7 @@ export const RecaudoTracking: React.FC<RecaudoTrackingProps> = ({ transfers, use
         localStorage.removeItem('recaudo_historico_local_cache');
       }
     } catch (e) {
-      console.error("Error writing to local storage:", e);
+      logError(e, "RecaudoTracking/LocalStorageWriteError");
     }
   }, [bankRecords]);
 
@@ -958,29 +959,6 @@ export const RecaudoTracking: React.FC<RecaudoTrackingProps> = ({ transfers, use
           </Button>
         </div>
       </div>
-
-      {/* SUPABASE ERROR / WARNING BANNER */}
-      {supabaseError && (
-        <div className="p-4 rounded-xl border border-amber-500/20 bg-amber-50 dark:bg-amber-950/20 text-amber-800 dark:text-amber-200 text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-sm">
-          <div className="flex items-start gap-2.5">
-            <AlertTriangle className="w-5 h-5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
-            <div>
-              <p className="font-bold uppercase tracking-wider text-amber-900 dark:text-amber-100 mb-0.5">⚠️ Error de conexión con Supabase</p>
-              <p className="text-amber-700 dark:text-amber-300">
-                {supabaseError}. Los datos mostrados provienen de la caché local y podrían no estar actualizados. Si está en Google AI Studio, intente abrir la aplicación en una pestaña nueva o verifique las variables de entorno.
-              </p>
-            </div>
-          </div>
-          <Button
-            size="sm"
-            onClick={loadRecaudoData}
-            disabled={isLoadingDb}
-            className="rounded-lg border border-amber-500/30 bg-amber-100 hover:bg-amber-200 dark:bg-amber-900/30 dark:hover:bg-amber-900/50 text-amber-900 dark:text-amber-100 font-bold px-3 py-1.5 shrink-0 self-end sm:self-center gap-1.5"
-          >
-            <RotateCcw className={`w-3.5 h-3.5 ${isLoadingDb ? 'animate-spin' : ''}`} /> Reintentar Conexión
-          </Button>
-        </div>
-      )}
 
       {/* METADATA VIEW */}
       {metadata && (

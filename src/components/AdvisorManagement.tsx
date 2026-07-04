@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { db, FirestoreTracer } from '@/firebase';
+import { logError, logWarn } from '../logger';
 import { collection, onSnapshot, query, orderBy, addDoc, serverTimestamp, deleteDoc, doc, updateDoc } from 'firebase/firestore';
 import { cn } from '@/lib/utils';
 import { Advisor } from '../types';
@@ -78,12 +79,7 @@ export function AdvisorManagement() {
       setAdvisors(data);
       setLoading(false);
     }, (error) => {
-      console.error("Advisors management sync error:", {
-        code: error.code,
-        message: error.message,
-        path: 'asesores'
-      });
-      toast.error("Error de permisos al sincronizar el directorio de asesores");
+      logError(error, "AdvisorManagement/Sync");
       setLoading(false);
     });
 
@@ -136,8 +132,8 @@ export function AdvisorManagement() {
         active: true
       });
     } catch (error) {
-      console.error("Error adding advisor:", error);
-      toast.error("Error al agregar el asesor");
+      logError(error, "AdvisorManagement/Add");
+      toast.error("No fue posible guardar la información.");
     } finally {
       setSubmitting(false);
     }
@@ -165,8 +161,8 @@ export function AdvisorManagement() {
       setIsEditDialogOpen(false);
       setEditingAdvisor(null);
     } catch (error) {
-      console.error("Error updating advisor:", error);
-      toast.error("Error al actualizar el asesor");
+      logError(error, "AdvisorManagement/Update");
+      toast.error("No fue posible guardar la información.");
     } finally {
       setSubmitting(false);
     }
@@ -184,8 +180,8 @@ export function AdvisorManagement() {
       });
       toast.success(`Asesor ${!currentStatus ? 'activado' : 'desactivado'}`);
     } catch (error) {
-      console.error("Error toggling status:", error);
-      toast.error("Error al cambiar el estado");
+      logError(error, "AdvisorManagement/ToggleStatus");
+      toast.error("No fue posible guardar la información.");
     }
   };
 
@@ -195,8 +191,8 @@ export function AdvisorManagement() {
       await deleteDoc(doc(db, 'asesores', id));
       toast.success("Asesor eliminado");
     } catch (error) {
-      console.error("Error deleting advisor:", error);
-      toast.error("Error al eliminar");
+      logError(error, "AdvisorManagement/Delete");
+      toast.error("No fue posible guardar la información.");
     }
   };
 

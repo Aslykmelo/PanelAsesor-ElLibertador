@@ -18,6 +18,7 @@ import {
 import { MANAGEMENT_TYPES } from '@/constants';
 import { toast } from 'sonner';
 import { db } from '@/firebase';
+import { logError, logWarn } from '../logger';
 import { collection, addDoc, serverTimestamp, getDocs, query, where, doc, updateDoc } from 'firebase/firestore';
 import { CollectionReference } from 'firebase/firestore';
 import { Loader2, Send, Save, User as UserIcon, Phone, FileText, DollarSign, Briefcase, Search, MessageSquare } from 'lucide-react';
@@ -174,7 +175,7 @@ export const TransferForm: React.FC<TransferFormProps> = ({ onSubmit, currentUse
       try {
         docRef = await addDoc(collection(db, 'registros'), docData);
       } catch (dbError: any) {
-        console.error("Firestore error while saving doc:", dbError);
+        logError(dbError, "TransferForm/SaveFirestore");
         const isQuota = dbError.code === 'resource-exhausted' || dbError.message?.toLowerCase().includes('quota exceeded') || dbError.message?.toLowerCase().includes('quota-exceeded');
         
         if (isQuota) {
@@ -200,7 +201,7 @@ export const TransferForm: React.FC<TransferFormProps> = ({ onSubmit, currentUse
             // Dispatch a custom event so App state reloads instantly!
             window.dispatchEvent(new CustomEvent('local-registros-updated'));
           } catch (e) {
-            console.error("Failed to save local registry:", e);
+            logError(e, "TransferForm/SaveLocalRegistry");
           }
         } else {
           throw dbError;
@@ -239,7 +240,7 @@ export const TransferForm: React.FC<TransferFormProps> = ({ onSubmit, currentUse
                 }
               }
             } catch (e) {
-              console.error("Failed local notify update:", e);
+              logError(e, "TransferForm/LocalNotifyUpdate");
             }
           }
         } else {
@@ -250,24 +251,20 @@ export const TransferForm: React.FC<TransferFormProps> = ({ onSubmit, currentUse
             errorData = { error: 'Error desconocido' };
           }
           
-          console.error("Servidor respondió con error:", errorData);
-          toast.warning('Registro guardado, pero falló el correo', {
-            description: errorData.error || 'Verifica la configuración del servidor.'
-          });
+          logError(errorData, "TransferForm/SendEmailResponse");
+          toast.warning('Registro guardado, pero falló el correo de notificación.');
         }
       } catch (e: any) {
-        console.error("Error al disparar el envío de correo:", e);
-        toast.error('Error de conexión', {
-          description: 'No se pudo contactar con el servidor de correos. Intenta nuevamente.'
-        });
+        logError(e, "TransferForm/SendEmailTrigger");
+        toast.warning('Registro guardado, pero no fue posible enviar el correo en este momento.');
       }
       
       if (isLocalOnly) {
         toast.warning(type === 'mensaje' 
-          ? 'Transferencia registrada localmente (Cuota Base de Datos Superada)' 
-          : 'Link de pago registrado localmente (Cuota Base de Datos Superada)',
+          ? 'Transferencia registrada localmente' 
+          : 'Link de pago registrado localmente',
           {
-            description: 'Guardado en tu navegador. El aplicativo procedió con la notificación por correo con normalidad.'
+            description: 'Guardado de respaldo en su navegador. La notificación continuará de forma habitual.'
           }
         );
       } else {
@@ -291,8 +288,8 @@ export const TransferForm: React.FC<TransferFormProps> = ({ onSubmit, currentUse
       setSearchAdvisor('');
 
     } catch (error) {
-      console.error("Error saving record:", error);
-      toast.error("Error al procesar la gestión");
+      logError(error, "TransferForm/Submit");
+      toast.error("No fue posible guardar la información.");
     } finally {
       setLoading(false);
     }

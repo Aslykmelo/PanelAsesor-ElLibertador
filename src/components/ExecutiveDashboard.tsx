@@ -34,7 +34,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Transfer, User, Advisor } from '@/types';
-import { supabase, runWithRetry } from '@/supabase';
+import { supabase, runWithRetry, runSupabaseHealthCheck, SupabaseHealthStatus } from '@/supabase';
+import { logError, logWarn } from '@/logger';
 import { toast } from 'sonner';
 import { 
   ResponsiveContainer, 
@@ -90,6 +91,7 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({ transfer
   });
   const [isLoadingDb, setIsLoadingDb] = useState(false);
   const [supabaseError, setSupabaseError] = useState<string | null>(null);
+  const [supabaseDiagnostic, setSupabaseDiagnostic] = useState<SupabaseHealthStatus | null>(null);
   const [activeSubTab, setActiveSubTab] = useState<'operativos' | 'links' | 'apoyos' | 'transferencias' | 'graficas' | 'embudo'>('operativos');
   const [advisorSortKey, setAdvisorSortKey] = useState<'casos' | 'linksGen' | 'linksPagados' | 'valorGen' | 'valorRec' | 'conversion' | 'tiempoPago'>('valorRec');
 
@@ -133,17 +135,16 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({ transfer
           records = data;
           success = true;
           setSupabaseError(null);
+          setSupabaseDiagnostic(null);
           console.log("Dashboard Ejecutivo: Cargado de recaudo desde Supabase.");
         } else if (error) {
-          console.error("Error fetching recaudo_historico:", error);
-          setSupabaseError(error?.message || "Error al conectar con Supabase");
+          logError(error, "Supabase/fetchFromSupabase");
         }
       } catch (sErr: any) {
-        console.error("Supabase exception:", sErr);
-        setSupabaseError(sErr?.message || "Excepción de red al conectar con Supabase");
+        logError(sErr, "Supabase/fetchFromSupabaseException");
       }
     } else {
-      setSupabaseError("Supabase no está configurado o no está disponible.");
+      logWarn("Supabase not available, using offline cache fallback.", "Supabase/fetchFromSupabase");
     }
 
     if (success && records.length > 0) {
@@ -152,7 +153,7 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({ transfer
       try {
         localStorage.setItem('recaudo_historico_local_cache', JSON.stringify(filteredRecords));
       } catch (e) {
-        console.error("Local storage sync error:", e);
+        logError(e, "ExecutiveDashboard/LocalStorageSyncError");
       }
     } else {
       // Fallback to local cache if no online source is available
@@ -2314,29 +2315,6 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({ transfer
           </Button>
         </div>
       </div>
-
-      {/* SUPABASE ERROR / WARNING BANNER */}
-      {supabaseError && (
-        <div className="p-4 rounded-[1.5rem] border border-amber-500/20 bg-amber-50 dark:bg-amber-950/20 text-amber-800 dark:text-amber-200 text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-sm">
-          <div className="flex items-start gap-2.5">
-            <AlertTriangle className="w-5 h-5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
-            <div>
-              <p className="font-bold uppercase tracking-wider text-amber-900 dark:text-amber-100 mb-0.5">⚠️ Error de conexión con Supabase</p>
-              <p className="text-amber-700 dark:text-amber-300">
-                {supabaseError}. Los datos mostrados provienen de la caché local y podrían no estar actualizados. Si está en Google AI Studio, intente abrir la aplicación en una pestaña nueva o verifique las variables de entorno.
-              </p>
-            </div>
-          </div>
-          <Button
-            size="sm"
-            onClick={fetchFromSupabase}
-            disabled={isLoadingDb}
-            className="rounded-lg border border-amber-500/30 bg-amber-100 hover:bg-amber-200 dark:bg-amber-900/30 dark:hover:bg-amber-900/50 text-amber-900 dark:text-amber-100 font-bold px-3 py-1.5 shrink-0 self-end sm:self-center gap-1.5"
-          >
-            <RotateCcw className={`w-3.5 h-3.5 ${isLoadingDb ? 'animate-spin' : ''}`} /> Reintentar Conexión
-          </Button>
-        </div>
-      )}
 
       {/* FILTER PANEL */}
       <Card className="border-none rounded-[1.8rem] card-shadow bg-card overflow-hidden">
