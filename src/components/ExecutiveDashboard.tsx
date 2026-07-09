@@ -1177,34 +1177,48 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({ transfer
   };
 
   // CSV Exporter
+  // CSV Exporter
   const exportCSV = () => {
     const headers = [
-      'Indicador', 'Valor', 'Descripción'
-    ];
-    const kpis = [
-      ['Total Casos Gestionados', metrics.totalCasos, 'Gestiones totales registradas en el período'],
-      ['Casos en Llamada', metrics.llamadas, `${metrics.llamadasPct}% del total`],
-      ['Casos en WhatsApp', metrics.whatsapp, `${metrics.whatsappPct}% del total`],
-      ['Gestiones de Toma de Mensaje', metrics.tomaMensajes, 'Toma de mensaje efectuada'],
-      ['Links Generados', metrics.linksGenerados, 'Total enlaces generados'],
-      ['Links Pagados', metrics.linksPagados, 'Total enlaces conciliados como RECIBO'],
-      ['Links Pendientes', metrics.linksPendientes, 'Total enlaces en estado LIQUIDACION'],
-      ['Links Anulados', metrics.linksAnulados, 'Total enlaces en estado ANULADO'],
-      ['Conversión de Pago', `${metrics.conversionPago}%`, 'Porcentaje de conversión'],
-      ['Valor Registrado CRM', `$${metrics.valorRegistradoCRM.toLocaleString('es-CO')}`, 'Monto total en links creados'],
-      ['Recaudo Efectivo', `$${metrics.recaudoEfectivo.toLocaleString('es-CO')}`, 'Monto real cobrado conciliado tipo S'],
-      ['Casos de Apoyo', metrics.casosApoyados, 'Gestiones cruzadas entre asesores'],
-      ['Asesores brindaron apoyo', brindaronApoyoCount(), 'Asesores emisores de apoyo'],
-      ['Asesores recibieron apoyo', recibieronApoyoCount(), 'Asesores receptores de apoyo']
+      'Cliente', 'Solicitud', 'Fecha Generación', 'Fecha Vencimiento', 'Fecha Pago', 
+      'Estado', 'Valor CRM', 'Valor Recaudado', 'Emisor', 'Responsable', 
+      'Supervisor', 'Cartera', 'Funcionario', 'Tipo Recaudo'
     ];
 
-    const csvContent = "data:text/csv;charset=utf-8,\uFEFF" 
-      + [headers.join(','), ...kpis.map(row => row.map(cell => `"${cell}"`).join(','))].join('\n');
+    const rows = filteredData.reconciled.map(item => [
+      item.cliente || '-',
+      item.solicitud || '-',
+      item.fecha_generacion_link || '-',
+      item.fecha_vencimiento_link || '-',
+      item.fecha_pago || '-',
+      item.estadoCRM || '-',
+      `$${Math.round(item.valor_link_crm || 0).toLocaleString('es-CO')}`,
+      `$${Math.round(item.valor_liquidacion || 0).toLocaleString('es-CO')}`,
+      item.emisor || '-',
+      item.responsable || '-',
+      item.supervisor || '-',
+      item.cartera || '-',
+      item.funcionario || '-',
+      item.tipo_recaudo || '-'
+    ]);
 
-    const encodedUri = encodeURI(csvContent);
+    const escapeCSVValue = (val: string) => {
+      if (val === undefined || val === null) return '';
+      const str = String(val);
+      if (str.includes(',') || str.includes('"') || str.includes('\n') || str.includes('\r')) {
+        return `"${str.replace(/"/g, '""')}"`;
+      }
+      return str;
+    };
+
+    const csvContent = "\uFEFF" 
+      + [headers.join(','), ...rows.map(row => row.map(escapeCSVValue).join(','))].join('\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
-    link.setAttribute("href", encodedUri);
-    link.setAttribute("download", `Reporte_Ejecutivo_${filterStartDate || 'historico'}_a_${filterEndDate || 'hoy'}.csv`);
+    link.setAttribute("href", url);
+    link.setAttribute("download", `Detalle_Gestiones_${filterStartDate || 'historico'}_a_${filterEndDate || 'hoy'}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -1215,121 +1229,163 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({ transfer
   const exportExcel = () => {
     const wb = XLSX.utils.book_new();
 
-    // 0. Metadata, Filtros y Disclaimer
-    const metadata = [
-      { Campo: 'Reporte', Valor: 'Reporte Ejecutivo de Gestión y Recaudo' },
-      { Campo: 'Período', Valor: `${filterStartDate || 'Inicio'} al ${filterEndDate || 'Hoy'}` },
-      { Campo: 'Cartera', Valor: filterCartera !== 'todos' ? filterCartera : 'Todas las Carteras' },
-      { Campo: 'Supervisor', Valor: filterSupervisor !== 'todos' ? toTitleCase(filterSupervisor) : 'Todos los Supervisores' },
-      { Campo: 'Responsable', Valor: filterResponsable !== 'todos' ? toTitleCase(filterResponsable) : 'Todos los Responsables' },
-      { Campo: 'Canal', Valor: filterCanal !== 'todos' ? filterCanal : 'Todos los Canales' },
-      { Campo: 'Emisor', Valor: filterEmisor !== 'todos' ? toTitleCase(filterEmisor) : 'Todos los Emisores' },
-      { Campo: 'Generado por', Valor: `${user.name} (${user.email})` },
-      { Campo: 'Fecha de Generación', Valor: new Date().toLocaleString('es-CO') },
-      { Campo: 'Nota Importante', Valor: 'Este reporte contiene únicamente información correspondiente a los filtros seleccionados.' }
+    // Hoja 1 – Resumen Ejecutivo
+    const sheet1Data = [
+      { Indicador: 'Total Casos Gestionados', Valor: metrics.totalCasos },
+      { Indicador: 'Casos por Canal - Llamada', Valor: metrics.llamadas },
+      { Indicador: 'Casos por Canal - WhatsApp', Valor: metrics.whatsapp },
+      { Indicador: 'Toma de Mensajes', Valor: metrics.tomaMensajes },
+      { Indicador: 'Links Generados', Valor: metrics.linksGenerados },
+      { Indicador: 'Links Pagados', Valor: metrics.linksPagados },
+      { Indicador: 'Pendientes', Valor: metrics.linksPendientes },
+      { Indicador: 'Anulados', Valor: metrics.linksAnulados },
+      { Indicador: 'Valor Registrado CRM', Valor: `$${Math.round(metrics.valorRegistradoCRM).toLocaleString('es-CO')}` },
+      { Indicador: 'Recaudo Efectivo', Valor: `$${Math.round(metrics.recaudoEfectivo).toLocaleString('es-CO')}` },
+      { Indicador: 'Conversión (%)', Valor: `${metrics.conversionPago}%` },
+      { Indicador: 'Apoyos entre Asesores', Valor: metrics.casosApoyados }
     ];
-    const wsMeta = XLSX.utils.json_to_sheet(metadata);
-    XLSX.utils.book_append_sheet(wb, wsMeta, 'Filtros y Disclaimer');
+    const ws1 = XLSX.utils.json_to_sheet(sheet1Data);
+    XLSX.utils.book_append_sheet(wb, ws1, 'Resumen Ejecutivo');
 
-    // 1. Resumen Ejecutivo
-    const kpis = [
-      { Indicador: 'Total Casos Gestionados', Cantidad: metrics.totalCasos, Detalle: 'Gestiones totales' },
-      { Indicador: 'Gestiones por Llamada', Cantidad: metrics.llamadas, Detalle: `${metrics.llamadasPct}% del total` },
-      { Indicador: 'Gestiones por WhatsApp', Cantidad: metrics.whatsapp, Detalle: `${metrics.whatsappPct}% del total` },
-      { Indicador: 'Toma de Mensajes', Cantidad: metrics.tomaMensajes, Detalle: 'Toma de mensaje registrada' },
-      { Indicador: 'Links Generados', Cantidad: metrics.linksGenerados, Detalle: 'Total enlaces de pago creados' },
-      { Indicador: 'Links Pagados', Cantidad: metrics.linksPagados, Detalle: 'Conciliados estado RECIBO' },
-      { Indicador: 'Links Pendientes', Cantidad: metrics.linksPendientes, Detalle: 'Estado LIQUIDACION' },
-      { Indicador: 'Links Anulados', Cantidad: metrics.linksAnulados, Detalle: 'Estado ANULADO' },
-      { Indicador: 'Conversión de Pago', Cantidad: `${metrics.conversionPago}%`, Detalle: 'Links Pagados / Links Generados' },
-      { Indicador: 'Valor Registrado CRM', Cantidad: metrics.valorRegistradoCRM, Detalle: 'Pesos Colombianos ($)' },
-      { Indicador: 'Recaudo Efectivo', Cantidad: metrics.recaudoEfectivo, Detalle: 'Pesos Colombianos ($) conciliados tipo S' },
-      { Indicador: 'Casos Apoyados', Cantidad: metrics.casosApoyados, Detalle: 'Gestiones de apoyo entre asesores' }
-    ];
-    const wsKpi = XLSX.utils.json_to_sheet(kpis);
-    XLSX.utils.book_append_sheet(wb, wsKpi, 'Resumen Ejecutivo');
+    // Hoja 2 – Ranking de Asesores
+    const sheet2Data = groupings.topAsesores.map(a => ({
+      'Asesor': a.name,
+      'Casos': a.casos,
+      'Links': a.linksGen,
+      'Valor CRM': `$${Math.round(a.valorGen).toLocaleString('es-CO')}`,
+      'Valor Recaudado': `$${Math.round(a.valorRec).toLocaleString('es-CO')}`,
+      'Conversión': `${a.conversion}%`,
+      'Tiempo Promedio de Pago': `${a.avgPaymentTime} días`
+    }));
+    const ws2 = XLSX.utils.json_to_sheet(sheet2Data);
+    XLSX.utils.book_append_sheet(wb, ws2, 'Ranking de Asesores');
 
-    // 2. Top Asesores
-    const wsAsesores = XLSX.utils.json_to_sheet(groupings.topAsesores.map((a, idx) => ({
-      Ranking: idx + 1,
-      Asesor: a.name,
-      Correo: a.email,
-      'Casos Gestionados': a.casos,
-      'Links Generados': a.linksGen,
-      'Links Pagados': a.linksPagados,
-      'Valor Generado ($)': a.valorGen,
-      'Valor Recaudado ($)': a.valorRec,
-      'Conversión (%)': a.conversion,
-      'Tiempo Promedio Pago (días)': a.avgPaymentTime
-    })));
-    XLSX.utils.book_append_sheet(wb, wsAsesores, 'Ranking Asesores');
+    // Hoja 3 – Desempeño por Supervisores
+    const sheet3Data = groupings.topSupervisores.map(s => ({
+      'Supervisor': s.name,
+      'Total Casos': s.casos,
+      'Links Generados': s.linksGen,
+      'Monto Recaudado': `$${Math.round(s.valorRec).toLocaleString('es-CO')}`,
+      'Conversión': `${s.conversion}%`
+    }));
+    const ws3 = XLSX.utils.json_to_sheet(sheet3Data);
+    XLSX.utils.book_append_sheet(wb, ws3, 'Desempeño por Supervisores');
 
-    // 3. Top Supervisores
-    const wsSupervisores = XLSX.utils.json_to_sheet(groupings.topSupervisores.map((s, idx) => ({
-      Ranking: idx + 1,
-      Supervisor: s.name,
-      Casos: s.casos,
-      Links: s.linksGen,
-      'Valor Recaudado ($)': s.valorRec,
-      'Conversión (%)': s.conversion
-    })));
-    XLSX.utils.book_append_sheet(wb, wsSupervisores, 'Ranking Supervisores');
+    // Hoja 4 – Desempeño por Carteras
+    const sheet4Data = groupings.topCarteras.map(c => ({
+      'Cartera': c.name,
+      'Total Casos': c.casos,
+      'Links Generados': c.linksGen,
+      'Monto Recaudado': `$${Math.round(c.valorRec).toLocaleString('es-CO')}`,
+      'Conversión': `${c.conversion}%`
+    }));
+    const ws4 = XLSX.utils.json_to_sheet(sheet4Data);
+    XLSX.utils.book_append_sheet(wb, ws4, 'Desempeño por Carteras');
 
-    // 4. Top Carteras
-    const wsCarteras = XLSX.utils.json_to_sheet(groupings.topCarteras.map((c, idx) => ({
-      Ranking: idx + 1,
-      Cartera: c.name,
-      Casos: c.casos,
-      Links: c.linksGen,
-      'Valor Recaudado ($)': c.valorRec,
-      'Conversión (%)': c.conversion
-    })));
-    XLSX.utils.book_append_sheet(wb, wsCarteras, 'Ranking Carteras');
+    // Hoja 5 – Apoyos entre Asesores
+    const totalApoyos = groupings.topApoyosYTransfers.reduce((acc, current) => acc + (current.apoyosBrindados || 0), 0);
+    const sheet5Data = groupings.topApoyosYTransfers.map(a => {
+      const participationPct = totalApoyos > 0 ? ((a.apoyosBrindados / totalApoyos) * 100).toFixed(1) : '0';
+      return {
+        'Asesor Responsable': a.name,
+        'Apoyos Brindados': a.apoyosBrindados,
+        'Casos Recibidos': a.apoyosRecibidos,
+        '% Participación': `${participationPct}%`
+      };
+    });
+    const ws5 = XLSX.utils.json_to_sheet(sheet5Data);
+    XLSX.utils.book_append_sheet(wb, ws5, 'Apoyos entre Asesores');
 
-    // 5. Top Responsables
-    const wsResponsables = XLSX.utils.json_to_sheet(groupings.topResponsables.map((r, idx) => ({
-      Ranking: idx + 1,
-      Responsable: r.name,
-      Casos: r.casos,
-      'Links Generados': r.linksGen,
-      'Valor Recaudado ($)': r.valorRec,
-      'Conversión (%)': r.conversion
-    })));
-    XLSX.utils.book_append_sheet(wb, wsResponsables, 'Ranking Responsables');
+    // Hoja 6 – Ranking de Asesores que Más Reciben Apoyo
+    const recibidosMap = new Map<string, { name: string; email: string; casosRecibidos: number; distinctHelpers: Set<string> }>();
+    filteredData.crm.forEach(t => {
+      const emisorEmail = (t.fromAdvisorEmail || '').trim().toLowerCase();
+      const receptorEmail = (t.toAdvisorEmail || '').trim().toLowerCase();
+      const emisorName = t.fromAdvisorName;
+      const receptorName = t.toAdvisorName;
 
-    // 6. Top Emisores
-    const wsEmisores = XLSX.utils.json_to_sheet(groupings.topEmisores.map((e, idx) => ({
-      Ranking: idx + 1,
-      Emisor: e.name,
-      'Links Generados': e.linksGen,
-      'Valor Generado ($)': e.valorGen,
-      'Valor Recaudado ($)': e.valorRec,
-      'Conversión (%)': e.conversion
-    })));
-    XLSX.utils.book_append_sheet(wb, wsEmisores, 'Ranking Emisores');
+      if (
+        emisorEmail && 
+        receptorEmail && 
+        emisorEmail !== receptorEmail && 
+        emisorEmail !== 'lidercartera2@ngsoabogados.com' && 
+        receptorEmail !== 'lidercartera2@ngsoabogados.com'
+      ) {
+        if (!recibidosMap.has(receptorEmail)) {
+          recibidosMap.set(receptorEmail, {
+            name: toTitleCase(receptorName || receptorEmail.split('@')[0]),
+            email: receptorEmail,
+            casosRecibidos: 0,
+            distinctHelpers: new Set<string>()
+          });
+        }
+        const record = recibidosMap.get(receptorEmail)!;
+        record.casosRecibidos++;
+        record.distinctHelpers.add(emisorEmail);
+      }
+    });
 
-    // 7. Colaboración y Apoyos
-    const wsApoyos = XLSX.utils.json_to_sheet(groupings.topApoyos.map((ap, idx) => ({
-      Ranking: idx + 1,
-      'Asesor Brindó Apoyo': ap.brinda,
-      'Asesor Recibió Apoyo': ap.recibe,
-      'Casos Apoyados': ap.casos,
-      'Links Generados': ap.linksGen,
-      'Recaudo Obtenido ($)': ap.valorRec
-    })));
-    XLSX.utils.book_append_sheet(wb, wsApoyos, 'Colaboración y Apoyos');
+    const listRecibenApoyoSorted = Array.from(recibidosMap.values())
+      .sort((a, b) => b.casosRecibidos - a.casosRecibidos);
 
-    // 8. Transferencias de Casos
-    const wsTransferencias = XLSX.utils.json_to_sheet(groupings.topTransferencias.list.map((t, idx) => ({
-      Ranking: idx + 1,
-      Asesor: t.name,
+    const top15RecibenApoyo = listRecibenApoyoSorted.slice(0, 15);
+
+    const sheet6Data = top15RecibenApoyo.map((item, index) => {
+      const pct = totalApoyos > 0 ? ((item.casosRecibidos / totalApoyos) * 100).toFixed(1) : '0';
+      return {
+        '#': index + 1,
+        'Asesor Apoyado': item.name,
+        'Casos Recibidos': item.casosRecibidos,
+        'Cantidad de Asesores Diferentes que lo Apoyaron': item.distinctHelpers.size,
+        '% del Total': `${pct}%`
+      };
+    });
+    const ws6 = XLSX.utils.json_to_sheet(sheet6Data);
+    XLSX.utils.book_append_sheet(wb, ws6, 'Ranking Reciben Apoyo');
+
+    // Hoja 7 – Transferencias
+    const sheet7Data = groupings.topTransferencias.list.map(t => ({
+      'Asesor': t.name,
       'Transferencias Enviadas': t.enviadas,
       'Transferencias Recibidas': t.recibidas,
       'Total Movimientos': t.enviadas + t.recibidas
-    })));
-    XLSX.utils.book_append_sheet(wb, wsTransferencias, 'Transferencias de Casos');
+    }));
+    const ws7 = XLSX.utils.json_to_sheet(sheet7Data);
+    XLSX.utils.book_append_sheet(wb, ws7, 'Transferencias');
 
-    XLSX.writeFile(wb, `Dashboard_Ejecutivo_Conciliacion_${new Date().toISOString().split('T')[0]}.xlsx`);
+    // Hoja 8 – Conciliación Financiera
+    const sheet8Data = [
+      { Concepto: 'Valor CRM', Valor: `$${Math.round(metrics.valorRegistradoCRM).toLocaleString('es-CO')}` },
+      { Concepto: 'Valor Recaudado', Valor: `$${Math.round(metrics.recaudoEfectivo).toLocaleString('es-CO')}` },
+      { Concepto: 'Conversión Monetaria', Valor: `${metrics.conversionPago}%` },
+      { Concepto: 'Links Pagados', Valor: metrics.linksPagados },
+      { Concepto: 'Pendientes', Valor: metrics.linksPendientes },
+      { Concepto: 'Anulados', Valor: metrics.linksAnulados }
+    ];
+    const ws8 = XLSX.utils.json_to_sheet(sheet8Data);
+    XLSX.utils.book_append_sheet(wb, ws8, 'Conciliación Financiera');
+
+    // Hoja 9 – Detalle de Gestiones
+    const sheet9Data = filteredData.reconciled.map(item => ({
+      'Cliente': item.cliente || '-',
+      'Solicitud': item.solicitud || '-',
+      'Fecha Generación': item.fecha_generacion_link || '-',
+      'Fecha Vencimiento': item.fecha_vencimiento_link || '-',
+      'Fecha Pago': item.fecha_pago || '-',
+      'Estado': item.estadoCRM || '-',
+      'Valor CRM': `$${Math.round(item.valor_link_crm || 0).toLocaleString('es-CO')}`,
+      'Valor Recaudado': `$${Math.round(item.valor_liquidacion || 0).toLocaleString('es-CO')}`,
+      'Emisor': item.emisor || '-',
+      'Responsable': item.responsable || '-',
+      'Supervisor': item.supervisor || '-',
+      'Cartera': item.cartera || '-',
+      'Funcionario': item.funcionario || '-',
+      'Tipo Recaudo': item.tipo_recaudo || '-'
+    }));
+    const ws9 = XLSX.utils.json_to_sheet(sheet9Data);
+    XLSX.utils.book_append_sheet(wb, ws9, 'Detalle de Gestiones');
+
+    XLSX.writeFile(wb, `Reporte_Ejecutivo_${filterStartDate || 'historico'}_a_${filterEndDate || 'hoy'}.xlsx`);
     toast.success('Libro de Excel descargado con éxito.');
   };
 
@@ -1337,6 +1393,15 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({ transfer
   const exportPDF = () => {
     const doc = new jsPDF();
     const primaryColor: [number, number, number] = [161, 22, 27]; // Seguros Bolivar Red
+
+    const formatPDFDate = (dateStr: string) => {
+      if (!dateStr) return 'No definida';
+      const parts = dateStr.split('-');
+      if (parts.length === 3) {
+        return `${parts[2]}/${parts[1]}/${parts[0]}`;
+      }
+      return dateStr;
+    };
 
     // 🎨 CANVAS CHART RENDERING LIBRARY (HIGH RESOLUTION CLIENT-SIDE DRAWING)
     const createChartImage = (width: number, height: number, drawFn: (ctx: CanvasRenderingContext2D) => void): string => {
@@ -1682,16 +1747,27 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({ transfer
     doc.line(30, 88, 185, 88);
 
     // Información del reporte
-    // PERÍODO ANALIZADO
+    // FECHA INICIAL
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(9);
     doc.setTextColor(110, 110, 110); // Gris claro / medio elegante para etiquetas
-    doc.text('PERÍODO ANALIZADO', 30, 105);
+    doc.text('FECHA INICIAL', 30, 105);
 
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(11);
     doc.setTextColor(21, 49, 87);
-    doc.text(`${filterStartDate || '2026-07-01'} al ${filterEndDate || '2026-07-31'}`, 30, 111);
+    doc.text(filterStartDate ? formatPDFDate(filterStartDate) : 'No definida', 30, 111);
+
+    // FECHA FINAL
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(9);
+    doc.setTextColor(110, 110, 110);
+    doc.text('FECHA FINAL', 30, 120);
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(11);
+    doc.setTextColor(21, 49, 87);
+    doc.text(filterEndDate ? formatPDFDate(filterEndDate) : 'No definida', 30, 126);
 
     // FECHA DE GENERACIÓN
     const pad = (n: number) => String(n).padStart(2, '0');
@@ -1705,34 +1781,34 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({ transfer
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(9);
     doc.setTextColor(110, 110, 110);
-    doc.text('FECHA DE GENERACIÓN', 30, 123);
+    doc.text('FECHA DE GENERACIÓN', 30, 135);
 
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(11);
     doc.setTextColor(21, 49, 87);
-    doc.text(currentFormattedDate, 30, 129);
+    doc.text(currentFormattedDate, 30, 141);
 
     // USUARIO GENERADOR
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(9);
     doc.setTextColor(110, 110, 110);
-    doc.text('USUARIO GENERADOR', 30, 141);
+    doc.text('USUARIO GENERADOR', 30, 150);
 
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(11);
     doc.setTextColor(21, 49, 87);
-    doc.text('TALIANA MORENO GUZMAN', 30, 147);
+    doc.text('TALIANA MORENO GUZMAN', 30, 156);
 
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(10);
     doc.setTextColor(110, 110, 110);
-    doc.text('taliana.moreno@segurosbolivar.com', 30, 153);
+    doc.text('taliana.moreno@segurosbolivar.com', 30, 161);
 
     // FILTROS APLICADOS
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(9);
     doc.setTextColor(110, 110, 110);
-    doc.text('FILTROS APLICADOS', 30, 165);
+    doc.text('FILTROS APLICADOS', 30, 173);
 
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(10.5);
@@ -1743,10 +1819,10 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({ transfer
     const valResponsable = filterResponsable !== 'todos' ? toTitleCase(filterResponsable) : 'Todos';
     const valCanal = filterCanal !== 'todos' ? filterCanal : 'Todos';
 
-    doc.text(`• Cartera: ${valCartera}`, 30, 172);
-    doc.text(`• Supervisor: ${valSupervisor}`, 30, 178);
-    doc.text(`• Responsable: ${valResponsable}`, 30, 184);
-    doc.text(`• Canal: ${valCanal}`, 30, 190);
+    doc.text(`• Cartera: ${valCartera}`, 30, 180);
+    doc.text(`• Supervisor: ${valSupervisor}`, 30, 186);
+    doc.text(`• Responsable: ${valResponsable}`, 30, 192);
+    doc.text(`• Canal: ${valCanal}`, 30, 198);
 
     // Nota inferior
     doc.setFont('helvetica', 'italic');
@@ -2056,6 +2132,87 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({ transfer
     doc.setTextColor(100, 100, 100);
     doc.text('Ranking de Apoyos', 15, nextYApoyos);
     if (imgApoyos) doc.addImage(imgApoyos, 'PNG', 15, nextYApoyos + 4, 180, 75);
+
+    // PAGE 8B: Ranking de Asesores que Más Reciben Apoyo (AJUSTE 1)
+    doc.addPage();
+    doc.setFontSize(14);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(21, 49, 87);
+    doc.text('Ranking de Asesores que Más Reciben Apoyo', 15, 22);
+
+    const recibidosMap = new Map<string, { name: string; email: string; casosRecibidos: number; distinctHelpers: Set<string> }>();
+
+    filteredData.crm.forEach(t => {
+      const emisorEmail = (t.fromAdvisorEmail || '').trim().toLowerCase();
+      const receptorEmail = (t.toAdvisorEmail || '').trim().toLowerCase();
+      const emisorName = t.fromAdvisorName;
+      const receptorName = t.toAdvisorName;
+
+      if (
+        emisorEmail && 
+        receptorEmail && 
+        emisorEmail !== receptorEmail && 
+        emisorEmail !== 'lidercartera2@ngsoabogados.com' && 
+        receptorEmail !== 'lidercartera2@ngsoabogados.com'
+      ) {
+        if (!recibidosMap.has(receptorEmail)) {
+          recibidosMap.set(receptorEmail, {
+            name: toTitleCase(receptorName || receptorEmail.split('@')[0]),
+            email: receptorEmail,
+            casosRecibidos: 0,
+            distinctHelpers: new Set<string>()
+          });
+        }
+        const record = recibidosMap.get(receptorEmail)!;
+        record.casosRecibidos++;
+        record.distinctHelpers.add(emisorEmail);
+      }
+    });
+
+    const listRecibenApoyoSorted = Array.from(recibidosMap.values())
+      .sort((a, b) => b.casosRecibidos - a.casosRecibidos);
+
+    const top15RecibenApoyo = listRecibenApoyoSorted.slice(0, 15);
+
+    const tableRecibenRows = top15RecibenApoyo.map((item, index) => {
+      const pct = totalApoyos > 0 ? ((item.casosRecibidos / totalApoyos) * 100).toFixed(1) : '0';
+      return [
+        String(index + 1),
+        item.name,
+        String(item.casosRecibidos),
+        String(item.distinctHelpers.size),
+        `${pct}%`
+      ];
+    });
+
+    autoTable(doc, {
+      startY: 30,
+      head: [['#', 'Asesor Apoyado', 'Casos Recibidos', 'Cantidad de Asesores Diferentes que lo Apoyaron', '% del Total']],
+      body: tableRecibenRows,
+      theme: 'striped',
+      headStyles: { fillColor: [21, 49, 87] },
+      styles: { fontSize: 8.5, cellPadding: 2 }
+    });
+
+    const nextYReciben = (doc as any).lastAutoTable.finalY + 12;
+
+    const recibenApoyosBarData = top15RecibenApoyo.slice(0, 10).map(item => ({
+      label: item.name,
+      value: item.casosRecibidos,
+      color: '#153157'
+    }));
+
+    const imgRecibenApoyos = createChartImage(760, 280, (ctx) => {
+      drawHorizontalBarChart(ctx, 760, 280, recibenApoyosBarData);
+    });
+
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(100, 100, 100);
+    doc.text('Asesores con Mayor Cantidad de Apoyos Recibidos', 15, nextYReciben);
+    if (imgRecibenApoyos) {
+      doc.addImage(imgRecibenApoyos, 'PNG', 15, nextYReciben + 4, 180, 72);
+    }
 
     // PAGE 9: Transferencias
     doc.addPage();
