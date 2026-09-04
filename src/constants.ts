@@ -12,6 +12,14 @@ export const TRANSFER_STATUSES = [
 
 export type UserRole = 'asesor' | 'supervisor' | 'admin';
 
+// Únicos correos que pueden ver y usar el módulo "Validación NGSO"
+// (aprobar/rechazar solicitudes redirigidas), sin importar su rol.
+export const NGSO_VALIDATOR_EMAILS = [
+  'aldair.avila@segurosbolivar.com',
+  'helen.pantoja@segurosbolivar.com',
+  'asly.camelo@segurosbolivar.com'
+];
+
 export interface Advisor {
   nombre: string;
   correo: string;

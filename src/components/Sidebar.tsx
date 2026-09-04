@@ -14,11 +14,13 @@ import {
   X,
   Menu,
   DollarSign,
-  TrendingUp
+  TrendingUp,
+  Building2
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { User } from '../types';
+import { NGSO_VALIDATOR_EMAILS } from '../constants';
 
 interface SidebarProps {
   activeTab?: string;
@@ -48,6 +50,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
     { id: 'executive-dashboard', label: 'Dashboard Ejecutivo', icon: TrendingUp, role: ['admin', 'supervisor'] },
     { id: 'new-transfer', label: 'Nueva Gestión', icon: PhoneForwarded },
     { id: 'my-tasks', label: 'Mis Gestiones', icon: ClipboardList },
+    { id: 'redirect-ngso', label: 'Redirigir a NGSO', icon: Building2 },
+    { id: 'ngso-validation', label: 'Validación NGSO', icon: ShieldCheck, emails: NGSO_VALIDATOR_EMAILS },
     { id: 'recaudo', label: 'Seguimiento Recaudo', icon: DollarSign, role: ['admin', 'supervisor'] },
     { id: 'advisor-management', label: 'Gestión Asesores', icon: Users, role: ['admin', 'supervisor'] },
     { id: 'ranking', label: 'Clasificación', icon: Trophy, role: ['admin', 'supervisor'] },
@@ -55,9 +59,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
     { id: 'history', label: 'Historial', icon: History, role: ['admin', 'supervisor'] },
   ];
 
-  const filteredMenu = menuItems.filter(item => 
-    !item.role || (user && item.role.includes(user.role))
-  );
+  const filteredMenu = menuItems.filter(item => {
+    if (item.emails) {
+      return !!user && item.emails.includes((user.email || '').toLowerCase());
+    }
+    return !item.role || (user && item.role.includes(user.role));
+  });
 
   return (
     <>

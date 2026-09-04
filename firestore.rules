@@ -59,6 +59,19 @@ service cloud.firestore {
       );
     }
 
+    // Únicos que pueden ver y validar (aprobar/rechazar) el módulo de
+    // solicitudes redirigidas a NGSO — independiente del rol/cartera.
+    function isKnownNgsoValidatorEmail(email) {
+      return email == "aldair.avila@segurosbolivar.com" ||
+             email == "helen.pantoja@segurosbolivar.com" ||
+             email == "asly.camelo@segurosbolivar.com";
+    }
+
+    function isNgsoValidator() {
+      let email = getEmail();
+      return isSignedIn() && (isKnownNgsoValidatorEmail(email) || isAdmin());
+    }
+
     // --- REGLAS POR COLECCIÓN ---
 
     // 1. Usuarios (Directorio y Perfiles)
@@ -102,6 +115,18 @@ service cloud.firestore {
     // 5. Recaudo Histórico (Conciliaciones)
     match /recaudo_historico/{recordId} {
       allow read, write: if isSignedIn();
+    }
+
+    // 6. Solicitudes redirigidas a NGSO (cola de validación de supervisor)
+    function isNgsoRedirectOwner(data) {
+      return isSignedIn() && getEmail() != "" && data.get('redirectedByEmail', '') == getEmail();
+    }
+
+    match /ngso_redirects/{recordId} {
+      allow read: if isSignedIn() && (isNgsoValidator() || isNgsoRedirectOwner(resource.data));
+      allow create: if isSignedIn();
+      allow update: if isSignedIn() && isNgsoValidator();
+      allow delete: if isSignedIn() && isAdmin();
     }
 
   }

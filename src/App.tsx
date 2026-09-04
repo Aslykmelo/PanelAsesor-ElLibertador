@@ -10,6 +10,8 @@ import { Profile } from './components/Profile';
 import { UserManagement } from './components/UserManagement';
 import { AdvisorManagement } from './components/AdvisorManagement';
 import { RecaudoTracking } from './components/RecaudoTracking';
+import { RedirectToNgso } from './components/RedirectToNgso';
+import { NgsoValidation } from './components/NgsoValidation';
 import { ExecutiveDashboard } from './components/ExecutiveDashboard';
 import { Notifications, Notification } from './components/Notifications';
 import { UserMenu } from './components/UserMenu';
@@ -17,6 +19,7 @@ import { Login } from './components/Login';
 import { ThemeToggle } from './components/ThemeToggle';
 import { Toaster } from '@/components/ui/sonner';
 import { Transfer, User, Advisor } from './types';
+import { NGSO_VALIDATOR_EMAILS } from './constants';
 import { Search, Menu, X, Loader2, User as UserIcon, Shield, Database } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -578,6 +581,16 @@ export default function App() {
       
       case 'new-transfer':
         return <TransferForm onSubmit={handleNewTransfer} currentUser={currentUser!} advisors={advisors} />;
+
+      case 'redirect-ngso':
+        return <RedirectToNgso currentUser={currentUser!} />;
+
+      case 'ngso-validation':
+        if (!NGSO_VALIDATOR_EMAILS.includes((currentUser?.email || '').toLowerCase())) {
+          setActiveTab('dashboard');
+          return null;
+        }
+        return <NgsoValidation currentUser={currentUser!} />;
 
       case 'my-tasks':
         return (

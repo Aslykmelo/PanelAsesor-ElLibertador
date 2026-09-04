@@ -5,6 +5,7 @@ import { fileURLToPath } from "url";
 import nodemailer from "nodemailer";
 import dotenv from "dotenv";
 import { createClient } from "@supabase/supabase-js";
+import { getConversationTags, findConversationsByRequestNumber, redirectConversationsToNgso } from "./lib/infobipNgso";
 
 dotenv.config();
 
@@ -224,8 +225,63 @@ async function startServer() {
     res.json({
       emailUserSet: !!process.env.EMAIL_USER,
       emailPassSet: !!process.env.EMAIL_PASS,
-      supabaseConfigured: isSupabaseConfigured
+      supabaseConfigured: isSupabaseConfigured,
+      infobipConfigured: !!process.env.INFOBIP_API_KEY && !!process.env.INFOBIP_BASE_URL
     });
+  });
+
+  // Redirigir a NGSO: buscar en Infobip todas las conversaciones activas
+  // (OPEN/WAITING) cuyo tópico contenga el número de solicitud dado — un
+  // mismo número puede tener varias conversaciones a la vez.
+  app.get("/api/ngso/search", async (req, res) => {
+    const requestNumber = String(req.query.requestNumber || "").trim();
+    if (!requestNumber) {
+      return res.status(400).json({ error: "requestNumber es requerido" });
+    }
+    try {
+      const conversations = await findConversationsByRequestNumber(requestNumber);
+      res.json({ conversations });
+    } catch (error: any) {
+      console.error("Error al buscar conversaciones de Infobip:", error);
+      res.status(500).json({ error: error.message || "Error desconocido al buscar la solicitud" });
+    }
+  });
+
+  // Redirigir a NGSO: consultar las etiquetas actuales de una conversación
+  // de Infobip para que el asesor elija cuáles quitar.
+  app.get("/api/ngso/conversation/:id/tags", async (req, res) => {
+    try {
+      const tags = await getConversationTags(req.params.id);
+      res.json({ tags });
+    } catch (error: any) {
+      console.error("Error al consultar etiquetas de Infobip:", error);
+      res.status(500).json({ error: error.message || "Error desconocido al consultar etiquetas" });
+    }
+  });
+
+  // Redirigir a NGSO: envía el mensaje de aviso al cliente y luego quita las
+  // etiquetas seleccionadas por el asesor, en cada conversación del lote.
+  app.post("/api/ngso/redirect", async (req, res) => {
+    const { conversationIds, message, tagNamesToRemove } = req.body || {};
+
+    if (!Array.isArray(conversationIds) || conversationIds.length === 0) {
+      return res.status(400).json({ error: "conversationIds es requerido" });
+    }
+    if (!message || typeof message !== "string" || !message.trim()) {
+      return res.status(400).json({ error: "El mensaje para el cliente es requerido" });
+    }
+
+    try {
+      const results = await redirectConversationsToNgso(
+        conversationIds,
+        message,
+        Array.isArray(tagNamesToRemove) ? tagNamesToRemove : []
+      );
+      res.json({ success: true, results });
+    } catch (error: any) {
+      console.error("Error al redirigir conversación a NGSO:", error);
+      res.status(500).json({ error: error.message || "Error desconocido al redirigir la conversación" });
+    }
   });
 
   // Vite middleware for development
