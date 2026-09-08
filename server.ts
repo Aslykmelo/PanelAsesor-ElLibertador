@@ -5,7 +5,7 @@ import { fileURLToPath } from "url";
 import nodemailer from "nodemailer";
 import dotenv from "dotenv";
 import { createClient } from "@supabase/supabase-js";
-import { getConversationTags, findConversationsByRequestNumber, redirectConversationsToNgso } from "./lib/infobipNgso";
+import { getConversationContactTags, findConversationsByRequestNumber, redirectConversationsToNgso } from "./lib/infobipNgso";
 
 dotenv.config();
 
@@ -230,9 +230,10 @@ async function startServer() {
     });
   });
 
-  // Redirigir a NGSO: buscar en Infobip todas las conversaciones activas
-  // (OPEN/WAITING) cuyo tópico contenga el número de solicitud dado — un
-  // mismo número puede tener varias conversaciones a la vez.
+  // Redirigir a NGSO: buscar en Infobip los contactos de People cuyo nombre
+  // contenga el número de solicitud dado y encontrar sus conversaciones
+  // activas (OPEN/WAITING) — un mismo número puede tener varios contactos
+  // (deudor, codeudor(es), arrendador...) y por lo tanto varias conversaciones.
   app.get("/api/ngso/search", async (req, res) => {
     const requestNumber = String(req.query.requestNumber || "").trim();
     if (!requestNumber) {
@@ -247,11 +248,12 @@ async function startServer() {
     }
   });
 
-  // Redirigir a NGSO: consultar las etiquetas actuales de una conversación
-  // de Infobip para que el asesor elija cuáles quitar.
+  // Redirigir a NGSO: consultar las etiquetas actuales del contacto de
+  // People asociado a esta conversación, para que el asesor elija cuáles
+  // quitar.
   app.get("/api/ngso/conversation/:id/tags", async (req, res) => {
     try {
-      const tags = await getConversationTags(req.params.id);
+      const { tags } = await getConversationContactTags(req.params.id);
       res.json({ tags });
     } catch (error: any) {
       console.error("Error al consultar etiquetas de Infobip:", error);
@@ -259,10 +261,13 @@ async function startServer() {
     }
   });
 
-  // Redirigir a NGSO: envía el mensaje de aviso al cliente y luego quita las
-  // etiquetas seleccionadas por el asesor, en cada conversación del lote.
-  app.post("/api/ngso/redirect", async (req, res) => {
-    const { conversationIds, message, tagNamesToRemove } = req.body || {};
+  // Redirigir a NGSO: el asesor solo deja la solicitud pendiente de
+  // aprobación (eso lo guarda el cliente directo en Firestore). Este
+  // endpoint es la ejecución real — mensaje al cliente, etiquetas y correo
+  // de aviso a NGSO — y solo lo dispara un aprobador desde NgsoValidation al
+  // aprobar la solicitud.
+  app.post("/api/ngso/approve", async (req, res) => {
+    const { conversationIds, message, tagNamesToRemove, requestNumber } = req.body || {};
 
     if (!Array.isArray(conversationIds) || conversationIds.length === 0) {
       return res.status(400).json({ error: "conversationIds es requerido" });
@@ -277,6 +282,26 @@ async function startServer() {
         message,
         Array.isArray(tagNamesToRemove) ? tagNamesToRemove : []
       );
+
+      if (process.env.EMAIL_USER && process.env.EMAIL_PASS) {
+        try {
+          await getTransporter().sendMail({
+            from: `"El Libertador" <${process.env.EMAIL_USER}>`,
+            to: "lidercartera2@ngsoabogados.com",
+            subject: `Atender requerimiento Eli: Solicitud: ${requestNumber || ""}`,
+            html: `<div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto;">
+              <p>Se está enviando a NGSO la solicitud <b>${requestNumber || ""}</b>.</p>
+              <p>Se avisó al cliente y se retiraron las etiquetas de asesor/compañía en Infobip.</p>
+            </div>`,
+          });
+        } catch (emailError) {
+          console.error("No fue posible enviar el correo de aviso a NGSO:", emailError);
+          // No bloquea la respuesta: el caso ya se redirigió igual, el correo es solo un aviso.
+        }
+      } else {
+        console.warn("EMAIL_USER/EMAIL_PASS no configurados: se omitió el correo de aviso a NGSO.");
+      }
+
       res.json({ success: true, results });
     } catch (error: any) {
       console.error("Error al redirigir conversación a NGSO:", error);

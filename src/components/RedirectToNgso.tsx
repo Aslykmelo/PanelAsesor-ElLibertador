@@ -15,8 +15,7 @@ import { logError } from '../logger';
 import { User } from '../types';
 import { Loader2, Search, Tag, Send, CheckCircle2, AlertTriangle, MessageSquareText } from 'lucide-react';
 
-type ConversationMatch = { id: string; topic: string | null; status: string; agentId: string | null };
-type ConversationTag = { id: string; name: string };
+type ConversationMatch = { id: string; contactName: string | null; status: string; agentId: string | null };
 
 interface RedirectToNgsoProps {
   currentUser: User;
@@ -38,7 +37,7 @@ export const RedirectToNgso: React.FC<RedirectToNgsoProps> = ({ currentUser }) =
   const [searching, setSearching] = useState(false);
   const [matches, setMatches] = useState<ConversationMatch[] | null>(null);
   const [selectedConversationIds, setSelectedConversationIds] = useState<Set<string>>(new Set());
-  const [tagsByConversation, setTagsByConversation] = useState<Record<string, ConversationTag[]>>({});
+  const [tagsByConversation, setTagsByConversation] = useState<Record<string, string[]>>({});
   const [selectedTags, setSelectedTags] = useState<Set<string>>(new Set());
   const [message, setMessage] = useState(DEFAULT_NGSO_MESSAGE);
   const [sending, setSending] = useState(false);
@@ -53,7 +52,7 @@ export const RedirectToNgso: React.FC<RedirectToNgsoProps> = ({ currentUser }) =
   const availableTags = useMemo(() => {
     const names = new Map<string, string>();
     selectedConversationIds.forEach(id => {
-      (tagsByConversation[id] || []).forEach(t => names.set(t.name, t.name));
+      (tagsByConversation[id] || []).forEach(t => names.set(t, t));
     });
     return Array.from(names.values()).sort();
   }, [tagsByConversation, selectedConversationIds]);
@@ -133,11 +132,11 @@ export const RedirectToNgso: React.FC<RedirectToNgsoProps> = ({ currentUser }) =
       return;
     }
 
-    toast.warning(`¿Redirigir ${selectedConversationIds.size} conversación(es) a NGSO?`, {
-      description: 'Se enviará un mensaje real al cliente en cada una y se quitarán las etiquetas seleccionadas en Infobip. Esta acción no se puede deshacer.',
+    toast.warning(`¿Enviar la solicitud #${requestNumber.trim()} a NGSO para aprobación?`, {
+      description: 'Todavía no se le avisa al cliente ni se quitan etiquetas — eso pasa solo si un aprobador confirma la solicitud en Validación NGSO.',
       action: {
-        label: 'Confirmar y enviar',
-        onClick: () => doRedirect()
+        label: 'Enviar para aprobación',
+        onClick: () => doSubmitForApproval()
       },
       cancel: {
         label: 'Cancelar'
@@ -145,62 +144,38 @@ export const RedirectToNgso: React.FC<RedirectToNgsoProps> = ({ currentUser }) =
     });
   };
 
-  const doRedirect = async () => {
+  const doSubmitForApproval = async () => {
     const conversationIds = Array.from(selectedConversationIds);
     const tagNamesToRemove = Array.from(selectedTags);
     const solicitud = requestNumber.trim();
 
     setSending(true);
     try {
-      const res = await fetch(`${window.location.origin}/api/ngso/redirect`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ conversationIds, message: message.trim(), tagNamesToRemove })
+      await addDoc(collection(db, 'ngso_redirects'), {
+        requestNumber: solicitud,
+        conversations: (matches || [])
+          .filter(m => conversationIds.includes(m.id))
+          .map(m => ({ conversationId: m.id, contactName: m.contactName || '' })),
+        tagsToRemove: tagNamesToRemove,
+        message: message.trim(),
+        redirectedByEmail: (currentUser.email || '').toLowerCase(),
+        redirectedByName: currentUser.name || '',
+        redirectedAt: serverTimestamp(),
+        status: 'pendiente',
+        validatedByEmail: null,
+        validatedByName: null,
+        validatedAt: null,
+        motivo: null,
+        executionResults: null
       });
-      const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data?.error || 'No fue posible redirigir la solicitud');
-      }
 
-      const results: any[] = data.results || [];
-      const failedConversations = results.filter(r => !r.ok);
-
-      try {
-        await addDoc(collection(db, 'ngso_redirects'), {
-          requestNumber: solicitud,
-          conversations: (matches || [])
-            .filter(m => conversationIds.includes(m.id))
-            .map(m => ({ conversationId: m.id, topic: m.topic || '' })),
-          tagsRemoved: tagNamesToRemove,
-          message: message.trim(),
-          results,
-          redirectedByEmail: (currentUser.email || '').toLowerCase(),
-          redirectedByName: currentUser.name || '',
-          redirectedAt: serverTimestamp(),
-          status: 'pendiente',
-          validatedByEmail: null,
-          validatedByName: null,
-          validatedAt: null,
-          motivo: null
-        });
-      } catch (e) {
-        logError(e, 'RedirectToNgso/SaveValidationRecord');
-      }
-
-      if (failedConversations.length > 0) {
-        toast.warning('Algunas conversaciones no se pudieron redirigir', {
-          description: failedConversations.map((f: any) => f.conversationId).join(', ')
-        });
-      } else {
-        toast.success('Solicitud redirigida a NGSO exitosamente');
-      }
-
+      toast.success('Solicitud enviada para aprobación de NGSO');
       setRequestNumber('');
       setMessage(DEFAULT_NGSO_MESSAGE);
       resetSearch();
     } catch (e: any) {
-      logError(e, 'RedirectToNgso/Redirect');
-      toast.error(e.message || 'No fue posible redirigir la solicitud');
+      logError(e, 'RedirectToNgso/SubmitForApproval');
+      toast.error(e.message || 'No fue posible enviar la solicitud para aprobación');
     } finally {
       setSending(false);
     }
@@ -214,7 +189,7 @@ export const RedirectToNgso: React.FC<RedirectToNgsoProps> = ({ currentUser }) =
         </div>
         <h1 className="text-3xl font-black text-secondary tracking-tight">Redirigir a NGSO</h1>
         <p className="text-muted-foreground mt-2 font-medium">
-          Avisa al cliente y quita las etiquetas de asesor/compañía de las conversaciones de una solicitud que ya es de NGSO
+          Envía la solicitud para aprobación: el aviso al cliente y el retiro de etiquetas solo ocurren si un aprobador la confirma en Validación NGSO
         </p>
       </div>
 
@@ -282,7 +257,7 @@ export const RedirectToNgso: React.FC<RedirectToNgsoProps> = ({ currentUser }) =
                       <div className="w-5 h-5 rounded-full border-2 border-muted-foreground/40 shrink-0 mt-0.5" />
                     )}
                     <div className="overflow-hidden">
-                      <p className="text-sm font-bold text-secondary dark:text-foreground truncate">{m.topic || 'Sin tópico'}</p>
+                      <p className="text-sm font-bold text-secondary dark:text-foreground truncate">{m.contactName || 'Sin nombre'}</p>
                       <p className="text-[10px] font-black uppercase tracking-wider text-muted-foreground mt-0.5">
                         {m.status} · ID: {m.id}
                       </p>
@@ -303,7 +278,7 @@ export const RedirectToNgso: React.FC<RedirectToNgsoProps> = ({ currentUser }) =
               </CardTitle>
             </CardHeader>
             <CardContent className="p-8 space-y-4">
-              <p className="text-xs text-muted-foreground">Marca la etiqueta del asesor y la de compañía asesor (o cualquier otra que corresponda quitar). Solo se quitará de las conversaciones que realmente la tengan.</p>
+              <p className="text-xs text-muted-foreground">Marca la etiqueta del asesor y la de compañía asesor (o cualquier otra que corresponda quitar). Solo se quitará de los contactos que realmente la tengan. El atributo "Agente_campaña" del contacto se vacía automáticamente al redirigir.</p>
               <div className="flex flex-wrap gap-2">
                 {availableTags.map(name => {
                   const isSelected = selectedTags.has(name);
@@ -344,7 +319,7 @@ export const RedirectToNgso: React.FC<RedirectToNgsoProps> = ({ currentUser }) =
             />
             <div className="flex items-start gap-2 text-xs text-amber-700 dark:text-amber-400 bg-amber-500/10 border border-amber-500/20 rounded-2xl p-4">
               <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" />
-              <span>Este mensaje se envía de verdad al cliente por Infobip, en cada conversación seleccionada. Revísalo antes de confirmar.</span>
+              <span>Este es el mensaje que recibirá el cliente por Infobip, pero solo se envía cuando un aprobador confirme la solicitud. Revísalo antes de enviarla.</span>
             </div>
           </CardContent>
         </Card>
@@ -360,7 +335,7 @@ export const RedirectToNgso: React.FC<RedirectToNgsoProps> = ({ currentUser }) =
           ) : (
             <>
               <Send className="w-6 h-6 mr-2" />
-              Redirigir a NGSO {selectedConversationIds.size > 0 ? `(${selectedConversationIds.size})` : ''}
+              Enviar para Aprobación {selectedConversationIds.size > 0 ? `(${selectedConversationIds.size})` : ''}
             </>
           )}
         </Button>

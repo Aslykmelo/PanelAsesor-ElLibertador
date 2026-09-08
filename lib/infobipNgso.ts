@@ -1,11 +1,13 @@
-// Cliente de escritura para la API de Conversations (CCaaS) de Infobip —
-// usado exclusivamente por el flujo "Redirigir a NGSO": consulta las
-// etiquetas de una conversación, quita las que el asesor marque, y envía el
-// mensaje de aviso al cliente. Usa INFOBIP_API_KEY/INFOBIP_BASE_URL
-// (variables de entorno — nunca hardcodeadas), con el header
-// "Authorization: App <key>" que exige el esquema de "API key header" de
-// Infobip. Solo se importa desde código de servidor (server.ts, api/index.ts)
-// — nunca desde src/, para que la key no termine en el bundle del cliente.
+// Cliente de escritura para las APIs de Conversations (CCaaS) y People de
+// Infobip — usado exclusivamente por el flujo "Redirigir a NGSO": busca la
+// conversación y envía el mensaje de aviso al cliente por Conversations, y
+// consulta/quita las etiquetas y el atributo de campaña del contacto por
+// People (ahí es donde realmente viven, no en la conversación). Usa
+// INFOBIP_API_KEY/INFOBIP_BASE_URL (variables de entorno — nunca
+// hardcodeadas), con el header "Authorization: App <key>" que exige el
+// esquema de "API key header" de Infobip. Solo se importa desde código de
+// servidor (server.ts, api/index.ts) — nunca desde src/, para que la key no
+// termine en el bundle del cliente.
 
 function baseUrl(): string {
   const raw = process.env.INFOBIP_BASE_URL ?? "";
@@ -40,24 +42,77 @@ async function infobipFetch<T>(path: string, init: RequestInit = {}): Promise<T>
   return res.json() as Promise<T>;
 }
 
-export type InfobipTag = { id: string; name: string };
+// Las etiquetas de asesor/compañía (p. ej. "ASESOR135_HEIDY.MEDINA") no viven
+// en la conversación de CCaaS sino en el perfil del contacto en el módulo
+// "People" de Infobip — confirmado viendo el perfil real en el portal. El
+// contacto se identifica por el teléfono del último mensaje entrante de la
+// conversación (mismo número que aparece en "contactInformation.phone" del
+// perfil de People).
+export type InfobipPerson = {
+  id: number;
+  firstName?: string;
+  tags: string[];
+  customAttributes: Record<string, unknown>;
+  contactInformation?: { phone?: { number: string; isPrimary?: boolean }[] };
+};
 
-// Etiquetas actualmente puestas en una conversación puntual (no el catálogo
-// global de etiquetas de la cuenta).
-export async function getConversationTags(conversationId: string): Promise<InfobipTag[]> {
-  const data = await infobipFetch<{ tags: InfobipTag[] }>(
-    `/ccaas/1/tags?conversationId=${encodeURIComponent(conversationId)}&limit=200`
-  );
-  return data.tags ?? [];
+// Junto con la etiqueta, el perfil trae un atributo personalizado que
+// duplica el mismo valor — se vacía al redirigir, igual que la etiqueta.
+const CAMPAIGN_ATTRIBUTE = "Agente_campaña";
+
+export async function getPersonByPhone(phone: string): Promise<InfobipPerson | null> {
+  const digits = phone.replace(/\D/g, "");
+  if (!digits) return null;
+  const apiKey = requireApiKey();
+  const res = await fetch(`${baseUrl()}/people/2/persons?identifier=${encodeURIComponent(digits)}&type=PHONE`, {
+    headers: { Authorization: `App ${apiKey}`, Accept: "application/json" },
+  });
+  if (res.status === 404) return null;
+  if (!res.ok) {
+    const body = await res.text().catch(() => "");
+    throw new Error(`Infobip GET /people/2/persons respondió ${res.status}${body ? `: ${body}` : ""}`);
+  }
+  return res.json() as Promise<InfobipPerson>;
 }
 
-// Quita una etiqueta puntual de la conversación (no borra la etiqueta del
-// catálogo global ni afecta otras conversaciones que también la tengan).
-export async function removeConversationTag(conversationId: string, tagName: string): Promise<void> {
-  await infobipFetch(
-    `/ccaas/1/conversations/${encodeURIComponent(conversationId)}/tags/${encodeURIComponent(tagName)}`,
-    { method: "DELETE" }
+// Quita una etiqueta puntual del contacto (no borra la etiqueta del catálogo
+// global ni afecta otros contactos que también la tengan).
+export async function removePersonTag(personId: number, tagName: string): Promise<void> {
+  await infobipFetch(`/people/2/tags/${encodeURIComponent(tagName)}/persons`, {
+    method: "DELETE",
+    body: JSON.stringify({ people: [{ query: { type: "ID", identifier: String(personId) } }] }),
+  });
+}
+
+export async function clearCampaignAttribute(personId: number): Promise<void> {
+  await infobipFetch(`/people/2/persons?identifier=${personId}&type=ID`, {
+    method: "PATCH",
+    body: JSON.stringify({ customAttributes: { [CAMPAIGN_ATTRIBUTE]: "" } }),
+  });
+}
+
+// Perfiles de People cuyo nombre incluye el número de solicitud (Infobip
+// nombra el contacto como "<solicitud> <nombre> <rol>", p. ej. "10946175
+// NESTOR ALEXANDER CASANOVA PEÑA Codeudor") — un mismo caso puede tener
+// varios (deudor, codeudor(es), arrendador...), cada uno con su propio
+// contacto y su propia conversación.
+export async function getPersonsByRequestNumber(requestNumber: string): Promise<InfobipPerson[]> {
+  const filter = JSON.stringify({ "#contains": { firstName: requestNumber } });
+  const data = await infobipFetch<{ persons: InfobipPerson[] }>(
+    `/people/2/persons?filter=${encodeURIComponent(filter)}&limit=50`
   );
+  return data.persons ?? [];
+}
+
+export type ConversationContactTags = { personId: number | null; tags: string[] };
+
+// Etiquetas del contacto asociado a esta conversación (para que el asesor
+// elija cuáles quitar antes de redirigir).
+export async function getConversationContactTags(conversationId: string): Promise<ConversationContactTags> {
+  const lastInbound = await getLastInboundMessage(conversationId);
+  if (!lastInbound) return { personId: null, tags: [] };
+  const person = await getPersonByPhone(lastInbound.from);
+  return { personId: person?.id ?? null, tags: person?.tags ?? [] };
 }
 
 export type InfobipMessage = {
@@ -81,15 +136,27 @@ export async function getLastInboundMessage(conversationId: string): Promise<Inf
   return data.messages?.[0] ?? null;
 }
 
-export async function sendConversationTextMessage(conversationId: string, text: string): Promise<void> {
-  const lastInbound = await getLastInboundMessage(conversationId);
-  if (!lastInbound) {
-    throw new Error(
-      "No se encontró un mensaje entrante del cliente en esta conversación; no fue posible determinar a quién responder."
-    );
-  }
+// Infobip exige saber qué agente firma el mensaje cuando la conversación
+// está asignada a alguien ("x-agent-id"); si no se manda, responde 400
+// aunque from/to/channel estén bien. Se usa el agente ya asignado a la
+// conversación (consultado en el momento, no el que se vio al buscar —
+// puede haber cambiado).
+async function getConversationAgentId(conversationId: string): Promise<string | null> {
+  const data = await infobipFetch<{ agentId: string | null }>(
+    `/ccaas/1/conversations/${encodeURIComponent(conversationId)}`
+  );
+  return data.agentId ?? null;
+}
+
+async function sendMessageUsingInbound(
+  conversationId: string,
+  lastInbound: InfobipMessage,
+  text: string,
+  agentId: string | null
+): Promise<void> {
   await infobipFetch(`/ccaas/1/conversations/${encodeURIComponent(conversationId)}/messages`, {
     method: "POST",
+    headers: agentId ? { "x-agent-id": agentId } : undefined,
     body: JSON.stringify({
       from: lastInbound.to,
       to: lastInbound.from,
@@ -102,16 +169,18 @@ export async function sendConversationTextMessage(conversationId: string, text: 
 
 export type InfobipConversationSummary = {
   id: string;
-  topic: string | null;
   status: string;
   agentId: string | null;
+  contactName: string | null;
 };
 
-async function listConversationsByStatus(status: "OPEN" | "WAITING"): Promise<InfobipConversationSummary[]> {
-  const out: InfobipConversationSummary[] = [];
+type RawConversation = { id: string; status: string; agentId: string | null };
+
+async function listConversationsByStatus(status: "OPEN" | "WAITING"): Promise<RawConversation[]> {
+  const out: RawConversation[] = [];
   for (let page = 0; ; page++) {
     const data = await infobipFetch<{
-      conversations: InfobipConversationSummary[];
+      conversations: RawConversation[];
       pagination: { totalItems: number };
     }>(`/ccaas/1/conversations?status=${status}&limit=999&page=${page}`);
     out.push(...data.conversations);
@@ -120,31 +189,60 @@ async function listConversationsByStatus(status: "OPEN" | "WAITING"): Promise<In
   return out;
 }
 
-// Infobip no permite buscar conversaciones por texto libre — no hay filtro
-// de "topic" en el listado (ver docs de Get conversations). Los asesores
-// identifican el caso por el número de solicitud que aparece dentro del
-// tópico de la conversación en la interfaz de Infobip (p. ej. "Hablando con
-// 11898285 Juan Pérez Arrendatario"), y como un mismo número de solicitud
-// puede tener varias conversaciones abiertas a la vez (llamada + WhatsApp,
-// hilos reabiertos, etc.), se listan todas las conversaciones activas
-// (OPEN/WAITING) y se filtra del lado del servidor por ese número.
+// El "topic" de la conversación (campo de CCaaS) no lo está usando esta
+// cuenta — siempre viene null — así que no sirve para identificar el caso.
+// El nombre del contacto en People sí trae el número de solicitud (p. ej.
+// "10946175 NESTOR ALEXANDER CASANOVA PEÑA Codeudor"), y un mismo caso puede
+// tener varios contactos (deudor, codeudor(es), arrendador...), cada uno con
+// su propia conversación. Como CCaaS no permite filtrar conversaciones por
+// contacto/teléfono, primero se busca en People por el número de solicitud
+// y luego se cruza cada contacto encontrado contra las conversaciones
+// activas (OPEN/WAITING) comparando el teléfono del último mensaje entrante
+// de cada una — en lotes, para no disparar cientos de llamadas a la vez.
 export async function findConversationsByRequestNumber(
   requestNumber: string
 ): Promise<InfobipConversationSummary[]> {
   const needle = requestNumber.trim();
   if (!needle) return [];
 
+  const persons = await getPersonsByRequestNumber(needle);
+  if (persons.length === 0) return [];
+
+  const phoneToPerson = new Map<string, InfobipPerson>();
+  for (const person of persons) {
+    for (const phone of person.contactInformation?.phone ?? []) {
+      phoneToPerson.set(phone.number.replace(/\D/g, ""), person);
+    }
+  }
+  if (phoneToPerson.size === 0) return [];
+
   const [open, waiting] = await Promise.all([
     listConversationsByStatus("OPEN"),
     listConversationsByStatus("WAITING"),
   ]);
-
   const seen = new Set<string>();
-  return [...open, ...waiting].filter((c) => {
+  const candidates = [...open, ...waiting].filter((c) => {
     if (seen.has(c.id)) return false;
     seen.add(c.id);
-    return (c.topic || "").includes(needle);
+    return true;
   });
+
+  const matches: InfobipConversationSummary[] = [];
+  const BATCH_SIZE = 15;
+  for (let i = 0; i < candidates.length; i += BATCH_SIZE) {
+    const batch = candidates.slice(i, i + BATCH_SIZE);
+    const batchResults = await Promise.all(
+      batch.map(async (c): Promise<InfobipConversationSummary | null> => {
+        const lastInbound = await getLastInboundMessage(c.id).catch(() => null);
+        if (!lastInbound) return null;
+        const person = phoneToPerson.get(lastInbound.from.replace(/\D/g, ""));
+        if (!person) return null;
+        return { id: c.id, status: c.status, agentId: c.agentId, contactName: person.firstName ?? null };
+      })
+    );
+    matches.push(...batchResults.filter((m): m is InfobipConversationSummary => m !== null));
+  }
+  return matches;
 }
 
 export type TagRemovalResult = { tag: string; ok: boolean; error?: string };
@@ -157,11 +255,11 @@ export type ConversationRedirectResult = {
 
 // Flujo completo de "Redirigir a NGSO" para un lote de conversaciones (todas
 // las que pertenezcan a la misma solicitud). Por cada conversación: primero
-// avisa al cliente (si esto falla, no se tocan sus etiquetas — no tiene
-// sentido dejarla sin etiquetas de asesor si el cliente nunca se enteró del
-// cambio) y luego quita, una por una, solo las etiquetas seleccionadas que
-// esa conversación realmente tiene puestas. Una conversación fallida no
-// detiene el resto del lote.
+// avisa al cliente (si esto falla, no se toca su perfil — no tiene sentido
+// quitarle las etiquetas de asesor si el cliente nunca se enteró del cambio)
+// y luego, en el contacto de People asociado, quita solo las etiquetas
+// seleccionadas que realmente tiene puestas y vacía el atributo
+// "Agente_campaña". Una conversación fallida no detiene el resto del lote.
 export async function redirectConversationsToNgso(
   conversationIds: string[],
   message: string,
@@ -171,19 +269,34 @@ export async function redirectConversationsToNgso(
 
   for (const conversationId of conversationIds) {
     try {
-      await sendConversationTextMessage(conversationId, message);
-
-      const currentTags = await getConversationTags(conversationId);
-      const currentNames = new Set(currentTags.map((t) => t.name));
+      const [lastInbound, agentId] = await Promise.all([
+        getLastInboundMessage(conversationId),
+        getConversationAgentId(conversationId),
+      ]);
+      if (!lastInbound) {
+        throw new Error(
+          "No se encontró un mensaje entrante del cliente en esta conversación; no fue posible determinar a quién responder."
+        );
+      }
+      await sendMessageUsingInbound(conversationId, lastInbound, message, agentId);
 
       const tagResults: TagRemovalResult[] = [];
-      for (const tagName of tagNamesToRemove) {
-        if (!currentNames.has(tagName)) continue; // esta conversación no tiene esa etiqueta puesta
+      const person = await getPersonByPhone(lastInbound.from);
+      if (person) {
+        const currentTags = new Set(person.tags);
+        for (const tagName of tagNamesToRemove) {
+          if (!currentTags.has(tagName)) continue; // este contacto no tiene esa etiqueta puesta
+          try {
+            await removePersonTag(person.id, tagName);
+            tagResults.push({ tag: tagName, ok: true });
+          } catch (e: any) {
+            tagResults.push({ tag: tagName, ok: false, error: e?.message || "Error desconocido" });
+          }
+        }
         try {
-          await removeConversationTag(conversationId, tagName);
-          tagResults.push({ tag: tagName, ok: true });
+          await clearCampaignAttribute(person.id);
         } catch (e: any) {
-          tagResults.push({ tag: tagName, ok: false, error: e?.message || "Error desconocido" });
+          tagResults.push({ tag: CAMPAIGN_ATTRIBUTE, ok: false, error: e?.message || "Error desconocido" });
         }
       }
 

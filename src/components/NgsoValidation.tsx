@@ -15,13 +15,16 @@ import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { CheckCircle2, XCircle, Clock, ShieldCheck, MessageSquareText, Tag, Loader2 } from 'lucide-react';
 
-type NgsoRedirectConversation = { conversationId: string; topic: string };
+type NgsoRedirectConversation = { conversationId: string; contactName: string };
+
+type TagRemovalResult = { tag: string; ok: boolean; error?: string };
+type ExecutionResult = { conversationId: string; ok: boolean; error?: string; tagResults?: TagRemovalResult[] };
 
 type NgsoRedirect = {
   id: string;
   requestNumber: string;
   conversations: NgsoRedirectConversation[];
-  tagsRemoved: string[];
+  tagsToRemove: string[];
   message: string;
   redirectedByName: string;
   redirectedByEmail: string;
@@ -30,6 +33,7 @@ type NgsoRedirect = {
   validatedByName: string | null;
   validatedAt: any;
   motivo: string | null;
+  executionResults: ExecutionResult[] | null;
 };
 
 interface NgsoValidationProps {
@@ -69,17 +73,43 @@ export const NgsoValidation: React.FC<NgsoValidationProps> = ({ currentUser }) =
   const handleApprove = async (record: NgsoRedirect) => {
     setSavingId(record.id);
     try {
+      const res = await fetch(`${window.location.origin}/api/ngso/approve`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          conversationIds: (record.conversations || []).map(c => c.conversationId),
+          message: record.message,
+          tagNamesToRemove: record.tagsToRemove || [],
+          requestNumber: record.requestNumber
+        })
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data?.error || 'No fue posible ejecutar la solicitud');
+      }
+
+      const results: ExecutionResult[] = data.results || [];
+      const failedConversations = results.filter(r => !r.ok);
+
       await updateDoc(doc(db, 'ngso_redirects', record.id), {
         status: 'aprobado',
         validatedByEmail: (currentUser.email || '').toLowerCase(),
         validatedByName: currentUser.name || '',
         validatedAt: serverTimestamp(),
-        motivo: null
+        motivo: null,
+        executionResults: results
       });
-      toast.success('Solicitud aprobada');
+
+      if (failedConversations.length > 0) {
+        toast.warning('Aprobada, pero algunas conversaciones fallaron', {
+          description: failedConversations.map(f => f.conversationId).join(', ')
+        });
+      } else {
+        toast.success('Solicitud aprobada: se avisó al cliente y se quitaron las etiquetas');
+      }
     } catch (e: any) {
       logError(e, 'NgsoValidation/Approve');
-      toast.error('No fue posible aprobar la solicitud');
+      toast.error(e.message || 'No fue posible aprobar la solicitud');
     } finally {
       setSavingId(null);
     }
@@ -126,7 +156,7 @@ export const NgsoValidation: React.FC<NgsoValidationProps> = ({ currentUser }) =
         </div>
         <h1 className="text-3xl font-black text-secondary tracking-tight">Validación NGSO</h1>
         <p className="text-muted-foreground mt-2 font-medium">
-          Solicitudes redirigidas a NGSO por los asesores {pendingCount > 0 ? `— ${pendingCount} pendiente(s)` : ''}
+          Solicitudes de los asesores para redirigir a NGSO {pendingCount > 0 ? `— ${pendingCount} pendiente(s)` : ''}. Al aprobar se avisa al cliente de verdad, se quitan sus etiquetas y se notifica a NGSO por correo.
         </p>
       </div>
 
@@ -160,20 +190,20 @@ export const NgsoValidation: React.FC<NgsoValidationProps> = ({ currentUser }) =
                   <div className="space-y-1.5">
                     {(record.conversations || []).map(c => (
                       <div key={c.conversationId} className="bg-muted/30 rounded-xl p-3 text-xs">
-                        <p className="font-bold text-secondary dark:text-foreground truncate">{c.topic || 'Sin tópico'}</p>
+                        <p className="font-bold text-secondary dark:text-foreground truncate">{c.contactName || 'Sin nombre'}</p>
                         <p className="text-muted-foreground font-mono">{c.conversationId}</p>
                       </div>
                     ))}
                   </div>
                 </div>
 
-                {record.tagsRemoved?.length > 0 && (
+                {record.tagsToRemove?.length > 0 && (
                   <div className="space-y-2">
                     <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground flex items-center gap-1.5">
-                      <Tag className="w-3.5 h-3.5" /> Etiquetas quitadas
+                      <Tag className="w-3.5 h-3.5" /> {record.status === 'aprobado' ? 'Etiquetas quitadas' : 'Etiquetas a quitar si se aprueba'}
                     </p>
                     <div className="flex flex-wrap gap-2">
-                      {record.tagsRemoved.map(tag => (
+                      {record.tagsToRemove.map(tag => (
                         <span key={tag} className="px-3 py-1 rounded-lg text-[10px] font-black uppercase bg-muted text-muted-foreground">{tag}</span>
                       ))}
                     </div>
@@ -192,6 +222,17 @@ export const NgsoValidation: React.FC<NgsoValidationProps> = ({ currentUser }) =
                     <span>{record.validatedByName} · {safeFormatDate(record.validatedAt)}</span>
                   )}
                 </div>
+
+                {record.status === 'aprobado' && (record.executionResults || []).some(r => !r.ok || r.tagResults?.some(t => !t.ok)) && (
+                  <div className="bg-amber-500/10 border border-amber-500/20 text-amber-700 dark:text-amber-400 rounded-2xl p-4 text-xs space-y-1">
+                    <b>Algo falló al ejecutar esta solicitud:</b>
+                    {(record.executionResults || []).filter(r => !r.ok || r.tagResults?.some(t => !t.ok)).map(r => (
+                      <p key={r.conversationId}>
+                        {r.conversationId}: {!r.ok ? (r.error || 'error desconocido') : r.tagResults?.filter(t => !t.ok).map(t => `${t.tag} (${t.error})`).join(', ')}
+                      </p>
+                    ))}
+                  </div>
+                )}
 
                 {record.status === 'rechazado' && record.motivo && (
                   <div className="bg-red-500/10 border border-red-500/20 text-red-700 dark:text-red-400 rounded-2xl p-4 text-xs">
