@@ -25,6 +25,7 @@ type NgsoRedirect = {
   requestNumber: string;
   conversations: NgsoRedirectConversation[];
   tagsToRemove: string[];
+  campaignAgents?: string[];
   message: string;
   redirectedByName: string;
   redirectedByEmail: string;
@@ -196,6 +197,13 @@ export const NgsoValidation: React.FC<NgsoValidationProps> = ({ currentUser }) =
                     ))}
                   </div>
                 </div>
+
+                {(record.campaignAgents || []).length > 0 && (
+                  <div className="bg-muted/30 rounded-2xl p-3 text-xs">
+                    <span className="font-black uppercase tracking-wider text-muted-foreground">Agente_campaña actual: </span>
+                    <span className="font-bold text-secondary dark:text-foreground">{(record.campaignAgents || []).join(', ')}</span>
+                  </div>
+                )}
 
                 {record.tagsToRemove?.length > 0 && (
                   <div className="space-y-2">

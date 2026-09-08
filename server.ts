@@ -253,8 +253,8 @@ async function startServer() {
   // quitar.
   app.get("/api/ngso/conversation/:id/tags", async (req, res) => {
     try {
-      const { tags } = await getConversationContactTags(req.params.id);
-      res.json({ tags });
+      const { tags, campaignAgent } = await getConversationContactTags(req.params.id);
+      res.json({ tags, campaignAgent });
     } catch (error: any) {
       console.error("Error al consultar etiquetas de Infobip:", error);
       res.status(500).json({ error: error.message || "Error desconocido al consultar etiquetas" });

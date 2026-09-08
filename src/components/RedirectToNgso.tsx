@@ -38,6 +38,7 @@ export const RedirectToNgso: React.FC<RedirectToNgsoProps> = ({ currentUser }) =
   const [matches, setMatches] = useState<ConversationMatch[] | null>(null);
   const [selectedConversationIds, setSelectedConversationIds] = useState<Set<string>>(new Set());
   const [tagsByConversation, setTagsByConversation] = useState<Record<string, string[]>>({});
+  const [campaignAgentByConversation, setCampaignAgentByConversation] = useState<Record<string, string | null>>({});
   const [selectedTags, setSelectedTags] = useState<Set<string>>(new Set());
   const [message, setMessage] = useState(DEFAULT_NGSO_MESSAGE);
   const [sending, setSending] = useState(false);
@@ -46,6 +47,7 @@ export const RedirectToNgso: React.FC<RedirectToNgsoProps> = ({ currentUser }) =
     setMatches(null);
     setSelectedConversationIds(new Set());
     setTagsByConversation({});
+    setCampaignAgentByConversation({});
     setSelectedTags(new Set());
   };
 
@@ -56,6 +58,15 @@ export const RedirectToNgso: React.FC<RedirectToNgsoProps> = ({ currentUser }) =
     });
     return Array.from(names.values()).sort();
   }, [tagsByConversation, selectedConversationIds]);
+
+  const campaignAgents = useMemo(() => {
+    const values = new Set<string>();
+    selectedConversationIds.forEach(id => {
+      const v = campaignAgentByConversation[id];
+      if (v) values.add(v);
+    });
+    return Array.from(values.values()).sort();
+  }, [campaignAgentByConversation, selectedConversationIds]);
 
   const handleSearch = async () => {
     const solicitud = requestNumber.trim();
@@ -89,13 +100,15 @@ export const RedirectToNgso: React.FC<RedirectToNgsoProps> = ({ currentUser }) =
           try {
             const tagsRes = await fetch(`${window.location.origin}/api/ngso/conversation/${encodeURIComponent(c.id)}/tags`);
             const tagsData = await tagsRes.json();
-            return [c.id, tagsRes.ok ? (tagsData.tags || []) : []] as const;
+            if (!tagsRes.ok) return [c.id, [], null] as const;
+            return [c.id, tagsData.tags || [], tagsData.campaignAgent ?? null] as const;
           } catch {
-            return [c.id, []] as const;
+            return [c.id, [], null] as const;
           }
         })
       );
-      setTagsByConversation(Object.fromEntries(tagEntries));
+      setTagsByConversation(Object.fromEntries(tagEntries.map(([id, tags]) => [id, tags])));
+      setCampaignAgentByConversation(Object.fromEntries(tagEntries.map(([id, , campaignAgent]) => [id, campaignAgent])));
     } catch (e: any) {
       logError(e, 'RedirectToNgso/Search');
       toast.error(e.message || 'No fue posible buscar la solicitud');
@@ -157,6 +170,7 @@ export const RedirectToNgso: React.FC<RedirectToNgsoProps> = ({ currentUser }) =
           .filter(m => conversationIds.includes(m.id))
           .map(m => ({ conversationId: m.id, contactName: m.contactName || '' })),
         tagsToRemove: tagNamesToRemove,
+        campaignAgents: campaignAgents,
         message: message.trim(),
         redirectedByEmail: (currentUser.email || '').toLowerCase(),
         redirectedByName: currentUser.name || '',
@@ -279,6 +293,12 @@ export const RedirectToNgso: React.FC<RedirectToNgsoProps> = ({ currentUser }) =
             </CardHeader>
             <CardContent className="p-8 space-y-4">
               <p className="text-xs text-muted-foreground">Marca la etiqueta del asesor y la de compañía asesor (o cualquier otra que corresponda quitar). Solo se quitará de los contactos que realmente la tengan. El atributo "Agente_campaña" del contacto se vacía automáticamente al redirigir.</p>
+              {campaignAgents.length > 0 && (
+                <div className="bg-muted/30 rounded-2xl p-4 text-xs">
+                  <span className="font-black uppercase tracking-wider text-muted-foreground">Agente_campaña actual: </span>
+                  <span className="font-bold text-secondary dark:text-foreground">{campaignAgents.join(', ')}</span>
+                </div>
+              )}
               <div className="flex flex-wrap gap-2">
                 {availableTags.map(name => {
                   const isSelected = selectedTags.has(name);

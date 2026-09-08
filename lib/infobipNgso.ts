@@ -104,15 +104,24 @@ export async function getPersonsByRequestNumber(requestNumber: string): Promise<
   return data.persons ?? [];
 }
 
-export type ConversationContactTags = { personId: number | null; tags: string[] };
+export type ConversationContactTags = {
+  personId: number | null;
+  tags: string[];
+  campaignAgent: string | null;
+};
 
-// Etiquetas del contacto asociado a esta conversación (para que el asesor
-// elija cuáles quitar antes de redirigir).
+// Etiquetas y atributo de campaña del contacto asociado a esta conversación
+// (para que el asesor vea/elija qué quitar antes de redirigir).
 export async function getConversationContactTags(conversationId: string): Promise<ConversationContactTags> {
   const lastInbound = await getLastInboundMessage(conversationId);
-  if (!lastInbound) return { personId: null, tags: [] };
+  if (!lastInbound) return { personId: null, tags: [], campaignAgent: null };
   const person = await getPersonByPhone(lastInbound.from);
-  return { personId: person?.id ?? null, tags: person?.tags ?? [] };
+  const campaignAgent = person?.customAttributes?.[CAMPAIGN_ATTRIBUTE];
+  return {
+    personId: person?.id ?? null,
+    tags: person?.tags ?? [],
+    campaignAgent: typeof campaignAgent === "string" && campaignAgent.trim() ? campaignAgent : null,
+  };
 }
 
 export type InfobipMessage = {
