@@ -1,7 +1,7 @@
 import express from "express";
 import nodemailer from "nodemailer";
 import dotenv from "dotenv";
-import { getConversationContactTags, findConversationsByRequestNumber, redirectConversationsToNgso } from "../lib/infobipNgso";
+import { getConversationContactTags, findConversationsByRequestNumber, redirectConversationsToNgso } from "../lib/infobipNgso.js";
 
 dotenv.config();
 
