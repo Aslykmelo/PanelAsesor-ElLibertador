@@ -5,7 +5,7 @@ import { fileURLToPath } from "url";
 import nodemailer from "nodemailer";
 import dotenv from "dotenv";
 import { createClient } from "@supabase/supabase-js";
-import { getConversationContactTags, findConversationsByRequestNumber, redirectConversationsToNgso } from "./lib/infobipNgso";
+import { getConversationContactTags, findConversationsByRequestNumber, redirectConversationsToNgso, getMyActiveConversationCount } from "./lib/infobipNgso";
 
 dotenv.config();
 
@@ -245,6 +245,23 @@ async function startServer() {
     } catch (error: any) {
       console.error("Error al buscar conversaciones de Infobip:", error);
       res.status(500).json({ error: error.message || "Error desconocido al buscar la solicitud" });
+    }
+  });
+
+  // Perfil: conversaciones que el asesor tiene abiertas ahora mismo en
+  // Infobip (busca su agente de CCaaS por correo).
+  app.get("/api/ngso/my-conversation-count", async (req, res) => {
+    const email = String(req.query.email || "").trim().toLowerCase();
+    const name = String(req.query.name || "").trim();
+    if (!email) {
+      return res.status(400).json({ error: "email es requerido" });
+    }
+    try {
+      const count = await getMyActiveConversationCount(email, name);
+      res.json({ count });
+    } catch (error: any) {
+      console.error("Error al consultar conversaciones activas del asesor:", error);
+      res.status(500).json({ error: error.message || "Error desconocido al consultar conversaciones activas" });
     }
   });
 

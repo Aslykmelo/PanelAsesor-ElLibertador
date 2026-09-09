@@ -72,6 +72,20 @@ service cloud.firestore {
       return isSignedIn() && (isKnownNgsoValidatorEmail(email) || isAdmin());
     }
 
+    // Únicos que pueden subir el CSV de totales de llamadas por asesor —
+    // independiente del rol/cartera.
+    function isKnownControllerEmail(email) {
+      return email == "helen.pantoja@segurosbolivar.com" ||
+             email == "sergio.llanos@segurosbolivar.com" ||
+             email == "luis.padilla@segurosbolivar.com" ||
+             email == "doris.benavides@segurosbolivar.com";
+    }
+
+    function isController() {
+      let email = getEmail();
+      return isSignedIn() && (isKnownControllerEmail(email) || isAdmin());
+    }
+
     // --- REGLAS POR COLECCIÓN ---
 
     // 1. Usuarios (Directorio y Perfiles)
@@ -127,6 +141,13 @@ service cloud.firestore {
       allow create: if isSignedIn();
       allow update: if isSignedIn() && isNgsoValidator();
       allow delete: if isSignedIn() && isAdmin();
+    }
+
+    // 7. Totales de llamadas por asesor (subidos por Controller). El asesor
+    // solo ve su propio total — el id del documento es su correo.
+    match /call_totals/{advisorEmail} {
+      allow read: if isSignedIn() && (getEmail() == advisorEmail || isController());
+      allow write: if isController();
     }
 
   }

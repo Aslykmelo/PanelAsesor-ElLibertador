@@ -1,12 +1,12 @@
 import { useState, useEffect } from 'react';
 import { User, Transfer } from '../types';
 import { Button } from '@/components/ui/button';
-import { 
-  Building2, 
-  Mail, 
-  Shield, 
-  Calendar, 
-  Trophy, 
+import {
+  Building2,
+  Mail,
+  Shield,
+  Calendar,
+  Trophy,
   Star,
   Activity,
   User as UserIcon,
@@ -14,7 +14,8 @@ import {
   Award,
   AlertCircle,
   CheckCircle,
-  RefreshCcw
+  RefreshCcw,
+  PhoneCall
 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { motion } from 'motion/react';
@@ -25,6 +26,10 @@ import html2canvas from 'html2canvas';
 import { useRef } from 'react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
+import { db } from '@/firebase';
+import { doc, onSnapshot } from 'firebase/firestore';
+
+const CONVERSATION_COUNT_POLL_MS = 30000;
 
 interface ProfileProps {
   user: User;
@@ -52,6 +57,43 @@ export function Profile({ user, transfers }: ProfileProps) {
   useEffect(() => {
     checkMailStatus();
   }, []);
+
+  const [activeConversations, setActiveConversations] = useState<number | null>(null);
+  const [checkingConversations, setCheckingConversations] = useState(false);
+
+  const checkActiveConversations = async () => {
+    if (!user.email) return;
+    setCheckingConversations(true);
+    try {
+      const res = await fetch(`/api/ngso/my-conversation-count?email=${encodeURIComponent(user.email)}&name=${encodeURIComponent(user.name || '')}`);
+      const data = await res.json();
+      setActiveConversations(res.ok ? data.count : null);
+    } catch (e) {
+      console.error("Error al consultar conversaciones activas:", e);
+    } finally {
+      setCheckingConversations(false);
+    }
+  };
+
+  useEffect(() => {
+    checkActiveConversations();
+    const interval = setInterval(checkActiveConversations, CONVERSATION_COUNT_POLL_MS);
+    return () => clearInterval(interval);
+  }, [user.email]);
+
+  // Total de llamadas que sube el equipo Controller — el asesor solo ve el
+  // suyo (así lo restringen las reglas de Firestore: solo su propio correo).
+  const [callTotal, setCallTotal] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (!user.email) return;
+    const unsubscribe = onSnapshot(
+      doc(db, 'call_totals', user.email.toLowerCase()),
+      (snap) => setCallTotal(snap.exists() ? (snap.data().totalCalls ?? null) : null),
+      () => setCallTotal(null)
+    );
+    return () => unsubscribe();
+  }, [user.email]);
 
   const totalValue = transfers.reduce((acc, t) => acc + (t.paymentLinkValue || 0), 0);
   const totalGestiones = transfers.length;
@@ -373,6 +415,35 @@ export function Profile({ user, transfers }: ProfileProps) {
                   ${Math.round(totalValue).toLocaleString('es-CO')}
                 </p>
                 <p className="text-sm font-bold text-muted-foreground uppercase mt-1">Valor Total en Links</p>
+              </div>
+
+              <div className="p-8 rounded-[2rem] bg-muted/20 border border-border/50 hover:border-primary/20 transition-all group">
+                <div className="flex items-start justify-between mb-4">
+                  <div className="w-12 h-12 rounded-2xl bg-primary/10 flex items-center justify-center group-hover:rotate-12 transition-transform">
+                    <PhoneCall className="w-6 h-6 text-primary" />
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-6 w-6 rounded-full"
+                    onClick={checkActiveConversations}
+                    disabled={checkingConversations}
+                  >
+                    <RefreshCcw className={cn("w-3 h-3 text-muted-foreground", checkingConversations && "animate-spin")} />
+                  </Button>
+                </div>
+                <p className="text-4xl font-black text-secondary">{activeConversations ?? '—'}</p>
+                <p className="text-sm font-bold text-muted-foreground uppercase mt-1">Conversaciones Activas Ahora</p>
+              </div>
+
+              <div className="p-8 rounded-[2rem] bg-muted/20 border border-border/50 hover:border-secondary/20 transition-all group">
+                <div className="w-12 h-12 rounded-2xl bg-secondary/10 flex items-center justify-center mb-4 group-hover:rotate-12 transition-transform">
+                  <Award className="w-6 h-6 text-secondary" />
+                </div>
+                <p className="text-4xl font-black text-secondary">{callTotal ?? '—'}</p>
+                <p className="text-sm font-bold text-muted-foreground uppercase mt-1">
+                  {callTotal === null ? 'Total de Llamadas (sin datos)' : 'Total de Llamadas'}
+                </p>
               </div>
 
               <div className="sm:col-span-2 p-8 rounded-[2rem] bg-gradient-to-br from-secondary to-slate-800 text-white relative overflow-hidden flex flex-col items-center justify-center text-center">

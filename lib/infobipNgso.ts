@@ -254,6 +254,50 @@ export async function findConversationsByRequestNumber(
   return matches;
 }
 
+// Busca el agente de CCaaS por correo (filtro exacto de la API). No todos
+// los agentes tienen el correo poblado en Infobip (confirmado con un caso
+// real que sí tiene conversaciones abiertas pero no aparece por email), así
+// que si no hay resultado se cae a buscar por nombre con "displayName"
+// (substring, insensible a mayúsculas) — el nombre completo del asesor
+// siempre queda dentro de ese campo, aunque venga con un código y a veces la
+// cédula pegados, p. ej. "5YM ALEXANDRA SANCHEZ SARAY-1010208898".
+async function getAgentByEmail(email: string): Promise<{ id: string } | null> {
+  const data = await infobipFetch<{ agents: { id: string }[] }>(
+    `/ccaas/1/agents?email=${encodeURIComponent(email)}&limit=1`
+  );
+  return data.agents?.[0] ?? null;
+}
+
+async function getAgentByName(name: string): Promise<{ id: string } | null> {
+  const trimmed = name.trim();
+  if (!trimmed) return null;
+  const data = await infobipFetch<{ agents: { id: string }[] }>(
+    `/ccaas/1/agents?displayName=${encodeURIComponent(trimmed)}&limit=1`
+  );
+  return data.agents?.[0] ?? null;
+}
+
+async function countConversationsByStatus(agentId: string, status: "OPEN" | "WAITING"): Promise<number> {
+  const data = await infobipFetch<{ pagination: { totalItems: number } }>(
+    `/ccaas/1/conversations?agentId=${encodeURIComponent(agentId)}&status=${status}&limit=1&page=0`
+  );
+  return data.pagination.totalItems;
+}
+
+// Conversaciones que este asesor tiene abiertas ahora mismo (OPEN + WAITING)
+// — usado en su perfil para mostrar la carga en tiempo real. Devuelve 0 si
+// no se encuentra ningún agente de CCaaS (en vez de fallar), ya que no todos
+// los usuarios de la app tienen agente en Infobip.
+export async function getMyActiveConversationCount(email: string, name: string): Promise<number> {
+  const agent = (await getAgentByEmail(email)) ?? (await getAgentByName(name));
+  if (!agent) return 0;
+  const [open, waiting] = await Promise.all([
+    countConversationsByStatus(agent.id, "OPEN"),
+    countConversationsByStatus(agent.id, "WAITING"),
+  ]);
+  return open + waiting;
+}
+
 export type TagRemovalResult = { tag: string; ok: boolean; error?: string };
 export type ConversationRedirectResult = {
   conversationId: string;
