@@ -769,6 +769,7 @@ export default function App() {
 
         {/* MAIN */}
         <main className="flex-1 overflow-y-auto p-4 md:p-8 custom-scrollbar">
+          <div className="max-w-screen-2xl mx-auto">
           {quotaExceeded && (
             <div className="mb-6 p-4 bg-amber-500/10 border-l-4 border-amber-500 text-amber-800 dark:text-amber-200 rounded-r-xl animate-in slide-in-from-top-2 duration-300">
               <div className="flex items-start gap-3">
@@ -797,6 +798,7 @@ export default function App() {
             </div>
           )}
           {renderContent()}
+          </div>
         </main>
 
       </div>

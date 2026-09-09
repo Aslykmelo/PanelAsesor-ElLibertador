@@ -365,17 +365,17 @@ export function DashboardAdviser({ transfers, user, onNewTransfer }: DashboardAd
             className="group cursor-pointer"
           >
             <Card className="border-none shadow-md hover:shadow-xl dark:shadow-black/25 rounded-3xl overflow-hidden transition-all duration-300 bg-card/70 backdrop-blur-md border border-border/40 dark:border-border/10">
-              <CardContent className="p-8">
+              <CardContent className="p-5 sm:p-6">
                 <div className="flex justify-between items-start">
-                  <div className={`w-14 h-14 ${stat.bg} ${stat.color} rounded-2xl flex items-center justify-center transition-all duration-300 group-hover:scale-110 shadow-sm`}>
-                    <stat.icon className="w-7 h-7" />
+                  <div className={`w-10 h-10 sm:w-11 sm:h-11 ${stat.bg} ${stat.color} rounded-xl flex items-center justify-center transition-all duration-300 group-hover:scale-110 shadow-sm`}>
+                    <stat.icon className="w-5 h-5 sm:w-6 sm:h-6" />
                   </div>
-                  <ArrowUpRight className="w-5 h-5 text-muted-foreground opacity-30 group-hover:opacity-100 transition-opacity" />
+                  <ArrowUpRight className="w-4 h-4 text-muted-foreground opacity-30 group-hover:opacity-100 transition-opacity" />
                 </div>
-                <div className="mt-6">
-                  <p className="text-4xl font-black text-secondary dark:text-foreground tracking-tight transition-transform duration-300 group-hover:translate-x-1">{stat.value}</p>
-                  <p className="text-sm font-black text-secondary dark:text-foreground uppercase tracking-wider mt-1">{stat.label}</p>
-                  <p className="text-xs text-muted-foreground font-medium mt-0.5">{stat.desc}</p>
+                <div className="mt-4">
+                  <p className="text-2xl sm:text-3xl font-black text-secondary dark:text-foreground tracking-tight transition-transform duration-300 group-hover:translate-x-1">{stat.value}</p>
+                  <p className="text-xs sm:text-sm font-black text-secondary dark:text-foreground uppercase tracking-wider mt-1">{stat.label}</p>
+                  <p className="text-[11px] sm:text-xs text-muted-foreground font-medium mt-0.5">{stat.desc}</p>
                 </div>
               </CardContent>
             </Card>
