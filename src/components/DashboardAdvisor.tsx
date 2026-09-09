@@ -7,7 +7,6 @@ import {
   Inbox, 
   Clock, 
   CheckCircle2, 
-  ArrowUpRight,
   TrendingUp,
   LayoutDashboard,
   Search,
@@ -350,32 +349,29 @@ export function DashboardAdviser({ transfers, user, onNewTransfer }: DashboardAd
       </div>
 
       {/* STATS ROW */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="flex flex-wrap gap-4">
         {[
           { label: 'Enviadas', value: stats.sent, desc: 'Creadas por mí', icon: Send, color: 'text-rose-500 dark:text-rose-400', bg: 'bg-rose-500/10' },
           { label: 'Recibidas', value: stats.received, desc: 'Asignadas a mí', icon: Inbox, color: 'text-amber-500 dark:text-amber-400', bg: 'bg-amber-500/10' },
           { label: 'Total del Día', value: stats.totalToday, desc: 'Mis registros de hoy', icon: Calendar, color: 'text-emerald-500 dark:text-emerald-400', bg: 'bg-emerald-500/10' },
         ].map((stat, i) => (
-          <motion.div 
-            key={stat.label} 
-            initial={{ opacity: 0, y: 20 }} 
-            animate={{ opacity: 1, y: 0 }} 
+          <motion.div
+            key={stat.label}
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
             transition={{ delay: i * 0.1 }}
-            whileHover={{ y: -5 }}
-            className="group cursor-pointer"
+            whileHover={{ y: -3 }}
+            className="group cursor-pointer flex-1 min-w-[220px] max-w-xs"
           >
-            <Card className="border-none shadow-md hover:shadow-xl dark:shadow-black/25 rounded-3xl overflow-hidden transition-all duration-300 bg-card/70 backdrop-blur-md border border-border/40 dark:border-border/10">
-              <CardContent className="p-5 sm:p-6">
-                <div className="flex justify-between items-start">
-                  <div className={`w-10 h-10 sm:w-11 sm:h-11 ${stat.bg} ${stat.color} rounded-xl flex items-center justify-center transition-all duration-300 group-hover:scale-110 shadow-sm`}>
-                    <stat.icon className="w-5 h-5 sm:w-6 sm:h-6" />
-                  </div>
-                  <ArrowUpRight className="w-4 h-4 text-muted-foreground opacity-30 group-hover:opacity-100 transition-opacity" />
+            <Card className="border-none shadow-md hover:shadow-xl dark:shadow-black/25 rounded-2xl overflow-hidden transition-all duration-300 bg-card/70 backdrop-blur-md border border-border/40 dark:border-border/10 h-full">
+              <CardContent className="p-4 flex items-center gap-3">
+                <div className={`w-11 h-11 shrink-0 ${stat.bg} ${stat.color} rounded-xl flex items-center justify-center transition-all duration-300 group-hover:scale-110 shadow-sm`}>
+                  <stat.icon className="w-5 h-5" />
                 </div>
-                <div className="mt-4">
-                  <p className="text-2xl sm:text-3xl font-black text-secondary dark:text-foreground tracking-tight transition-transform duration-300 group-hover:translate-x-1">{stat.value}</p>
-                  <p className="text-xs sm:text-sm font-black text-secondary dark:text-foreground uppercase tracking-wider mt-1">{stat.label}</p>
-                  <p className="text-[11px] sm:text-xs text-muted-foreground font-medium mt-0.5">{stat.desc}</p>
+                <div className="min-w-0">
+                  <p className="text-2xl font-black text-secondary dark:text-foreground tracking-tight leading-tight">{stat.value}</p>
+                  <p className="text-xs font-black text-secondary dark:text-foreground uppercase tracking-wider truncate">{stat.label}</p>
+                  <p className="text-[10px] text-muted-foreground font-medium truncate">{stat.desc}</p>
                 </div>
               </CardContent>
             </Card>
