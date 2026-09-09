@@ -80,7 +80,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
       <aside className={cn(
         "fixed md:relative top-0 left-0 h-screen bg-sidebar text-white flex flex-col transition-all duration-500 z-50 overflow-hidden shadow-2xl",
-        isOpen ? "w-72 translate-x-0" : "-translate-x-full md:translate-x-0 md:w-24",
+        isOpen ? "w-64 translate-x-0" : "-translate-x-full md:translate-x-0 md:w-20",
         "border-r border-white/5"
       )}>
         
@@ -90,17 +90,17 @@ export const Sidebar: React.FC<SidebarProps> = ({
             variant="ghost" 
             size="icon" 
             onClick={onToggle} 
-            className="text-white/60 hover:text-white hover:bg-white/10 rounded-2xl w-12 h-12 transition-all active:scale-95"
+            className="text-white/60 hover:text-white hover:bg-white/10 rounded-xl w-10 h-10 transition-all active:scale-95"
           >
             {isOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
           </Button>
         </div>
 
         {/* LOGO AREA */}
-        <div className="p-8 flex flex-col items-center justify-center border-b border-white/5">
+        <div className="p-5 flex flex-col items-center justify-center border-b border-white/5">
           <div className={cn(
-            "transition-all duration-500 rounded-3xl p-4 flex items-center justify-center overflow-hidden",
-            isOpen ? "w-32 h-32" : "w-14 h-14 p-2"
+            "transition-all duration-500 rounded-2xl p-3 flex items-center justify-center overflow-hidden",
+            isOpen ? "w-20 h-20" : "w-14 h-14 p-2"
           )}>
             <div className="w-full h-full relative group flex items-center justify-center">
               {!logoError ? (
@@ -114,7 +114,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   }}
                 />
               ) : (
-                <ShieldCheck className={cn("text-secondary transition-all", isOpen ? "w-16 h-16" : "w-8 h-8")} />
+                <ShieldCheck className={cn("text-secondary transition-all", isOpen ? "w-10 h-10" : "w-8 h-8")} />
               )}
               <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 rounded-xl transition-colors cursor-pointer flex items-center justify-center">
                  <ShieldCheck className="text-secondary w-8 h-8 opacity-0 group-hover:opacity-100 transition-opacity" />
@@ -122,19 +122,19 @@ export const Sidebar: React.FC<SidebarProps> = ({
             </div>
           </div>
           {isOpen && (
-            <div className="mt-4 text-center animate-in fade-in slide-in-from-top-2 duration-500">
-               <p className="text-[10px] uppercase font-black text-white/30 tracking-[0.4em] whitespace-nowrap">Área Corporativa</p>
+            <div className="mt-3 text-center animate-in fade-in slide-in-from-top-2 duration-500">
+               <p className="text-[10px] uppercase font-black text-white/30 tracking-[0.3em] whitespace-nowrap">Área Corporativa</p>
             </div>
           )}
         </div>
 
         {/* NAVIGATION */}
-        <nav className="flex-1 px-4 py-8 space-y-2 overflow-y-auto custom-scrollbar">
+        <nav className="flex-1 px-3 py-5 space-y-1.5 overflow-y-auto custom-scrollbar">
           
           <Button
             variant="ghost"
             className={cn(
-              "w-full justify-start gap-4 h-12 rounded-xl transition-all duration-300 group overflow-hidden",
+              "w-full justify-start gap-3 h-10 rounded-xl transition-all duration-300 group overflow-hidden",
               activeTab === 'profile' 
                 ? "bg-primary text-white shadow-lg shadow-primary/30" 
                 : "hover:bg-white/10 text-white/60 hover:text-white"
@@ -155,7 +155,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
               key={item.id}
               variant="ghost"
               className={cn(
-                "w-full justify-start gap-4 h-12 rounded-xl transition-all duration-300 group overflow-hidden",
+                "w-full justify-start gap-3 h-10 rounded-xl transition-all duration-300 group overflow-hidden",
                 activeTab === item.id 
                   ? "bg-primary text-white shadow-lg shadow-primary/30 hover:bg-primary/90" 
                   : "hover:bg-white/10 text-white/60 hover:text-white"
@@ -172,9 +172,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
         </nav>
 
         {/* FOOTER */}
-        <div className="p-6 border-t border-white/5 mt-auto bg-black/20">
+        <div className="p-4 border-t border-white/5 mt-auto bg-black/20">
           {isOpen && user && (
-            <div className="flex items-center gap-3 px-2 py-4 mb-4">
+            <div className="flex items-center gap-3 px-2 py-3 mb-2">
               <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center border border-primary/30 shrink-0 overflow-hidden">
                 {user.photoURL ? (
                   <img src={user.photoURL} alt={user.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
@@ -193,7 +193,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             variant="ghost" 
             onClick={onLogout}
             className={cn(
-              "w-full justify-start gap-4 h-12 rounded-xl text-white/40 hover:text-white hover:bg-red-500/20 hover:border-red-500/30 border border-transparent transition-all duration-300 overflow-hidden",
+              "w-full justify-start gap-3 h-10 rounded-xl text-white/40 hover:text-white hover:bg-red-500/20 hover:border-red-500/30 border border-transparent transition-all duration-300 overflow-hidden",
               !isOpen && "px-3"
             )}
             title="Cerrar Sesión"
