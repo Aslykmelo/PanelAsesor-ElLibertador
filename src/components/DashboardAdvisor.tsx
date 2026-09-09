@@ -309,40 +309,40 @@ export function DashboardAdviser({ transfers, user, onNewTransfer }: DashboardAd
   }, [filteredData]);
 
   return (
-    <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
-      
+    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+
       {/* HERO SECTION */}
-      <div className="relative rounded-[2.5rem] bg-secondary p-8 md:p-12 text-white overflow-hidden shadow-2xl shadow-secondary/20 transition-all duration-500 hover:shadow-primary/10 group">
-        <div className="absolute top-0 right-0 w-96 h-96 bg-primary/20 rounded-full -translate-y-1/2 translate-x-1/2 blur-[80px] group-hover:bg-primary/30 transition-colors" />
-        <div className="absolute bottom-0 left-0 w-48 h-48 bg-primary/10 rounded-full translate-y-1/2 -translate-x-1/2 blur-[50px]" />
-        
-        <div className="relative z-10 flex flex-col md:flex-row justify-between items-center gap-8">
+      <div className="relative rounded-3xl bg-secondary p-6 md:p-8 text-white overflow-hidden shadow-lg shadow-secondary/20 transition-all duration-500 hover:shadow-primary/10 group">
+        <div className="absolute top-0 right-0 w-72 h-72 bg-primary/20 rounded-full -translate-y-1/2 translate-x-1/2 blur-[80px] group-hover:bg-primary/30 transition-colors" />
+        <div className="absolute bottom-0 left-0 w-36 h-36 bg-primary/10 rounded-full translate-y-1/2 -translate-x-1/2 blur-[50px]" />
+
+        <div className="relative z-10 flex flex-col md:flex-row justify-between items-center gap-6">
           <div className="text-center md:text-left">
-            <h1 className="text-4xl md:text-5xl font-black tracking-tight mb-2 uppercase italic">Mi Gestión</h1>
-            <p className="text-slate-300 text-lg font-medium max-w-md">
+            <h1 className="text-2xl md:text-3xl font-black tracking-tight mb-1 uppercase italic">Mi Gestión</h1>
+            <p className="text-slate-300 text-sm font-medium max-w-md">
               Hola, {(user.name || 'Asesor').split(' ')[0]} 👋 Bienvenido a tu panel operativo diario.
             </p>
-            <div className="mt-8 flex flex-wrap gap-4 justify-center md:justify-start">
-              <Button 
+            <div className="mt-5 flex flex-wrap gap-4 justify-center md:justify-start">
+              <Button
                 onClick={onNewTransfer}
-                className="bg-primary hover:bg-primary/90 text-white font-bold px-8 h-12 rounded-2xl shadow-lg shadow-primary/20 transition-all hover:scale-105"
+                className="bg-primary hover:bg-primary/90 text-white font-bold px-6 h-10 rounded-xl shadow-md shadow-primary/20 transition-all hover:scale-105"
               >
-                <Plus className="w-5 h-5 mr-2" />
+                <Plus className="w-4 h-4 mr-2" />
                 Nueva Gestión
               </Button>
             </div>
           </div>
-          
-          <div className="grid grid-cols-2 gap-4 w-full md:w-auto">
-            <div className="bg-white/10 backdrop-blur-md p-6 rounded-3xl border border-white/10">
-              <TrendingUp className="w-6 h-6 text-primary mb-2" />
-              <p className="text-2xl font-black">{stats.sent + stats.received}</p>
-              <p className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Mis Movimientos</p>
+
+          <div className="grid grid-cols-2 gap-3 w-full md:w-auto">
+            <div className="bg-white/10 backdrop-blur-md p-4 rounded-2xl border border-white/10">
+              <TrendingUp className="w-5 h-5 text-primary mb-1.5" />
+              <p className="text-lg font-black">{stats.sent + stats.received}</p>
+              <p className="text-[9px] uppercase font-bold text-slate-400 tracking-wider">Mis Movimientos</p>
             </div>
-            <div className="bg-white/10 backdrop-blur-md p-6 rounded-3xl border border-white/10">
-              <LayoutDashboard className="w-6 h-6 text-primary mb-2" />
-              <p className="text-2xl font-black">{(user.cartera || 'General').split(' ')[0]}</p>
-              <p className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Cartera</p>
+            <div className="bg-white/10 backdrop-blur-md p-4 rounded-2xl border border-white/10">
+              <LayoutDashboard className="w-5 h-5 text-primary mb-1.5" />
+              <p className="text-lg font-black">{(user.cartera || 'General').split(' ')[0]}</p>
+              <p className="text-[9px] uppercase font-bold text-slate-400 tracking-wider">Cartera</p>
             </div>
           </div>
         </div>
@@ -380,16 +380,16 @@ export function DashboardAdviser({ transfers, user, onNewTransfer }: DashboardAd
       </div>
 
       {/* FILTERS SECTION */}
-      <Card className="rounded-[2.5rem] border-none card-shadow bg-card/60 backdrop-blur-xl">
-        <CardContent className="p-8 space-y-6">
-          <div className="flex flex-col gap-6">
+      <Card className="rounded-2xl border-none card-shadow bg-card/60 backdrop-blur-xl">
+        <CardContent className="p-5 space-y-4">
+          <div className="flex flex-col gap-4">
             <div className="w-full space-y-2">
               <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">Búsqueda Rápida</Label>
               <div className="relative group">
                 <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground group-focus-within:text-primary transition-colors" />
-                <Input 
-                  placeholder="Buscar por cliente, ID, asesor o cartera..." 
-                  className="pl-12 h-12 bg-muted/30 border-none rounded-2xl font-bold"
+                <Input
+                  placeholder="Buscar por cliente, ID, asesor o cartera..."
+                  className="pl-12 h-10 bg-muted/30 border-none rounded-xl font-bold"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                 />
@@ -432,11 +432,11 @@ export function DashboardAdviser({ transfers, user, onNewTransfer }: DashboardAd
       </Card>
 
       {/* RECENT ACTIVITY */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        <div className="lg:col-span-2 space-y-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="lg:col-span-2 space-y-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <h2 className="text-xl font-black text-secondary">Actividad Reciente</h2>
+              <h2 className="text-lg font-black text-secondary">Actividad Reciente</h2>
               <span className="bg-primary/10 text-primary text-[10px] font-black px-3 py-1 rounded-full uppercase tracking-widest border border-primary/20">
                 Solo mis gestiones
               </span>
@@ -459,18 +459,18 @@ export function DashboardAdviser({ transfers, user, onNewTransfer }: DashboardAd
                         [activity.id || '']: !prev[activity.id || '']
                       }));
                     }}
-                    className={`group p-5 bg-card rounded-[2rem] border transition-all flex items-center justify-between cursor-pointer select-none ${
-                      isExpanded 
-                        ? 'border-primary shadow-lg shadow-primary/5 ring-1 ring-primary/20 bg-slate-50/50 dark:bg-slate-900/30' 
+                    className={`group p-4 bg-card rounded-2xl border transition-all flex items-center justify-between cursor-pointer select-none ${
+                      isExpanded
+                        ? 'border-primary shadow-md shadow-primary/5 ring-1 ring-primary/20 bg-slate-50/50 dark:bg-slate-900/30'
                         : 'border-border/50 card-shadow hover:border-primary/30 hover:bg-slate-50/30 dark:hover:bg-slate-900/10'
                     }`}
                   >
-                    <div className="flex items-center gap-4">
+                    <div className="flex items-center gap-3">
                       <div className={cn(
-                        "w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 shadow-lg shadow-black/5 transition-transform group-hover:scale-105",
+                        "w-10 h-10 rounded-xl flex items-center justify-center shrink-0 shadow-sm shadow-black/5 transition-transform group-hover:scale-105",
                         activity.type === 'mensaje' ? "bg-primary/10 text-primary" : "bg-secondary/10 text-secondary"
                       )}>
-                        {activity.type === 'mensaje' ? <MessageSquare className="w-6 h-6" /> : <Gift className="w-6 h-6" />}
+                        {activity.type === 'mensaje' ? <MessageSquare className="w-5 h-5" /> : <Gift className="w-5 h-5" />}
                       </div>
                       <div>
                         <h3 className="font-black text-secondary dark:text-foreground text-sm sm:text-base">{activity.customerName}</h3>
@@ -512,7 +512,7 @@ export function DashboardAdviser({ transfers, user, onNewTransfer }: DashboardAd
                         transition={{ duration: 0.2, ease: 'easeInOut' }}
                         className="overflow-hidden px-1"
                       >
-                        <div className="bg-slate-50 dark:bg-slate-900/60 rounded-[2rem] border border-border/60 p-5 sm:p-6 space-y-6 shadow-md">
+                        <div className="bg-slate-50 dark:bg-slate-900/60 rounded-2xl border border-border/60 p-4 sm:p-5 space-y-5 shadow-sm">
                           
                           {/* HIGHLIGHTED CLIENT CARD */}
                           <div className="bg-card dark:bg-slate-900/80 rounded-2xl p-4 sm:p-5 border border-primary/15 dark:border-primary/10 shadow-sm space-y-4">
@@ -656,7 +656,7 @@ export function DashboardAdviser({ transfers, user, onNewTransfer }: DashboardAd
               );
             })}
             {recentActivities.length === 0 && (
-              <div className="p-20 text-center border-2 border-dashed border-border rounded-[2rem]">
+              <div className="p-12 text-center border-2 border-dashed border-border rounded-2xl">
                 <p className="text-muted-foreground">No hay gestiones recientes registradas.</p>
               </div>
             )}
@@ -665,15 +665,15 @@ export function DashboardAdviser({ transfers, user, onNewTransfer }: DashboardAd
 
         {/* SIDE BAR DASHBOARD */}
         <div className="space-y-6">
-          <h2 className="text-xl font-black text-secondary dark:text-foreground">Mi Perfil Diario</h2>
-          
+          <h2 className="text-lg font-black text-secondary dark:text-foreground">Mi Perfil Diario</h2>
+
           {/* Main profile card with Seguros Bolívar design premium flair and automatic compliance indicator */}
-          <Card className="bg-primary text-white border-none rounded-[2rem] p-8 space-y-6 shadow-xl shadow-primary/20 relative overflow-hidden group">
+          <Card className="bg-primary text-white border-none rounded-2xl p-6 space-y-4 shadow-md shadow-primary/20 relative overflow-hidden group">
             <div className="absolute top-0 right-0 w-32 h-32 bg-white/5 rounded-full -mr-8 -mt-8" />
-            
+
             <div>
               <p className="text-primary-foreground/70 font-bold text-xs uppercase tracking-widest">Cartera Asignada</p>
-              <p className="text-2xl font-black mt-1">{user.cartera || 'No asignada'}</p>
+              <p className="text-xl font-black mt-1">{user.cartera || 'No asignada'}</p>
             </div>
             <div className="h-px bg-white/10" />
             <div>
@@ -716,7 +716,7 @@ export function DashboardAdviser({ transfers, user, onNewTransfer }: DashboardAd
           </Card>
 
           {/* SECOND CARD: Productividad de Hoy */}
-          <Card className="border-none shadow-md rounded-[2rem] p-6 bg-card border border-border/40 dark:border-border/10 space-y-4">
+          <Card className="border-none shadow-sm rounded-2xl p-5 bg-card border border-border/40 dark:border-border/10 space-y-4">
             <div className="flex items-center gap-2 pb-2 border-b border-border/30">
               <Award className="w-5 h-5 text-rose-500" />
               <h3 className="font-black text-secondary dark:text-foreground text-sm uppercase tracking-wider">Productividad de Hoy</h3>
@@ -740,7 +740,7 @@ export function DashboardAdviser({ transfers, user, onNewTransfer }: DashboardAd
           </Card>
 
           {/* THIRD CARD: Rendimiento General */}
-          <Card className="border-none shadow-md rounded-[2rem] p-6 bg-card border border-border/40 dark:border-border/10 space-y-5">
+          <Card className="border-none shadow-sm rounded-2xl p-5 bg-card border border-border/40 dark:border-border/10 space-y-4">
             <div className="flex items-center gap-2 pb-2 border-b border-border/30">
               <BarChart3 className="w-5 h-5 text-indigo-500" />
               <h3 className="font-black text-secondary dark:text-foreground text-sm uppercase tracking-wider">Estadísticas Clave</h3>
