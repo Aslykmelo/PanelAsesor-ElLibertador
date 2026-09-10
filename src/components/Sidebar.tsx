@@ -129,7 +129,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         </div>
 
         {/* NAVIGATION */}
-        <nav className="flex-1 px-3 py-5 space-y-1.5 overflow-y-auto custom-scrollbar">
+        <nav className="px-3 py-4 space-y-1.5 overflow-y-auto custom-scrollbar">
           
           <Button
             variant="ghost"
