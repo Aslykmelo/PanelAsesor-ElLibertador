@@ -63,6 +63,7 @@ export function DashboardAdviser({ transfers, user, onNewTransfer }: DashboardAd
   // en adelante es manual con enfriamiento de 60s (ver por qué en Profile.tsx).
   const [activeConversations, setActiveConversations] = useState<number | null>(null);
   const [checkingConversations, setCheckingConversations] = useState(false);
+  const [remainingRefreshes, setRemainingRefreshes] = useState<number | null>(null);
   const [callTotal, setCallTotal] = useState<number | null>(null);
   const REFRESH_COOLDOWN_MS = 60000;
   const [cooldownUntil, setCooldownUntil] = useState(0);
@@ -74,6 +75,7 @@ export function DashboardAdviser({ transfers, user, onNewTransfer }: DashboardAd
     // Perfil (mismo correo, mismo día), protege la cuota de invocaciones de
     // Vercel sin depender de que 84 asesores se autorregulen.
     const limitResult = await tryConsumeDailyRefresh(user.email).catch(() => ({ allowed: true, count: 0, limit: 20 }));
+    setRemainingRefreshes(Math.max(0, limitResult.limit - limitResult.count));
     if (!limitResult.allowed) {
       toast.error(`Ya usaste las ${limitResult.limit} consultas del día para este dato. Mañana se reinicia.`);
       return;
@@ -443,6 +445,11 @@ export function DashboardAdviser({ transfers, user, onNewTransfer }: DashboardAd
                   </Button>
                 </div>
                 <p className="text-xs font-black text-secondary dark:text-foreground uppercase tracking-wider truncate">Conversaciones Activas Ahora</p>
+                {remainingRefreshes !== null && (
+                  <p className="text-[9px] text-muted-foreground font-medium mt-0.5">
+                    Te quedan {remainingRefreshes} de 20 consultas hoy
+                  </p>
+                )}
               </div>
             </CardContent>
           </Card>

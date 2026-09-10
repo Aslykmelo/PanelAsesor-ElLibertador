@@ -59,12 +59,14 @@ export function Profile({ user, transfers }: ProfileProps) {
 
   const [activeConversations, setActiveConversations] = useState<number | null>(null);
   const [checkingConversations, setCheckingConversations] = useState(false);
+  const [remainingRefreshes, setRemainingRefreshes] = useState<number | null>(null);
 
   const checkActiveConversations = async () => {
     if (!user.email) return;
     // Tope diario real (Firestore, no el navegador) — protege la cuota de
     // invocaciones de Vercel sin depender de que 84 asesores se autorregulen.
     const limitResult = await tryConsumeDailyRefresh(user.email).catch(() => ({ allowed: true, count: 0, limit: 20 }));
+    setRemainingRefreshes(Math.max(0, limitResult.limit - limitResult.count));
     if (!limitResult.allowed) {
       toast.error(`Ya usaste las ${limitResult.limit} consultas del día para este dato. Mañana se reinicia.`);
       return;
@@ -443,6 +445,11 @@ export function Profile({ user, transfers }: ProfileProps) {
                 </div>
                 <p className="text-2xl font-black text-secondary">{activeConversations ?? '—'}</p>
                 <p className="text-sm font-bold text-muted-foreground uppercase mt-1">Conversaciones Activas Ahora</p>
+                {remainingRefreshes !== null && (
+                  <p className="text-[10px] text-muted-foreground font-medium mt-1">
+                    Te quedan {remainingRefreshes} de 20 consultas hoy
+                  </p>
+                )}
               </div>
 
               <div className="p-5 rounded-2xl bg-muted/20 border border-border/50 hover:border-secondary/20 transition-all group">
