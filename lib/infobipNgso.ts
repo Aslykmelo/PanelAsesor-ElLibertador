@@ -23,17 +23,37 @@ function requireApiKey(): string {
   return apiKey;
 }
 
+// Infobip aplica un límite de peticiones por segundo a nivel de cuenta —
+// confirmado en producción: con solo 40 búsquedas simultáneas, la mitad
+// volvió 429 "Too Many Requests" (no es cosa nuestra, es el límite de
+// Infobip). En vez de fallarle al asesor, se reintenta unas pocas veces con
+// espera creciente antes de rendirse.
+const MAX_RETRIES_ON_429 = 3;
+const RETRY_BASE_DELAY_MS = 400;
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function fetchInfobipWithRetry(url: string, init: RequestInit, apiKey: string): Promise<Response> {
+  for (let attempt = 0; ; attempt++) {
+    const res = await fetch(url, {
+      ...init,
+      headers: {
+        Authorization: `App ${apiKey}`,
+        Accept: "application/json",
+        ...(init.body ? { "Content-Type": "application/json" } : {}),
+        ...(init.headers || {}),
+      },
+    });
+    if (res.status !== 429 || attempt >= MAX_RETRIES_ON_429) return res;
+    await sleep(RETRY_BASE_DELAY_MS * 2 ** attempt + Math.random() * 200);
+  }
+}
+
 async function infobipFetch<T>(path: string, init: RequestInit = {}): Promise<T> {
   const apiKey = requireApiKey();
-  const res = await fetch(`${baseUrl()}${path}`, {
-    ...init,
-    headers: {
-      Authorization: `App ${apiKey}`,
-      Accept: "application/json",
-      ...(init.body ? { "Content-Type": "application/json" } : {}),
-      ...(init.headers || {}),
-    },
-  });
+  const res = await fetchInfobipWithRetry(`${baseUrl()}${path}`, init, apiKey);
   if (!res.ok) {
     const body = await res.text().catch(() => "");
     throw new Error(`Infobip ${init.method || "GET"} ${path} respondió ${res.status}${body ? `: ${body}` : ""}`);
@@ -64,9 +84,11 @@ export async function getPersonByPhone(phone: string): Promise<InfobipPerson | n
   const digits = phone.replace(/\D/g, "");
   if (!digits) return null;
   const apiKey = requireApiKey();
-  const res = await fetch(`${baseUrl()}/people/2/persons?identifier=${encodeURIComponent(digits)}&type=PHONE`, {
-    headers: { Authorization: `App ${apiKey}`, Accept: "application/json" },
-  });
+  const res = await fetchInfobipWithRetry(
+    `${baseUrl()}/people/2/persons?identifier=${encodeURIComponent(digits)}&type=PHONE`,
+    {},
+    apiKey
+  );
   if (res.status === 404) return null;
   if (!res.ok) {
     const body = await res.text().catch(() => "");
