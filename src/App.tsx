@@ -581,7 +581,10 @@ export default function App() {
           : <DashboardAdmin transfers={filteredData} user={currentUser!} advisors={advisors} />;
       
       case 'new-transfer':
-        return <TransferForm onSubmit={handleNewTransfer} currentUser={currentUser!} advisors={advisors} />;
+        // Deshabilitado temporalmente a pedido, mientras se revisa cómo va
+        // funcionando el flujo de gestiones enviadas/recibidas.
+        setActiveTab('dashboard');
+        return null;
 
       case 'redirect-ngso':
         return <RedirectToNgso currentUser={currentUser!} />;
@@ -601,40 +604,11 @@ export default function App() {
         return <UploadCallTotals currentUser={currentUser!} />;
 
       case 'my-tasks':
-        return (
-          <TransferList
-            title="Mis Gestiones"
-            transfers={filteredData.filter(t => {
-              const creatorEmail = (t.createdByEmail || t.createdBy || '').toLowerCase().trim();
-              const fromEmail = (t.fromAdvisorEmail || '').toLowerCase().trim();
-              const toEmail = (t.toAdvisorEmail || '').toLowerCase().trim();
-              const currentUserEmail = (currentUser?.email || '').toLowerCase().trim();
-              const currentUserUid = currentUser?.uid || '';
-              return (
-                creatorEmail === currentUserEmail || 
-                t.createdBy === currentUserUid || 
-                fromEmail === currentUserEmail ||
-                toEmail === currentUserEmail
-              );
-            })}
-            onStatusChange={handleStatusChange}
-            onDelete={handleDelete}
-            userRole={effectiveRole}
-            advisors={advisors}
-            currentUser={currentUser!}
-          />
-        );
-
       case 'history':
-        return (
-          <TransferList
-            transfers={filteredData}
-            onStatusChange={handleStatusChange}
-            onDelete={handleDelete}
-            userRole={effectiveRole}
-            advisors={advisors}
-          />
-        );
+        // Deshabilitado temporalmente a pedido, mientras se revisa cómo va
+        // funcionando el flujo de gestiones enviadas/recibidas.
+        setActiveTab('dashboard');
+        return null;
 
       case 'ranking':
         if (isAsesor) {

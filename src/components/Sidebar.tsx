@@ -1,14 +1,11 @@
 import React, { useState } from 'react';
 import { useTheme } from 'next-themes';
-import { 
-  LayoutDashboard, 
-  PhoneForwarded, 
-  ClipboardList, 
+import {
+  LayoutDashboard,
   Trophy,
   LogOut,
   UserCircle,
   Users,
-  History,
   ShieldCheck,
   ChevronLeft,
   X,
@@ -46,11 +43,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
   
   const isAsesor = user?.role === 'asesor';
   
+  // "Nueva Gestión" / "Mis Gestiones" / "Historial" quedan ocultos a pedido
+  // (deshabilitados temporalmente mientras se revisa cómo va funcionando el
+  // flujo de gestiones enviadas/recibidas) — no se borró nada, solo no
+  // aparecen en el menú. Ver también el guard correspondiente en App.tsx.
   const menuItems = [
     { id: 'dashboard', label: isAsesor ? 'Mi Gestión' : 'Tablero', icon: LayoutDashboard },
     { id: 'executive-dashboard', label: 'Dashboard Ejecutivo', icon: TrendingUp, role: ['admin', 'supervisor'] },
-    { id: 'new-transfer', label: 'Nueva Gestión', icon: PhoneForwarded },
-    { id: 'my-tasks', label: 'Mis Gestiones', icon: ClipboardList },
     { id: 'redirect-ngso', label: 'Redirigir a NGSO', icon: Building2 },
     { id: 'ngso-validation', label: 'Validación NGSO', icon: ShieldCheck, emails: NGSO_VALIDATOR_EMAILS },
     { id: 'call-totals-upload', label: 'Cargar Totales', icon: ListChecks, emails: CONTROLLER_EMAILS },
@@ -58,7 +57,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
     { id: 'advisor-management', label: 'Gestión Asesores', icon: Users, role: ['admin', 'supervisor'] },
     { id: 'ranking', label: 'Clasificación', icon: Trophy, role: ['admin', 'supervisor'] },
     { id: 'user-management', label: 'Usuarios', icon: UserCircle, role: ['admin'] },
-    { id: 'history', label: 'Historial', icon: History, role: ['admin', 'supervisor'] },
   ];
 
   const filteredMenu = menuItems.filter(item => {
