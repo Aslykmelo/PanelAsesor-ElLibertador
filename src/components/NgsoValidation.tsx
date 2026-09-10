@@ -151,8 +151,8 @@ export const NgsoValidation: React.FC<NgsoValidationProps> = ({ currentUser }) =
 
   return (
     <div className="max-w-4xl mx-auto py-8 px-4 animate-in fade-in slide-in-from-bottom-8 duration-700">
-      <div className="text-center mb-10">
-        <div className="w-16 h-16 bg-emerald-500/10 rounded-3xl flex items-center justify-center mx-auto mb-4 border-2 border-emerald-500/20">
+      <div className="text-center mb-6">
+        <div className="w-12 h-12 bg-emerald-500/10 rounded-3xl flex items-center justify-center mx-auto mb-4 border-2 border-emerald-500/20">
           <ShieldCheck className="w-8 h-8 text-emerald-600" />
         </div>
         <h1 className="text-3xl font-black text-secondary tracking-tight">Validación NGSO</h1>
@@ -162,17 +162,17 @@ export const NgsoValidation: React.FC<NgsoValidationProps> = ({ currentUser }) =
       </div>
 
       {loading ? (
-        <div className="flex justify-center py-20">
+        <div className="flex justify-center py-10">
           <Loader2 className="w-8 h-8 animate-spin text-primary" />
         </div>
       ) : records.length === 0 ? (
-        <div className="p-20 text-center border-2 border-dashed border-border rounded-[2rem]">
+        <div className="p-10 text-center border-2 border-dashed border-border rounded-2xl">
           <p className="text-muted-foreground">Aún no hay solicitudes redirigidas a NGSO.</p>
         </div>
       ) : (
         <div className="space-y-6">
           {records.map(record => (
-            <Card key={record.id} className="border-none rounded-[2.5rem] card-shadow overflow-hidden">
+            <Card key={record.id} className="border-none rounded-2xl card-shadow overflow-hidden">
               <CardHeader className="bg-muted/30 border-b border-border/10">
                 <div className="flex items-center justify-between flex-wrap gap-3">
                   <CardTitle className="text-lg font-bold flex items-center gap-2">
@@ -183,7 +183,7 @@ export const NgsoValidation: React.FC<NgsoValidationProps> = ({ currentUser }) =
                   </span>
                 </div>
               </CardHeader>
-              <CardContent className="p-8 space-y-5">
+              <CardContent className="p-5 space-y-5">
                 <div className="space-y-2">
                   <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground flex items-center gap-1.5">
                     <MessageSquareText className="w-3.5 h-3.5" /> Conversaciones ({record.conversations?.length || 0})

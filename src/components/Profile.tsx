@@ -141,7 +141,7 @@ export function Profile({ user, transfers }: ProfileProps) {
       <div className="absolute top-0 left-0 -z-50 pointer-events-none overflow-hidden h-0 w-0">
         <div 
           ref={certificateRef}
-          className="w-[1123px] h-[794px] bg-white p-12 flex flex-col items-center justify-between border-[24px] border-[#153157] relative"
+          className="w-[1123px] h-[794px] bg-white p-6 flex flex-col items-center justify-between border-[24px] border-[#153157] relative"
         >
           {/* Decorative Corner Patters */}
           <div className="absolute top-0 right-0 w-48 h-48 border-t-[12px] border-r-[12px] border-[#a1161b] m-8" />
@@ -203,8 +203,8 @@ export function Profile({ user, transfers }: ProfileProps) {
 
       {/* PROFILE HEADER CARD */}
       <div className="relative group">
-        <div className="absolute -inset-1 bg-gradient-to-r from-primary to-secondary rounded-[3rem] blur opacity-25 group-hover:opacity-50 transition duration-1000 group-hover:duration-200"></div>
-        <Card className="relative bg-card border-none rounded-[3rem] overflow-hidden card-shadow">
+        <div className="absolute -inset-1 bg-gradient-to-r from-primary to-secondary rounded-2xl blur opacity-25 group-hover:opacity-50 transition duration-1000 group-hover:duration-200"></div>
+        <Card className="relative bg-card border-none rounded-2xl overflow-hidden card-shadow">
           <div className="h-48 bg-secondary relative overflow-hidden">
             <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,_var(--tw-gradient-stops))] from-primary/40 via-transparent to-transparent opacity-50" />
             <div className="absolute top-10 right-10 flex gap-2">
@@ -218,7 +218,7 @@ export function Profile({ user, transfers }: ProfileProps) {
           <CardContent className="px-8 pb-12 -mt-20 relative z-10">
             <div className="flex flex-col md:flex-row items-end gap-8">
               <div className="relative">
-                <div className="w-40 h-40 rounded-[2.5rem] bg-background border-8 border-background card-shadow overflow-hidden flex items-center justify-center group-hover:scale-105 transition-transform duration-500">
+                <div className="w-40 h-40 rounded-2xl bg-background border-8 border-background card-shadow overflow-hidden flex items-center justify-center group-hover:scale-105 transition-transform duration-500">
                   {user.photoURL ? (
                     <img src={user.photoURL} alt={user.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
                   ) : (
@@ -231,7 +231,7 @@ export function Profile({ user, transfers }: ProfileProps) {
               </div>
               
               <div className="flex-1 text-center md:text-left pb-4">
-                <h1 className="text-4xl font-black text-secondary tracking-tight">{user.name}</h1>
+                <h1 className="text-2xl font-black text-secondary tracking-tight">{user.name}</h1>
                 <div className="flex flex-wrap items-center justify-center md:justify-start gap-4 mt-3">
                   <span className="bg-primary text-white text-[10px] font-black px-4 py-1.5 rounded-full uppercase tracking-[0.2em] shadow-lg shadow-primary/20">
                     {roleLabel}
@@ -264,7 +264,7 @@ export function Profile({ user, transfers }: ProfileProps) {
         
         {/* PERSONAL INFO */}
         <div className="md:col-span-1 space-y-8">
-          <section className="bg-card rounded-[2.5rem] p-8 card-shadow space-y-6">
+          <section className="bg-card rounded-2xl p-5 card-shadow space-y-6">
             <h3 className="text-lg font-black text-secondary flex items-center gap-2">
               <UserIcon className="w-5 h-5 text-primary" />
               Info Personal
@@ -368,8 +368,8 @@ export function Profile({ user, transfers }: ProfileProps) {
             </div>
           </section>
 
-          <Card className="bg-secondary rounded-[2.5rem] p-8 border-none text-white relative overflow-hidden group shadow-xl shadow-secondary/20">
-            <Trophy className="absolute top-4 right-4 w-16 h-16 text-white/5 group-hover:scale-125 transition-transform duration-700" />
+          <Card className="bg-secondary rounded-2xl p-5 border-none text-white relative overflow-hidden group shadow-xl shadow-secondary/20">
+            <Trophy className="absolute top-4 right-4 w-12 h-12 text-white/5 group-hover:scale-125 transition-transform duration-700" />
             <div className="relative z-10">
               <h3 className="text-xl font-black mb-2">Mi Logro</h3>
               <p className="text-slate-400 text-sm leading-relaxed mb-6">
@@ -390,7 +390,7 @@ export function Profile({ user, transfers }: ProfileProps) {
 
         {/* PERFORMANCE METRICS */}
         <div className="md:col-span-2 space-y-8">
-          <section className="bg-card rounded-[2.5rem] p-8 card-shadow">
+          <section className="bg-card rounded-2xl p-5 card-shadow">
             <div className="flex items-center justify-between mb-8">
               <h3 className="text-xl font-black text-secondary">Estadísticas Consolidadas</h3>
               <div className="px-4 py-1.5 bg-primary/10 rounded-full text-[10px] md:text-xs font-black text-primary uppercase tracking-widest">
@@ -399,25 +399,25 @@ export function Profile({ user, transfers }: ProfileProps) {
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-              <div className="p-8 rounded-[2rem] bg-muted/20 border border-border/50 hover:border-primary/20 transition-all group">
+              <div className="p-5 rounded-2xl bg-muted/20 border border-border/50 hover:border-primary/20 transition-all group">
                 <div className="w-12 h-12 rounded-2xl bg-primary/10 flex items-center justify-center mb-4 group-hover:rotate-12 transition-transform">
                   <Activity className="w-6 h-6 text-primary" />
                 </div>
-                <p className="text-4xl font-black text-secondary">{totalGestiones}</p>
+                <p className="text-2xl font-black text-secondary">{totalGestiones}</p>
                 <p className="text-sm font-bold text-muted-foreground uppercase mt-1">Gestiones Realizadas</p>
               </div>
 
-              <div className="p-8 rounded-[2rem] bg-muted/20 border border-border/50 hover:border-secondary/20 transition-all group">
+              <div className="p-5 rounded-2xl bg-muted/20 border border-border/50 hover:border-secondary/20 transition-all group">
                 <div className="w-12 h-12 rounded-2xl bg-secondary/10 flex items-center justify-center mb-4 group-hover:rotate-12 transition-transform">
                   <Shield className="w-6 h-6 text-secondary" />
                 </div>
-                <p className="text-4xl font-black text-secondary">
+                <p className="text-2xl font-black text-secondary">
                   ${Math.round(totalValue).toLocaleString('es-CO')}
                 </p>
                 <p className="text-sm font-bold text-muted-foreground uppercase mt-1">Valor Total en Links</p>
               </div>
 
-              <div className="p-8 rounded-[2rem] bg-muted/20 border border-border/50 hover:border-primary/20 transition-all group">
+              <div className="p-5 rounded-2xl bg-muted/20 border border-border/50 hover:border-primary/20 transition-all group">
                 <div className="flex items-start justify-between mb-4">
                   <div className="w-12 h-12 rounded-2xl bg-primary/10 flex items-center justify-center group-hover:rotate-12 transition-transform">
                     <PhoneCall className="w-6 h-6 text-primary" />
@@ -432,23 +432,23 @@ export function Profile({ user, transfers }: ProfileProps) {
                     <RefreshCcw className={cn("w-3 h-3 text-muted-foreground", checkingConversations && "animate-spin")} />
                   </Button>
                 </div>
-                <p className="text-4xl font-black text-secondary">{activeConversations ?? '—'}</p>
+                <p className="text-2xl font-black text-secondary">{activeConversations ?? '—'}</p>
                 <p className="text-sm font-bold text-muted-foreground uppercase mt-1">Conversaciones Activas Ahora</p>
               </div>
 
-              <div className="p-8 rounded-[2rem] bg-muted/20 border border-border/50 hover:border-secondary/20 transition-all group">
+              <div className="p-5 rounded-2xl bg-muted/20 border border-border/50 hover:border-secondary/20 transition-all group">
                 <div className="w-12 h-12 rounded-2xl bg-secondary/10 flex items-center justify-center mb-4 group-hover:rotate-12 transition-transform">
                   <Award className="w-6 h-6 text-secondary" />
                 </div>
-                <p className="text-4xl font-black text-secondary">{callTotal ?? '—'}</p>
+                <p className="text-2xl font-black text-secondary">{callTotal ?? '—'}</p>
                 <p className="text-sm font-bold text-muted-foreground uppercase mt-1">
                   {callTotal === null ? 'Total de Llamadas (sin datos)' : 'Total de Llamadas'}
                 </p>
               </div>
 
-              <div className="sm:col-span-2 p-8 rounded-[2rem] bg-gradient-to-br from-secondary to-slate-800 text-white relative overflow-hidden flex flex-col items-center justify-center text-center">
+              <div className="sm:col-span-2 p-5 rounded-2xl bg-gradient-to-br from-secondary to-slate-800 text-white relative overflow-hidden flex flex-col items-center justify-center text-center">
                  <div className="absolute inset-0 bg-[url('https://picsum.photos/seed/tech/800/400')] opacity-5 mix-blend-overlay" />
-                 <Trophy className="w-16 h-16 text-primary mb-4 animate-bounce" />
+                 <Trophy className="w-12 h-12 text-primary mb-4 animate-bounce" />
                  <h4 className="text-2xl font-black mb-2">¡Asesor Destacado del Mes!</h4>
                  <p className="text-slate-400 max-w-sm">Has superado tu meta de gestiones en un 15% comparado con el mes anterior.</p>
                  <Button 

@@ -312,7 +312,7 @@ export function DashboardAdviser({ transfers, user, onNewTransfer }: DashboardAd
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
 
       {/* HERO SECTION */}
-      <div className="relative rounded-3xl bg-secondary p-6 md:p-8 text-white overflow-hidden shadow-lg shadow-secondary/20 transition-all duration-500 hover:shadow-primary/10 group">
+      <div className="relative rounded-3xl bg-secondary p-6 md:p-5 text-white overflow-hidden shadow-lg shadow-secondary/20 transition-all duration-500 hover:shadow-primary/10 group">
         <div className="absolute top-0 right-0 w-72 h-72 bg-primary/20 rounded-full -translate-y-1/2 translate-x-1/2 blur-[80px] group-hover:bg-primary/30 transition-colors" />
         <div className="absolute bottom-0 left-0 w-36 h-36 bg-primary/10 rounded-full translate-y-1/2 -translate-x-1/2 blur-[50px]" />
 
@@ -656,7 +656,7 @@ export function DashboardAdviser({ transfers, user, onNewTransfer }: DashboardAd
               );
             })}
             {recentActivities.length === 0 && (
-              <div className="p-12 text-center border-2 border-dashed border-border rounded-2xl">
+              <div className="p-6 text-center border-2 border-dashed border-border rounded-2xl">
                 <p className="text-muted-foreground">No hay gestiones recientes registradas.</p>
               </div>
             )}

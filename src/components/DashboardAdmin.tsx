@@ -560,7 +560,7 @@ export function DashboardAdmin({ transfers, user, advisors }: DashboardAdminProp
     <div className="space-y-8 pb-20 animate-in fade-in slide-in-from-bottom-4 duration-700">
       
       {/* HEADER SECTION */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 bg-gradient-to-r from-[#041430] to-[#14233c] p-8 rounded-[2rem] text-white card-shadow border border-[#14233c]/40 dark:border-border/10">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 bg-gradient-to-r from-[#041430] to-[#14233c] p-5 rounded-2xl text-white card-shadow border border-[#14233c]/40 dark:border-border/10">
         <div>
           <h1 className="text-3xl font-black tracking-tight text-white flex items-center gap-3">
             Hola, {user.name} 👋
@@ -585,7 +585,7 @@ export function DashboardAdmin({ transfers, user, advisors }: DashboardAdminProp
       </div>
 
       {/* FILTROS AVANZADOS - COLLAPSIBLE FOR MODERN VIEW */}
-      <Card className="rounded-[2rem] border border-border/40 dark:border-border/10 card-shadow overflow-hidden bg-card transition-all">
+      <Card className="rounded-2xl border border-border/40 dark:border-border/10 card-shadow overflow-hidden bg-card transition-all">
         <CardHeader 
           className="py-5 px-8 border-b border-border/40 dark:border-border/10 cursor-pointer select-none bg-muted/10 hover:bg-muted/20 transition-colors flex flex-row items-center justify-between"
           onClick={() => setIsFiltersOpen(!isFiltersOpen)}
@@ -620,7 +620,7 @@ export function DashboardAdmin({ transfers, user, advisors }: DashboardAdminProp
               exit={{ height: 0, opacity: 0 }}
               transition={{ duration: 0.3, ease: "easeInOut" }}
             >
-              <CardContent className="p-8 space-y-6">
+              <CardContent className="p-5 space-y-6">
                 {/* Global Search Bar */}
                 <div className="relative group">
                   <div className="absolute inset-y-0 left-4 flex items-center pointer-events-none">
@@ -859,7 +859,7 @@ export function DashboardAdmin({ transfers, user, advisors }: DashboardAdminProp
       </div>
 
       {/* ADVANCED RECHARTS COMPONENT */}
-      <Card className="rounded-[2.5rem] border border-border/40 dark:border-border/10 card-shadow overflow-hidden bg-card">
+      <Card className="rounded-2xl border border-border/40 dark:border-border/10 card-shadow overflow-hidden bg-card">
         <CardHeader className="py-6 px-10 border-b border-border/40 dark:border-border/10 bg-muted/5 flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
             <CardTitle className="text-sm font-black text-[#041430] dark:text-foreground uppercase tracking-widest flex items-center gap-2">
@@ -889,7 +889,7 @@ export function DashboardAdmin({ transfers, user, advisors }: DashboardAdminProp
             </Button>
           </div>
         </CardHeader>
-        <CardContent className="p-8 h-auto min-w-0">
+        <CardContent className="p-5 h-auto min-w-0">
           <div className="w-full h-[300px] min-h-0 min-w-0 font-sans">
             <ResponsiveContainer width="100%" height={300}>
               {activeChartTab === 'evolution' ? (
@@ -938,7 +938,7 @@ export function DashboardAdmin({ transfers, user, advisors }: DashboardAdminProp
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         
         {/* PANEL PRINCIPAL CANALES */}
-        <Card className="rounded-[2.5rem] border border-border/40 dark:border-border/10 card-shadow overflow-hidden bg-card">
+        <Card className="rounded-2xl border border-border/40 dark:border-border/10 card-shadow overflow-hidden bg-card">
           <CardHeader className="py-6 px-10 border-b border-border/40 dark:border-border/10 bg-muted/5 flex flex-row items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-violet-500/10 dark:bg-violet-500/20 text-violet-500 flex items-center justify-center">
               <Layers className="w-5 h-5" />
@@ -952,7 +952,7 @@ export function DashboardAdmin({ transfers, user, advisors }: DashboardAdminProp
               </CardDescription>
             </div>
           </CardHeader>
-          <CardContent className="p-8 flex flex-col justify-between h-[250px]">
+          <CardContent className="p-5 flex flex-col justify-between h-[250px]">
             <div className="space-y-4 w-full">
               <div className="flex justify-between items-center bg-muted/50 p-4 rounded-2xl">
                 <div>
@@ -983,7 +983,7 @@ export function DashboardAdmin({ transfers, user, advisors }: DashboardAdminProp
         </Card>
 
         {/* DETALLE WHATSAPP */}
-        <Card className="rounded-[2.5rem] border border-border/40 dark:border-border/10 card-shadow overflow-hidden bg-card">
+        <Card className="rounded-2xl border border-border/40 dark:border-border/10 card-shadow overflow-hidden bg-card">
           <CardHeader className="py-6 px-10 border-b border-border/40 dark:border-border/10 bg-muted/5 flex flex-row items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-green-500/10 dark:bg-green-500/20 text-green-500 flex items-center justify-center">
               <MessageSquare className="w-5 h-5" />
@@ -997,7 +997,7 @@ export function DashboardAdmin({ transfers, user, advisors }: DashboardAdminProp
               </CardDescription>
             </div>
           </CardHeader>
-          <CardContent className="p-8 flex flex-col justify-between h-[250px]">
+          <CardContent className="p-5 flex flex-col justify-between h-[250px]">
             <div className="space-y-4 w-full">
               <div className="flex justify-between items-center border-b border-muted pb-3">
                 <span className="text-xs font-bold text-muted-foreground">Links de Pago Generados</span>
@@ -1022,7 +1022,7 @@ export function DashboardAdmin({ transfers, user, advisors }: DashboardAdminProp
         </Card>
 
         {/* DETALLE LLAMADAS */}
-        <Card className="rounded-[2.5rem] border border-border/40 dark:border-border/10 card-shadow overflow-hidden bg-card">
+        <Card className="rounded-2xl border border-border/40 dark:border-border/10 card-shadow overflow-hidden bg-card">
           <CardHeader className="py-6 px-10 border-b border-border/40 dark:border-border/10 bg-muted/5 flex flex-row items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-blue-500/10 dark:bg-blue-500/20 text-blue-500 flex items-center justify-center">
               <Phone className="w-5 h-5" />
@@ -1036,7 +1036,7 @@ export function DashboardAdmin({ transfers, user, advisors }: DashboardAdminProp
               </CardDescription>
             </div>
           </CardHeader>
-          <CardContent className="p-8 flex flex-col justify-between h-[250px]">
+          <CardContent className="p-5 flex flex-col justify-between h-[250px]">
             <div className="space-y-4 w-full">
               <div className="flex justify-between items-center border-b border-muted pb-3">
                 <span className="text-xs font-bold text-muted-foreground">Links de Pago Generados</span>
@@ -1065,7 +1065,7 @@ export function DashboardAdmin({ transfers, user, advisors }: DashboardAdminProp
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
         
         {/* TOP VALUE ADVISORS CARD - CORRECTED TO TAKE GENERATOR (CREATEDBY) OF LIKNS */}
-        <Card className="rounded-[2.5rem] border border-border/40 dark:border-border/10 card-shadow overflow-hidden bg-card">
+        <Card className="rounded-2xl border border-border/40 dark:border-border/10 card-shadow overflow-hidden bg-card">
           <CardHeader className="py-6 px-10 border-b border-border/40 dark:border-border/10 bg-muted/5 flex flex-row items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-rose-500/10 dark:bg-rose-500/20 text-[#EF0D0D] flex items-center justify-center">
               <Award className="w-5 h-5 text-rose-500" />
@@ -1079,7 +1079,7 @@ export function DashboardAdmin({ transfers, user, advisors }: DashboardAdminProp
               </CardDescription>
             </div>
           </CardHeader>
-          <CardContent className="p-8 space-y-5">
+          <CardContent className="p-5 space-y-5">
             {topValueAdvisors.map((adv, i) => {
               const maxVal = topValueAdvisors[0]?.value || 1;
               const percentage = Math.round((adv.value / maxVal) * 100);
@@ -1122,7 +1122,7 @@ export function DashboardAdmin({ transfers, user, advisors }: DashboardAdminProp
               );
             })}
             {topValueAdvisors.length === 0 && (
-              <div className="text-center py-20 text-slate-400 italic font-semibold text-sm">
+              <div className="text-center py-10 text-slate-400 italic font-semibold text-sm">
                 No se registran links de pago en el período seleccionado.
               </div>
             )}
@@ -1130,7 +1130,7 @@ export function DashboardAdmin({ transfers, user, advisors }: DashboardAdminProp
         </Card>
 
         {/* TOP RECEIVERS PERFORMANCE - CORRECTED TO TAKE ASSIGNED RESPONSABLE (RECEIVER) */}
-        <Card className="rounded-[2.5rem] border border-border/40 dark:border-border/10 card-shadow overflow-hidden bg-card">
+        <Card className="rounded-2xl border border-border/40 dark:border-border/10 card-shadow overflow-hidden bg-card">
           <CardHeader className="py-6 px-10 border-b border-border/40 dark:border-border/10 bg-muted/5 flex flex-row items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-indigo-500/10 dark:bg-indigo-500/20 text-[#041430] dark:text-slate-200 flex items-center justify-center">
               <Users className="w-5 h-5 text-indigo-500" />
@@ -1144,7 +1144,7 @@ export function DashboardAdmin({ transfers, user, advisors }: DashboardAdminProp
               </CardDescription>
             </div>
           </CardHeader>
-          <CardContent className="p-8 space-y-5">
+          <CardContent className="p-5 space-y-5">
             {topReceivers.map((adv, i) => {
               const maxCount = topReceivers[0]?.count || 1;
               const percentage = Math.round((adv.count / maxCount) * 100);
@@ -1180,7 +1180,7 @@ export function DashboardAdmin({ transfers, user, advisors }: DashboardAdminProp
               );
             })}
             {topReceivers.length === 0 && (
-              <div className="text-center py-20 text-slate-400 italic font-semibold text-sm">
+              <div className="text-center py-10 text-slate-400 italic font-semibold text-sm">
                 No se registran casos recibidos en el período seleccionado.
               </div>
             )}
@@ -1188,7 +1188,7 @@ export function DashboardAdmin({ transfers, user, advisors }: DashboardAdminProp
         </Card>
 
         {/* ASESORES QUE MAS TRANSFIEREN LLAMADAS (NEW CARD IN THE SYSTEM) */}
-        <Card className="rounded-[2.5rem] border border-border/40 dark:border-border/10 card-shadow overflow-hidden bg-card">
+        <Card className="rounded-2xl border border-border/40 dark:border-border/10 card-shadow overflow-hidden bg-card">
           <CardHeader className="py-6 px-10 border-b border-border/40 dark:border-border/10 bg-muted/5 flex flex-row items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-blue-500/10 dark:bg-blue-500/20 text-[#EF0D0D] flex items-center justify-center">
               <Phone className="w-5 h-5 text-blue-500" />
@@ -1202,7 +1202,7 @@ export function DashboardAdmin({ transfers, user, advisors }: DashboardAdminProp
               </CardDescription>
             </div>
           </CardHeader>
-          <CardContent className="p-8 space-y-5">
+          <CardContent className="p-5 space-y-5">
             {topSenders.map((adv, i) => {
               const maxCount = topSenders[0]?.count || 1;
               const percentage = Math.round((adv.count / maxCount) * 100);
@@ -1243,7 +1243,7 @@ export function DashboardAdmin({ transfers, user, advisors }: DashboardAdminProp
               );
             })}
             {topSenders.length === 0 && (
-              <div className="text-center py-20 text-slate-400 italic font-semibold text-sm">
+              <div className="text-center py-10 text-slate-400 italic font-semibold text-sm">
                 No se registran transferencias en el período seleccionado.
               </div>
             )}
@@ -1255,7 +1255,7 @@ export function DashboardAdmin({ transfers, user, advisors }: DashboardAdminProp
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         
         {/* PRODUCTIVITY BY ADVISOR */}
-        <Card className="rounded-[2.5rem] border border-border/40 dark:border-border/10 card-shadow overflow-hidden bg-card">
+        <Card className="rounded-2xl border border-border/40 dark:border-border/10 card-shadow overflow-hidden bg-card">
           <CardHeader className="py-6 px-10 border-b border-border/40 dark:border-border/10 bg-muted/5 flex flex-row items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-orange-500/10 dark:bg-orange-500/20 text-orange-500 dark:text-orange-400 flex items-center justify-center">
               <Send className="w-4 h-4" />
@@ -1269,7 +1269,7 @@ export function DashboardAdmin({ transfers, user, advisors }: DashboardAdminProp
               </CardDescription>
             </div>
           </CardHeader>
-          <CardContent className="p-4 md:p-8 h-auto min-w-0">
+          <CardContent className="p-4 md:p-5 h-auto min-w-0">
             <div className="w-full h-[220px] min-h-0 min-w-0 font-sans">
               <ResponsiveContainer width="100%" height={220}>
                 <BarChart data={topAdvisorsByVolume} margin={{ top: 10, right: 10, left: -25, bottom: 0 }}>
@@ -1285,7 +1285,7 @@ export function DashboardAdmin({ transfers, user, advisors }: DashboardAdminProp
         </Card>
 
         {/* DISTRIBUCIÓN POR CARTERA (AGRUPADO CORRECTAMENTE SIN ADVISORS) */}
-        <Card className="rounded-[2.5rem] border border-border/40 dark:border-border/10 card-shadow overflow-hidden bg-card">
+        <Card className="rounded-2xl border border-border/40 dark:border-border/10 card-shadow overflow-hidden bg-card">
           <CardHeader className="py-6 px-10 border-b border-border/40 dark:border-border/10 bg-muted/5 flex flex-row items-center justify-between gap-3">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-xl bg-rose-500/10 dark:bg-rose-500/20 text-rose-500 dark:text-rose-400 flex items-center justify-center">
@@ -1301,7 +1301,7 @@ export function DashboardAdmin({ transfers, user, advisors }: DashboardAdminProp
               </div>
             </div>
           </CardHeader>
-          <CardContent className="p-4 md:p-8 flex flex-col md:flex-row gap-6 items-center justify-between h-auto">
+          <CardContent className="p-4 md:p-5 flex flex-col md:flex-row gap-6 items-center justify-between h-auto">
             {/* Visual Chart */}
             <div className="w-full md:w-1/2 h-[200px] min-h-0 min-w-0 font-sans">
               <ResponsiveContainer width="100%" height={200}>

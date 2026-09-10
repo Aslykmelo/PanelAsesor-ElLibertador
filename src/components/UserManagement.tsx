@@ -96,9 +96,9 @@ export function UserManagement() {
     <div className="space-y-8 animate-in fade-in zoom-in-95 duration-500">
       
       {permissionError && (
-        <Card className="border-red-500/20 bg-red-500/5 overflow-hidden rounded-[2.5rem] border-2">
-          <CardContent className="p-8 flex flex-col md:flex-row items-center gap-6">
-            <div className="w-16 h-16 rounded-3xl bg-red-500/10 flex items-center justify-center shrink-0">
+        <Card className="border-red-500/20 bg-red-500/5 overflow-hidden rounded-2xl border-2">
+          <CardContent className="p-5 flex flex-col md:flex-row items-center gap-6">
+            <div className="w-12 h-12 rounded-3xl bg-red-500/10 flex items-center justify-center shrink-0">
                <Shield className="w-8 h-8 text-red-500" />
             </div>
             <div className="flex-1 text-center md:text-left">
@@ -165,7 +165,7 @@ export function UserManagement() {
             </div>
             <Input 
               placeholder="Buscar usuarios por nombre, correo, rol o cartera..." 
-              className="pl-14 h-16 bg-card border-none rounded-[2rem] shadow-sm text-lg font-medium focus-visible:ring-2 focus-visible:ring-primary/20"
+              className="pl-14 h-16 bg-card border-none rounded-2xl shadow-sm text-lg font-medium focus-visible:ring-2 focus-visible:ring-primary/20"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
             />
@@ -183,7 +183,7 @@ export function UserManagement() {
                   exit={{ opacity: 0, scale: 0.9 }}
                   transition={{ delay: i * 0.05 }}
                 >
-                  <Card className="rounded-[2.5rem] border-none shadow-md hover:shadow-xl transition-all duration-500 overflow-hidden group">
+                  <Card className="rounded-2xl border-none shadow-md hover:shadow-xl transition-all duration-500 overflow-hidden group">
                     <div className="h-24 bg-gradient-to-br from-secondary/10 to-secondary/5 relative">
                       <div className="absolute top-4 right-4">
                           <span className={cn(
@@ -260,15 +260,15 @@ export function UserManagement() {
           </div>
 
           {!loading && filteredUsers.length === 0 && (
-            <div className="text-center py-20 bg-card rounded-[3rem] border border-dashed border-border transition-all animate-in fade-in zoom-in-95">
-              <Activity className="w-16 h-16 text-muted-foreground/20 mx-auto mb-4" />
+            <div className="text-center py-10 bg-card rounded-2xl border border-dashed border-border transition-all animate-in fade-in zoom-in-95">
+              <Activity className="w-12 h-12 text-muted-foreground/20 mx-auto mb-4" />
               <p className="text-xl font-bold text-muted-foreground">No se encontraron usuarios</p>
             </div>
           )}
         </>
       ) : (
-        <div className="bg-card rounded-[2.5rem] border border-border/50 shadow-sm overflow-hidden animate-in slide-in-from-bottom-4 duration-500">
-          <CardHeader className="p-10 border-b border-border/10 bg-muted/10">
+        <div className="bg-card rounded-2xl border border-border/50 shadow-sm overflow-hidden animate-in slide-in-from-bottom-4 duration-500">
+          <CardHeader className="p-6 border-b border-border/10 bg-muted/10">
             <CardTitle className="text-xl font-black text-secondary flex items-center gap-3 uppercase tracking-tight">
               <History className="w-6 h-6 text-primary" />
               Historial Completo de Accesos
@@ -318,7 +318,7 @@ export function UserManagement() {
             </div>
             
             {logs.length === 0 && (
-              <div className="p-20 text-center text-muted-foreground italic opacity-50">
+              <div className="p-10 text-center text-muted-foreground italic opacity-50">
                 Aún no hay registros de acceso en el sistema.
               </div>
             )}

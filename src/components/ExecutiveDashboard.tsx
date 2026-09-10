@@ -3545,7 +3545,7 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({ transfer
                   <CardContent className="p-6">
                     <div className="h-64">
                       {trendsData.length === 0 ? (
-                        <p className="text-xs text-muted-foreground font-semibold text-center py-20">Seleccione un rango con datos.</p>
+                        <p className="text-xs text-muted-foreground font-semibold text-center py-10">Seleccione un rango con datos.</p>
                       ) : (
                         <ResponsiveContainer width="100%" height="100%">
                           <LineChart data={trendsData}>
@@ -3612,7 +3612,7 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({ transfer
                   <CardContent className="p-6">
                     <div className="h-60">
                       {trendsData.length === 0 ? (
-                        <p className="text-xs text-muted-foreground font-semibold text-center py-20">Seleccione un rango con datos.</p>
+                        <p className="text-xs text-muted-foreground font-semibold text-center py-10">Seleccione un rango con datos.</p>
                       ) : (
                         <ResponsiveContainer width="100%" height="100%">
                           <BarChart data={trendsData}>
@@ -3641,7 +3641,7 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({ transfer
                   <CardContent className="p-6">
                     <div className="h-60">
                       {trendsData.length === 0 ? (
-                        <p className="text-xs text-muted-foreground font-semibold text-center py-20">Seleccione un rango con datos.</p>
+                        <p className="text-xs text-muted-foreground font-semibold text-center py-10">Seleccione un rango con datos.</p>
                       ) : (
                         <ResponsiveContainer width="100%" height="100%">
                           <LineChart data={trendsData}>
@@ -3682,7 +3682,7 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({ transfer
                     Visualización del flujo desde la primera gestión operativa en el CRM hasta la conciliación final del recaudo.
                   </p>
                 </CardHeader>
-                <CardContent className="p-6 md:p-8">
+                <CardContent className="p-6 md:p-5">
                   
                   {/* Funnel container */}
                   <div className="max-w-4xl mx-auto space-y-4 relative">

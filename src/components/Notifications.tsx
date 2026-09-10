@@ -65,7 +65,7 @@ export const Notifications: React.FC<NotificationsProps> = ({ notifications, onM
         </div>
         <ScrollArea className="h-80">
           {notifications.length === 0 ? (
-            <div className="p-8 text-center text-muted-foreground text-sm">
+            <div className="p-5 text-center text-muted-foreground text-sm">
               No tienes notificaciones nuevas.
             </div>
           ) : (

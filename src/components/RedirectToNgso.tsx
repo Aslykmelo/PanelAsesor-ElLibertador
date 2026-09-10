@@ -197,8 +197,8 @@ export const RedirectToNgso: React.FC<RedirectToNgsoProps> = ({ currentUser }) =
 
   return (
     <div className="max-w-3xl mx-auto py-8 px-4 animate-in fade-in slide-in-from-bottom-8 duration-700">
-      <div className="text-center mb-10">
-        <div className="w-16 h-16 bg-emerald-500/10 rounded-3xl flex items-center justify-center mx-auto mb-4 border-2 border-emerald-500/20">
+      <div className="text-center mb-6">
+        <div className="w-12 h-12 bg-emerald-500/10 rounded-3xl flex items-center justify-center mx-auto mb-4 border-2 border-emerald-500/20">
           <span className="text-3xl">🏢</span>
         </div>
         <h1 className="text-3xl font-black text-secondary tracking-tight">Redirigir a NGSO</h1>
@@ -208,14 +208,14 @@ export const RedirectToNgso: React.FC<RedirectToNgsoProps> = ({ currentUser }) =
       </div>
 
       <div className="space-y-6">
-        <Card className="border-none rounded-[2.5rem] card-shadow overflow-hidden">
+        <Card className="border-none rounded-2xl card-shadow overflow-hidden">
           <CardHeader className="bg-muted/30 border-b border-border/10">
             <CardTitle className="text-lg font-bold flex items-center gap-2">
               <Search className="w-5 h-5 text-primary" />
               Número de Solicitud
             </CardTitle>
           </CardHeader>
-          <CardContent className="p-8 space-y-4">
+          <CardContent className="p-5 space-y-4">
             <div className="space-y-2">
               <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">Solicitud *</Label>
               <div className="flex gap-3">
@@ -243,14 +243,14 @@ export const RedirectToNgso: React.FC<RedirectToNgsoProps> = ({ currentUser }) =
         </Card>
 
         {matches !== null && matches.length > 0 && (
-          <Card className="border-none rounded-[2.5rem] card-shadow overflow-hidden">
+          <Card className="border-none rounded-2xl card-shadow overflow-hidden">
             <CardHeader className="bg-muted/30 border-b border-border/10">
               <CardTitle className="text-lg font-bold flex items-center gap-2">
                 <MessageSquareText className="w-5 h-5 text-primary" />
                 Conversaciones Encontradas ({matches.length})
               </CardTitle>
             </CardHeader>
-            <CardContent className="p-8 space-y-3">
+            <CardContent className="p-5 space-y-3">
               <p className="text-xs text-muted-foreground">Desmarca alguna si no corresponde a esta solicitud.</p>
               {matches.map(m => {
                 const isSelected = selectedConversationIds.has(m.id);
@@ -284,14 +284,14 @@ export const RedirectToNgso: React.FC<RedirectToNgsoProps> = ({ currentUser }) =
         )}
 
         {matches !== null && availableTags.length > 0 && (
-          <Card className="border-none rounded-[2.5rem] card-shadow overflow-hidden">
+          <Card className="border-none rounded-2xl card-shadow overflow-hidden">
             <CardHeader className="bg-muted/30 border-b border-border/10">
               <CardTitle className="text-lg font-bold flex items-center gap-2">
                 <Tag className="w-5 h-5 text-primary" />
                 Etiquetas a Quitar
               </CardTitle>
             </CardHeader>
-            <CardContent className="p-8 space-y-4">
+            <CardContent className="p-5 space-y-4">
               <p className="text-xs text-muted-foreground">Marca la etiqueta del asesor y la de compañía asesor (o cualquier otra que corresponda quitar). Solo se quitará de los contactos que realmente la tengan. El atributo "Agente_campaña" del contacto se vacía automáticamente al redirigir.</p>
               {campaignAgents.length > 0 && (
                 <div className="bg-muted/30 rounded-2xl p-4 text-xs">
@@ -323,16 +323,16 @@ export const RedirectToNgso: React.FC<RedirectToNgsoProps> = ({ currentUser }) =
           </Card>
         )}
 
-        <Card className="border-none rounded-[2.5rem] card-shadow overflow-hidden">
+        <Card className="border-none rounded-2xl card-shadow overflow-hidden">
           <CardHeader className="bg-muted/30 border-b border-border/10">
             <CardTitle className="text-lg font-bold flex items-center gap-2">
               <Send className="w-5 h-5 text-primary" />
               Mensaje para el Cliente
             </CardTitle>
           </CardHeader>
-          <CardContent className="p-8 space-y-4">
+          <CardContent className="p-5 space-y-4">
             <textarea
-              className="w-full min-h-[140px] bg-muted/30 rounded-[2rem] p-6 text-sm border-none focus:ring-1 focus:ring-primary outline-none custom-scrollbar font-medium"
+              className="w-full min-h-[140px] bg-muted/30 rounded-2xl p-6 text-sm border-none focus:ring-1 focus:ring-primary outline-none custom-scrollbar font-medium"
               placeholder="Escribe aquí el mensaje exacto que recibirá el cliente..."
               value={message}
               onChange={(e) => setMessage(e.target.value)}
@@ -348,7 +348,7 @@ export const RedirectToNgso: React.FC<RedirectToNgsoProps> = ({ currentUser }) =
           type="button"
           onClick={handleRedirect}
           disabled={sending || selectedConversationIds.size === 0 || !message.trim()}
-          className="w-full h-16 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-lg rounded-[2rem] shadow-xl shadow-emerald-600/20 transition-all hover:scale-[1.02] active:scale-[0.98]"
+          className="w-full h-16 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-lg rounded-2xl shadow-xl shadow-emerald-600/20 transition-all hover:scale-[1.02] active:scale-[0.98]"
         >
           {sending ? (
             <Loader2 className="w-6 h-6 animate-spin" />

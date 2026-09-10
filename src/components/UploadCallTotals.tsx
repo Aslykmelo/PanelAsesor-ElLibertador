@@ -113,8 +113,8 @@ export const UploadCallTotals: React.FC<UploadCallTotalsProps> = ({ currentUser 
 
   return (
     <div className="max-w-3xl mx-auto py-8 px-4 animate-in fade-in slide-in-from-bottom-8 duration-700">
-      <div className="text-center mb-10">
-        <div className="w-16 h-16 bg-primary/10 rounded-3xl flex items-center justify-center mx-auto mb-4 border-2 border-primary/20">
+      <div className="text-center mb-6">
+        <div className="w-12 h-12 bg-primary/10 rounded-3xl flex items-center justify-center mx-auto mb-4 border-2 border-primary/20">
           <ListChecks className="w-8 h-8 text-primary" />
         </div>
         <h1 className="text-3xl font-black text-secondary tracking-tight">Cargar Totales de Llamadas</h1>
@@ -123,14 +123,14 @@ export const UploadCallTotals: React.FC<UploadCallTotalsProps> = ({ currentUser 
         </p>
       </div>
 
-      <Card className="border-none rounded-[2.5rem] card-shadow overflow-hidden">
+      <Card className="border-none rounded-2xl card-shadow overflow-hidden">
         <CardHeader className="bg-muted/30 border-b border-border/10">
           <CardTitle className="text-lg font-bold flex items-center gap-2">
             <UploadCloud className="w-5 h-5 text-primary" />
             Archivo de Totales
           </CardTitle>
         </CardHeader>
-        <CardContent className="p-8 space-y-4">
+        <CardContent className="p-5 space-y-4">
           <p className="text-xs text-muted-foreground">
             Columnas esperadas: una con el correo del asesor (ej. "Correo") y otra con el total (ej. "Total Llamadas"). El nombre de asesor es opcional. Cada fila reemplaza el total anterior de ese correo.
           </p>

@@ -193,7 +193,7 @@ export function Ranking({ transfers, advisors }: RankingProps) {
       {/* CUADRO DE HONOR SECTION */}
       <div className="flex flex-col md:flex-row justify-between items-center gap-6">
         <div className="text-center md:text-left space-y-2">
-          <h1 className="text-4xl md:text-5xl font-black text-secondary tracking-tighter uppercase italic">Cuadro de Honor</h1>
+          <h1 className="text-2xl md:text-3xl font-black text-secondary tracking-tighter uppercase italic">Cuadro de Honor</h1>
           <p className="text-muted-foreground max-w-2xl font-bold uppercase text-[10px] tracking-widest leading-relaxed">
             Reconocimiento a los asesores con mejor desempeño en la gestión.
           </p>
@@ -208,11 +208,11 @@ export function Ranking({ transfers, advisors }: RankingProps) {
       </div>
 
       {/* FILTERS */}
-      <Card className="rounded-[2.5rem] border-none shadow-2xl bg-card/60 backdrop-blur-xl ring-1 ring-white/10 overflow-hidden">
+      <Card className="rounded-2xl border-none shadow-2xl bg-card/60 backdrop-blur-xl ring-1 ring-white/10 overflow-hidden">
         <div className="bg-muted/30 px-8 py-3 border-b border-border/10">
           <p className="text-[10px] font-black uppercase tracking-[0.2em] text-secondary/50">Panel de Filtros Avanzados</p>
         </div>
-        <CardContent className="p-8">
+        <CardContent className="p-5">
           <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
             <div className="md:col-span-2 space-y-2.5">
               <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">Búsqueda por Asesor</Label>
@@ -369,8 +369,8 @@ export function Ranking({ transfers, advisors }: RankingProps) {
       </div>
 
       {/* FULL RANKING TABLE */}
-      <Card className="rounded-[2.5rem] border border-secondary/10 card-shadow-sm overflow-hidden bg-card">
-        <CardHeader className="p-8 border-b border-border/10">
+      <Card className="rounded-2xl border border-secondary/10 card-shadow-sm overflow-hidden bg-card">
+        <CardHeader className="p-5 border-b border-border/10">
           <CardTitle className="text-xl font-black text-secondary tracking-tight">Ranking Completo de Asesores</CardTitle>
         </CardHeader>
         <CardContent className="p-0">
@@ -409,7 +409,7 @@ export function Ranking({ transfers, advisors }: RankingProps) {
             </table>
           </div>
           {fullRanking.length === 0 && (
-            <div className="p-20 text-center">
+            <div className="p-10 text-center">
               <p className="text-muted-foreground italic font-medium">No hay suficientes datos registrados para generar el ranking.</p>
             </div>
           )}

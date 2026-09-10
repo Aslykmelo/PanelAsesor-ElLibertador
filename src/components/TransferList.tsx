@@ -255,7 +255,7 @@ export const TransferList: React.FC<TransferListProps> = ({ transfers, onStatusC
               setCurrentPage(1);
             }}
             className={cn(
-              "p-6 rounded-[2rem] card-shadow cursor-pointer transition-all duration-300 border flex flex-col gap-2 relative overflow-hidden",
+              "p-6 rounded-2xl card-shadow cursor-pointer transition-all duration-300 border flex flex-col gap-2 relative overflow-hidden",
               advisorFilterTab === 'todas'
                 ? "bg-card border-primary ring-2 ring-primary/20 shadow-[0_0_20px_rgba(239,68,68,0.15)] dark:shadow-[0_0_20px_rgba(239,68,68,0.25)]"
                 : "bg-card border-border/40 dark:border-border/10 opacity-75 hover:opacity-100"
@@ -274,7 +274,7 @@ export const TransferList: React.FC<TransferListProps> = ({ transfers, onStatusC
               </span>
             </div>
             <div className="mt-2">
-              <span className="text-4xl font-black text-secondary dark:text-foreground">
+              <span className="text-2xl font-black text-secondary dark:text-foreground">
                 {advisorCounts.todas}
               </span>
               <p className="text-xs font-extrabold text-muted-foreground uppercase tracking-widest mt-1">Total Gestiones</p>
@@ -290,7 +290,7 @@ export const TransferList: React.FC<TransferListProps> = ({ transfers, onStatusC
               setCurrentPage(1);
             }}
             className={cn(
-              "p-6 rounded-[2rem] card-shadow cursor-pointer transition-all duration-300 border flex flex-col gap-2 relative overflow-hidden",
+              "p-6 rounded-2xl card-shadow cursor-pointer transition-all duration-300 border flex flex-col gap-2 relative overflow-hidden",
               advisorFilterTab === 'enviadas'
                 ? "bg-card border-primary ring-2 ring-primary/20 shadow-[0_0_20px_rgba(239,68,68,0.15)] dark:shadow-[0_0_20px_rgba(239,68,68,0.25)]"
                 : "bg-card border-border/40 dark:border-border/10 opacity-75 hover:opacity-100"
@@ -309,7 +309,7 @@ export const TransferList: React.FC<TransferListProps> = ({ transfers, onStatusC
               </span>
             </div>
             <div className="mt-2">
-              <span className="text-4xl font-black text-secondary dark:text-foreground">
+              <span className="text-2xl font-black text-secondary dark:text-foreground">
                 {advisorCounts.enviadas}
               </span>
               <p className="text-xs font-extrabold text-muted-foreground uppercase tracking-widest mt-1">Registradas por mí</p>
@@ -325,7 +325,7 @@ export const TransferList: React.FC<TransferListProps> = ({ transfers, onStatusC
               setCurrentPage(1);
             }}
             className={cn(
-              "p-6 rounded-[2rem] card-shadow cursor-pointer transition-all duration-300 border flex flex-col gap-2 relative overflow-hidden",
+              "p-6 rounded-2xl card-shadow cursor-pointer transition-all duration-300 border flex flex-col gap-2 relative overflow-hidden",
               advisorFilterTab === 'recibidas'
                 ? "bg-card border-primary ring-2 ring-primary/20 shadow-[0_0_20px_rgba(239,68,68,0.15)] dark:shadow-[0_0_20px_rgba(239,68,68,0.25)]"
                 : "bg-card border-border/40 dark:border-border/10 opacity-75 hover:opacity-100"
@@ -344,7 +344,7 @@ export const TransferList: React.FC<TransferListProps> = ({ transfers, onStatusC
               </span>
             </div>
             <div className="mt-2">
-              <span className="text-4xl font-black text-secondary dark:text-foreground">
+              <span className="text-2xl font-black text-secondary dark:text-foreground">
                 {advisorCounts.recibidas}
               </span>
               <p className="text-xs font-extrabold text-muted-foreground uppercase tracking-widest mt-1">Asignadas a mí</p>
@@ -353,7 +353,7 @@ export const TransferList: React.FC<TransferListProps> = ({ transfers, onStatusC
         </div>
       )}
 
-      <div className="p-4 md:p-6 bg-card rounded-[2rem] card-shadow border border-border/40 dark:border-border/10 flex flex-col gap-6">
+      <div className="p-4 md:p-6 bg-card rounded-2xl card-shadow border border-border/40 dark:border-border/10 flex flex-col gap-6">
         <div className="flex flex-col md:flex-row w-full gap-4 items-end">
           <div className="relative flex-1 w-full space-y-2">
             <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">Búsqueda General</Label>
@@ -437,7 +437,7 @@ export const TransferList: React.FC<TransferListProps> = ({ transfers, onStatusC
       </div>
 
       {/* TABLE */}
-      <div className="bg-card rounded-[2.5rem] card-shadow border border-border/40 dark:border-border/10 overflow-hidden pb-4 text-secondary dark:text-foreground">
+      <div className="bg-card rounded-2xl card-shadow border border-border/40 dark:border-border/10 overflow-hidden pb-4 text-secondary dark:text-foreground">
         <div className="overflow-x-auto custom-scrollbar">
           <Table className="relative min-w-full">
             <TableHeader className="sticky top-0 bg-card z-10">
@@ -470,7 +470,7 @@ export const TransferList: React.FC<TransferListProps> = ({ transfers, onStatusC
             <TableBody>
               {paginatedTransfers.length === 0 ? (
                 <TableRow>
-                    <TableCell colSpan={title === "Mis Gestiones" ? 5 : 6} className="text-center py-20">
+                    <TableCell colSpan={title === "Mis Gestiones" ? 5 : 6} className="text-center py-10">
                       <div className="flex flex-col items-center gap-4 opacity-40">
                         <Search className="w-12 h-12" />
                         <p className="font-black text-lg">Sin resultados que coincidan</p>
@@ -658,14 +658,14 @@ export const TransferList: React.FC<TransferListProps> = ({ transfers, onStatusC
                         {/* Collapsible Expanded Details subrow */}
                         {isExpanded && (
                           <TableRow className="bg-muted/15 dark:bg-muted/5 hover:bg-transparent border-b border-border/20">
-                            <TableCell colSpan={title === "Mis Gestiones" ? 5 : 6} className="p-4 sm:p-6 md:p-8 pl-8 pr-8">
+                            <TableCell colSpan={title === "Mis Gestiones" ? 5 : 6} className="p-4 sm:p-6 md:p-5 pl-8 pr-8">
                               <motion.div
                                 initial={{ opacity: 0, height: 0 }}
                                 animate={{ opacity: 1, height: 'auto' }}
                                 transition={{ duration: 0.25, ease: 'easeOut' }}
                                 className="overflow-hidden"
                               >
-                                <div className="bg-card dark:bg-slate-900/40 rounded-3xl border border-border/40 dark:border-border/10 p-5 sm:p-6 md:p-8 space-y-6 text-foreground shadow-xl">
+                                <div className="bg-card dark:bg-slate-900/40 rounded-3xl border border-border/40 dark:border-border/10 p-5 sm:p-6 md:p-5 space-y-6 text-foreground shadow-xl">
                                   <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center border-b border-border/30 dark:border-border/10 pb-4 gap-3">
                                     <div>
                                       <span className={cn(

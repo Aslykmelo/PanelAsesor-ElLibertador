@@ -1390,7 +1390,7 @@ export const RecaudoTracking: React.FC<RecaudoTrackingProps> = ({ transfers, use
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60">
               {paginatedLinks.length === 0 ? (
                 <tr>
-                  <td colSpan={16} className="p-8 text-center text-slate-400 italic">No hay registros coincidentes con los filtros especificados.</td>
+                  <td colSpan={16} className="p-5 text-center text-slate-400 italic">No hay registros coincidentes con los filtros especificados.</td>
                 </tr>
               ) : (
                 paginatedLinks.map((item, idx) => {

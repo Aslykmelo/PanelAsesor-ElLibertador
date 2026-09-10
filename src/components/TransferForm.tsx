@@ -297,8 +297,8 @@ export const TransferForm: React.FC<TransferFormProps> = ({ onSubmit, currentUse
 
   return (
     <div className="max-w-4xl mx-auto py-8 px-4 animate-in fade-in slide-in-from-bottom-8 duration-700">
-      <div className="text-center mb-10">
-        <div className="w-16 h-16 bg-primary/10 rounded-3xl flex items-center justify-center mx-auto mb-4 border-2 border-primary/20">
+      <div className="text-center mb-6">
+        <div className="w-12 h-12 bg-primary/10 rounded-3xl flex items-center justify-center mx-auto mb-4 border-2 border-primary/20">
           <Send className="w-8 h-8 text-primary" />
         </div>
         <h1 className="text-3xl font-black text-secondary tracking-tight">Nueva Gestión</h1>
@@ -310,14 +310,14 @@ export const TransferForm: React.FC<TransferFormProps> = ({ onSubmit, currentUse
           
           {/* LEFT: MAIN INFO */}
           <div className="space-y-6">
-            <Card className="border-none rounded-[2.5rem] card-shadow overflow-hidden">
+            <Card className="border-none rounded-2xl card-shadow overflow-hidden">
               <CardHeader className="bg-muted/30 border-b border-border/10">
                 <CardTitle className="text-lg font-bold flex items-center gap-2">
                   <FileText className="w-5 h-5 text-primary" />
                   Información de la Gestión
                 </CardTitle>
               </CardHeader>
-              <CardContent className="p-8 space-y-6">
+              <CardContent className="p-5 space-y-6">
                 <div className="space-y-2">
                   <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">Tipo de Gestión *</Label>
                   <Select value={managementType} onValueChange={setManagementType}>
@@ -389,14 +389,14 @@ export const TransferForm: React.FC<TransferFormProps> = ({ onSubmit, currentUse
               </CardContent>
             </Card>
 
-            <Card className="border-none rounded-[2.5rem] card-shadow overflow-hidden">
+            <Card className="border-none rounded-2xl card-shadow overflow-hidden">
               <CardHeader className="bg-muted/30 border-b border-border/10">
                 <CardTitle className="text-lg font-bold flex items-center gap-2">
                   <Phone className="w-5 h-5 text-primary" />
                   Datos del Cliente
                 </CardTitle>
               </CardHeader>
-              <CardContent className="p-8 space-y-6">
+              <CardContent className="p-5 space-y-6">
                 <div className="space-y-2">
                   <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">Nombre Completo *</Label>
                   <Input 
@@ -421,14 +421,14 @@ export const TransferForm: React.FC<TransferFormProps> = ({ onSubmit, currentUse
 
           {/* RIGHT: TARGET INFO */}
           <div className="space-y-6">
-            <Card className="border-none rounded-[2.5rem] card-shadow overflow-hidden">
+            <Card className="border-none rounded-2xl card-shadow overflow-hidden">
               <CardHeader className="bg-muted/30 border-b border-border/10">
                 <CardTitle className="text-lg font-bold flex items-center gap-2">
                   <UserIcon className="w-5 h-5 text-primary" />
                   Asesor Responsable *
                 </CardTitle>
               </CardHeader>
-              <CardContent className="p-8 space-y-6">
+              <CardContent className="p-5 space-y-6">
                 <div className="space-y-4">
                   {!selectedToAdvisor ? (
                     <>
@@ -512,13 +512,13 @@ export const TransferForm: React.FC<TransferFormProps> = ({ onSubmit, currentUse
                         const isNgso = (selectedToAdvisor.cartera || '').toUpperCase().trim() === 'NGSO';
                         if (isNgso) {
                           return (
-                            <div className="p-6 bg-gradient-to-br from-emerald-500/10 to-teal-500/10 border-2 border-emerald-500 dark:border-emerald-600 rounded-[2rem] relative overflow-hidden group shadow-md w-full">
+                            <div className="p-6 bg-gradient-to-br from-emerald-500/10 to-teal-500/10 border-2 border-emerald-500 dark:border-emerald-600 rounded-2xl relative overflow-hidden group shadow-md w-full">
                               <div className="absolute right-0 bottom-0 translate-x-4 translate-y-4 opacity-5 pointer-events-none">
                                 <Briefcase className="w-40 h-40" />
                               </div>
                               
                               <div className="flex items-center gap-4">
-                                  <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-emerald-500 to-teal-500 text-white flex items-center justify-center text-xl font-black shadow-lg shadow-emerald-500/20 shrink-0">
+                                  <div className="w-11 h-11 rounded-2xl bg-gradient-to-tr from-emerald-500 to-teal-500 text-white flex items-center justify-center text-xl font-black shadow-lg shadow-emerald-500/20 shrink-0">
                                      🏢
                                   </div>
                                   <div className="overflow-hidden">
@@ -530,9 +530,9 @@ export const TransferForm: React.FC<TransferFormProps> = ({ onSubmit, currentUse
                           );
                         }
                         return (
-                          <div className="p-6 bg-primary/5 border-2 border-primary rounded-[2rem] relative overflow-hidden group w-full">
+                          <div className="p-6 bg-primary/5 border-2 border-primary rounded-2xl relative overflow-hidden group w-full">
                             <div className="flex items-center gap-4 mb-6">
-                                <div className="w-14 h-14 rounded-2xl bg-primary text-white flex items-center justify-center text-xl font-black shadow-lg shadow-primary/20 shrink-0">
+                                <div className="w-11 h-11 rounded-2xl bg-primary text-white flex items-center justify-center text-xl font-black shadow-lg shadow-primary/20 shrink-0">
                                    {(selectedToAdvisor.name || '').charAt(0)}
                                 </div>
                                 <div className="overflow-hidden">
@@ -575,7 +575,7 @@ export const TransferForm: React.FC<TransferFormProps> = ({ onSubmit, currentUse
             <div className="space-y-4">
                <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">Observaciones (Opcional)</Label>
                <textarea 
-                  className="w-full min-h-[120px] bg-card rounded-[2rem] p-6 text-sm card-shadow border-none focus:ring-1 focus:ring-primary outline-none custom-scrollbar font-medium"
+                  className="w-full min-h-[120px] bg-card rounded-2xl p-6 text-sm card-shadow border-none focus:ring-1 focus:ring-primary outline-none custom-scrollbar font-medium"
                   placeholder="Añade detalles relevantes sobre esta gestión..."
                   value={observations}
                   onChange={(e) => setObservations(e.target.value)}
@@ -585,7 +585,7 @@ export const TransferForm: React.FC<TransferFormProps> = ({ onSubmit, currentUse
             <Button 
               type="submit" 
               disabled={loading}
-              className="w-full h-16 bg-primary hover:bg-primary/90 text-white font-black text-lg rounded-[2rem] shadow-xl shadow-primary/20 transition-all hover:scale-[1.02] active:scale-[0.98]"
+              className="w-full h-16 bg-primary hover:bg-primary/90 text-white font-black text-lg rounded-2xl shadow-xl shadow-primary/20 transition-all hover:scale-[1.02] active:scale-[0.98]"
             >
               {loading ? (
                 <Loader2 className="w-6 h-6 animate-spin" />

@@ -131,7 +131,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ transfers, onNewTransfer }
 
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
         {stats.map((stat) => (
-          <Card key={stat.title} className={`border-none bg-card shadow-sm hover:shadow-xl transition-all duration-300 rounded-[2rem] overflow-hidden`}>
+          <Card key={stat.title} className={`border-none bg-card shadow-sm hover:shadow-xl transition-all duration-300 rounded-2xl overflow-hidden`}>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-bold text-secondary uppercase tracking-wider">{stat.title}</CardTitle>
               <div className="p-2 bg-secondary/5 rounded-full text-secondary">
@@ -150,7 +150,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ transfers, onNewTransfer }
       </div>
 
       <div className="grid gap-6 md:grid-cols-3">
-        <Card className="shadow-lg border-none bg-card rounded-[2rem]">
+        <Card className="shadow-lg border-none bg-card rounded-2xl">
           <CardHeader className="pb-4 border-b border-border/50">
             <CardTitle className="text-xs font-black text-secondary flex items-center gap-2 uppercase tracking-widest">
               <Award className="w-5 h-5 text-yellow-500" />
@@ -171,7 +171,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ transfers, onNewTransfer }
           </CardContent>
         </Card>
 
-        <Card className="shadow-lg border-none bg-card rounded-[2rem]">
+        <Card className="shadow-lg border-none bg-card rounded-2xl">
           <CardHeader className="pb-4 border-b border-border/50">
             <CardTitle className="text-xs font-black text-secondary flex items-center gap-2 uppercase tracking-widest">
               <UserCheck className="w-5 h-5 text-blue-500" />
@@ -192,7 +192,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ transfers, onNewTransfer }
           </CardContent>
         </Card>
 
-        <Card className="shadow-lg border-none bg-card rounded-[2rem]">
+        <Card className="shadow-lg border-none bg-card rounded-2xl">
           <CardHeader className="pb-4 border-b border-border/50">
             <CardTitle className="text-xs font-black text-secondary flex items-center gap-2 uppercase tracking-widest">
               <TrendingUp className="w-5 h-5 text-green-500" />
@@ -215,11 +215,11 @@ export const Dashboard: React.FC<DashboardProps> = ({ transfers, onNewTransfer }
       </div>
 
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-7">
-        <Card className="lg:col-span-4 shadow-lg border-none bg-card rounded-[2rem]">
+        <Card className="lg:col-span-4 shadow-lg border-none bg-card rounded-2xl">
           <CardHeader className="border-b border-border/50 px-8 py-6">
             <CardTitle className="text-lg font-black text-secondary uppercase tracking-widest">Evolución de Registros</CardTitle>
           </CardHeader>
-          <CardContent className="p-8">
+          <CardContent className="p-5">
             <div className="h-[300px] w-full">
               <ResponsiveContainer width="100%" height={300}>
                 <LineChart data={evolutionData}>
@@ -239,11 +239,11 @@ export const Dashboard: React.FC<DashboardProps> = ({ transfers, onNewTransfer }
           </CardContent>
         </Card>
 
-        <Card className="lg:col-span-3 shadow-lg border-none bg-card rounded-[2rem]">
+        <Card className="lg:col-span-3 shadow-lg border-none bg-card rounded-2xl">
           <CardHeader className="border-b border-border/50 px-8 py-6">
             <CardTitle className="text-lg font-black text-secondary uppercase tracking-widest">Distribución de Gestión</CardTitle>
           </CardHeader>
-          <CardContent className="p-8">
+          <CardContent className="p-5">
             <div className="h-[200px] w-full">
               <ResponsiveContainer width="100%" height={200}>
                 <PieChart>
@@ -279,11 +279,11 @@ export const Dashboard: React.FC<DashboardProps> = ({ transfers, onNewTransfer }
       </div>
 
       <div className="grid gap-6 md:grid-cols-2">
-        <Card className="shadow-lg border-none bg-card rounded-[2rem]">
+        <Card className="shadow-lg border-none bg-card rounded-2xl">
           <CardHeader className="border-b border-border/50 px-8 py-6">
             <CardTitle className="text-lg font-black text-secondary uppercase tracking-widest">Asesores que más Envían</CardTitle>
           </CardHeader>
-          <CardContent className="p-8">
+          <CardContent className="p-5">
             <div className="h-[300px] w-full">
               <ResponsiveContainer width="100%" height={300}>
                 <BarChart data={senderData} layout="vertical">
@@ -301,11 +301,11 @@ export const Dashboard: React.FC<DashboardProps> = ({ transfers, onNewTransfer }
           </CardContent>
         </Card>
 
-        <Card className="shadow-lg border-none bg-card rounded-[2rem]">
+        <Card className="shadow-lg border-none bg-card rounded-2xl">
           <CardHeader className="border-b border-border/50 px-8 py-6">
             <CardTitle className="text-lg font-black text-secondary uppercase tracking-widest">Asesores que más Reciben</CardTitle>
           </CardHeader>
-          <CardContent className="p-8">
+          <CardContent className="p-5">
             <div className="h-[300px] w-full">
               <ResponsiveContainer width="100%" height={300}>
                 <BarChart data={receiverData} layout="vertical">

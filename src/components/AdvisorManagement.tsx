@@ -214,15 +214,15 @@ export function AdvisorManagement() {
                 Agregar Asesor
               </Button>
             } />
-            <DialogContent className="rounded-[2.5rem] border-none shadow-2xl p-0 overflow-hidden max-w-lg">
-              <div className="bg-primary p-8 text-white">
+            <DialogContent className="rounded-2xl border-none shadow-2xl p-0 overflow-hidden max-w-lg">
+              <div className="bg-primary p-5 text-white">
                 <DialogTitle className="text-2xl font-black tracking-tight">Nuevo Asesor</DialogTitle>
                 <DialogDescription className="text-white/70 font-medium mt-1">
                   Ingresa los datos para registrar un nuevo asesor en el sistema.
                 </DialogDescription>
               </div>
               <form onSubmit={handleAddAdvisor}>
-                <div className="p-8 space-y-5">
+                <div className="p-5 space-y-5">
                   <div className="space-y-2">
                     <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">Nombre Completo *</Label>
                     <Input 
@@ -289,7 +289,7 @@ export function AdvisorManagement() {
                     </Select>
                   </div>
                 </div>
-                <DialogFooter className="p-8 bg-muted/20 border-t border-border/50">
+                <DialogFooter className="p-5 bg-muted/20 border-t border-border/50">
                    <Button type="button" variant="ghost" onClick={() => setIsAddDialogOpen(false)} className="rounded-xl font-bold">Cancelar</Button>
                    <Button type="submit" disabled={submitting} className="rounded-xl font-black bg-primary px-8">
                      {submitting ? <Loader2 className="animate-spin" /> : 'Registrar Asesor'}
@@ -301,8 +301,8 @@ export function AdvisorManagement() {
 
           {/* EDIT ADVISOR DIALOG */}
           <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-            <DialogContent className="rounded-[2.5rem] border-none shadow-2xl p-0 overflow-hidden max-w-lg">
-              <div className="bg-secondary p-8 text-white">
+            <DialogContent className="rounded-2xl border-none shadow-2xl p-0 overflow-hidden max-w-lg">
+              <div className="bg-secondary p-5 text-white">
                 <DialogTitle className="text-2xl font-black tracking-tight">Editar Asesor</DialogTitle>
                 <DialogDescription className="text-white/70 font-medium mt-1">
                   Modifica los datos del asesor seleccionado.
@@ -310,7 +310,7 @@ export function AdvisorManagement() {
               </div>
               {editingAdvisor && (
                 <form onSubmit={handleEditAdvisor}>
-                  <div className="p-8 space-y-5">
+                  <div className="p-5 space-y-5">
                     <div className="space-y-2">
                       <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">Nombre Completo *</Label>
                       <Input 
@@ -377,7 +377,7 @@ export function AdvisorManagement() {
                       </Select>
                     </div>
                   </div>
-                  <DialogFooter className="p-8 bg-muted/20 border-t border-border/50">
+                  <DialogFooter className="p-5 bg-muted/20 border-t border-border/50">
                     <Button type="button" variant="ghost" onClick={() => setIsEditDialogOpen(false)} className="rounded-xl font-bold">Cancelar</Button>
                     <Button type="submit" disabled={submitting} className="rounded-xl font-black bg-secondary text-white px-8">
                       {submitting ? <Loader2 className="animate-spin" /> : 'Guardar Cambios'}
@@ -397,7 +397,7 @@ export function AdvisorManagement() {
         </div>
         <Input 
           placeholder="Buscar asesores por nombre, correo, cartera o supervisor..." 
-          className="pl-14 h-16 bg-card border-none rounded-[2rem] shadow-sm text-lg font-medium focus-visible:ring-2 focus-visible:ring-primary/20"
+          className="pl-14 h-16 bg-card border-none rounded-2xl shadow-sm text-lg font-medium focus-visible:ring-2 focus-visible:ring-primary/20"
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
         />
@@ -415,10 +415,10 @@ export function AdvisorManagement() {
               exit={{ opacity: 0, scale: 0.9 }}
               transition={{ delay: i * 0.05 }}
             >
-              <Card className="rounded-[2.5rem] border-none shadow-md hover:shadow-xl transition-all duration-500 overflow-hidden group bg-card">
-                <CardContent className="p-8">
+              <Card className="rounded-2xl border-none shadow-md hover:shadow-xl transition-all duration-500 overflow-hidden group bg-card">
+                <CardContent className="p-5">
                   <div className="flex justify-between items-start mb-6">
-                    <div className="w-14 h-14 rounded-2xl bg-muted flex items-center justify-center font-black text-2xl text-secondary shadow-inner">
+                    <div className="w-11 h-11 rounded-2xl bg-muted flex items-center justify-center font-black text-2xl text-secondary shadow-inner">
                       {adv.name.charAt(0)}
                     </div>
                     <div className="flex gap-2">
@@ -485,7 +485,7 @@ export function AdvisorManagement() {
       </div>
 
       {!loading && filteredAdvisors.length === 0 && (
-        <div className="text-center py-20 bg-card/50 rounded-[3rem] border border-dashed border-border transition-all">
+        <div className="text-center py-10 bg-card/50 rounded-2xl border border-dashed border-border transition-all">
           <div className="w-20 h-20 bg-muted/50 rounded-full flex items-center justify-center mx-auto mb-6">
             <UsersIcon className="w-10 h-10 text-muted-foreground/30" />
           </div>
@@ -495,7 +495,7 @@ export function AdvisorManagement() {
       )}
 
       {loading && (
-        <div className="flex flex-col items-center justify-center py-20">
+        <div className="flex flex-col items-center justify-center py-10">
           <Loader2 className="w-10 h-10 text-primary animate-spin mb-4" />
           <p className="text-muted-foreground font-bold tracking-widest text-[10px] uppercase">Cargando Directorio...</p>
         </div>

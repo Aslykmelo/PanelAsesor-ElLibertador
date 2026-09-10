@@ -100,7 +100,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         <div className="p-5 flex flex-col items-center justify-center border-b border-white/5">
           <div className={cn(
             "transition-all duration-500 rounded-2xl p-3 flex items-center justify-center overflow-hidden",
-            isOpen ? "w-20 h-20" : "w-14 h-14 p-2"
+            isOpen ? "w-20 h-20" : "w-11 h-11 p-2"
           )}>
             <div className="w-full h-full relative group flex items-center justify-center">
               {!logoError ? (

@@ -48,11 +48,11 @@ export const Login: React.FC = () => {
       <div className="absolute top-[-15%] left-[-10%] w-[50%] h-[50%] bg-primary/20 rounded-full blur-[120px] animate-pulse" />
       <div className="absolute bottom-[-15%] right-[-10%] w-[50%] h-[50%] bg-secondary/20 rounded-full blur-[120px] animate-pulse" style={{ animationDelay: '1s' }} />
       
-      <Card className="w-full max-w-md shadow-2xl border-none bg-card/80 backdrop-blur-xl z-10 rounded-[3rem] overflow-hidden">
+      <Card className="w-full max-w-md shadow-2xl border-none bg-card/80 backdrop-blur-xl z-10 rounded-2xl overflow-hidden">
         
         <CardHeader className="text-center space-y-6 pt-12">
           <div className="mx-auto flex items-center justify-center">
-            <div className="p-5 rounded-[2.5rem] flex items-center justify-center min-w-[120px] min-h-[120px] animate-in fade-in duration-1000">
+            <div className="p-5 rounded-2xl flex items-center justify-center min-w-[120px] min-h-[120px] animate-in fade-in duration-1000">
               {!logoError ? (
                 <img 
                   key={isDark ? 'dark' : 'light'}
