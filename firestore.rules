@@ -151,5 +151,11 @@ service cloud.firestore {
       allow write: if isController();
     }
 
+    // 8. Tope diario de refrescos manuales del contador de conversaciones
+    // activas — cada asesor solo puede leer/escribir su propio contador.
+    match /refresh_usage/{advisorEmail}/days/{dayKey} {
+      allow read, write: if isSignedIn() && getEmail() == advisorEmail;
+    }
+
   }
 }

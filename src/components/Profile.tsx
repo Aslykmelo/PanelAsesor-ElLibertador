@@ -28,6 +28,7 @@ import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { db } from '@/firebase';
 import { doc, onSnapshot } from 'firebase/firestore';
+import { tryConsumeDailyRefresh } from '@/lib/refreshLimit';
 
 interface ProfileProps {
   user: User;
@@ -61,6 +62,13 @@ export function Profile({ user, transfers }: ProfileProps) {
 
   const checkActiveConversations = async () => {
     if (!user.email) return;
+    // Tope diario real (Firestore, no el navegador) — protege la cuota de
+    // invocaciones de Vercel sin depender de que 84 asesores se autorregulen.
+    const limitResult = await tryConsumeDailyRefresh(user.email).catch(() => ({ allowed: true, count: 0, limit: 20 }));
+    if (!limitResult.allowed) {
+      toast.error(`Ya usaste las ${limitResult.limit} consultas del día para este dato. Mañana se reinicia.`);
+      return;
+    }
     setCheckingConversations(true);
     try {
       const res = await fetch(`/api/ngso/my-conversation-count?email=${encodeURIComponent(user.email)}&name=${encodeURIComponent(user.name || '')}`);
