@@ -81,6 +81,27 @@ export function Profile({ user, transfers }: ProfileProps) {
     checkActiveConversations();
   }, [user.email]);
 
+  // Enfriamiento del botón de refrescar: en vez de confiar en que 84 asesores
+  // se autorregulen con un número sugerido, el botón mismo no deja volver a
+  // pedir el dato hasta que pase el enfriamiento.
+  const REFRESH_COOLDOWN_MS = 60000;
+  const [cooldownUntil, setCooldownUntil] = useState(0);
+  const [now, setNow] = useState(() => Date.now());
+
+  useEffect(() => {
+    const interval = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const cooldownSecondsLeft = Math.max(0, Math.ceil((cooldownUntil - now) / 1000));
+  const isCoolingDown = cooldownSecondsLeft > 0;
+
+  const handleManualRefreshConversations = () => {
+    if (isCoolingDown || checkingConversations) return;
+    setCooldownUntil(Date.now() + REFRESH_COOLDOWN_MS);
+    checkActiveConversations();
+  };
+
   // Total de llamadas que sube el equipo Controller — el asesor solo ve el
   // suyo (así lo restringen las reglas de Firestore: solo su propio correo).
   const [callTotal, setCallTotal] = useState<number | null>(null);
@@ -403,11 +424,13 @@ export function Profile({ user, transfers }: ProfileProps) {
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="h-6 w-6 rounded-full"
-                    onClick={checkActiveConversations}
-                    disabled={checkingConversations}
+                    className="h-6 w-auto px-1.5 rounded-full gap-1"
+                    onClick={handleManualRefreshConversations}
+                    disabled={checkingConversations || isCoolingDown}
+                    title={isCoolingDown ? `Puedes refrescar de nuevo en ${cooldownSecondsLeft}s` : 'Refrescar'}
                   >
                     <RefreshCcw className={cn("w-3 h-3 text-muted-foreground", checkingConversations && "animate-spin")} />
+                    {isCoolingDown && <span className="text-[9px] font-bold text-muted-foreground">{cooldownSecondsLeft}s</span>}
                   </Button>
                 </div>
                 <p className="text-2xl font-black text-secondary">{activeConversations ?? '—'}</p>
