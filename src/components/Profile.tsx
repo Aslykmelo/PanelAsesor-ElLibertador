@@ -29,8 +29,6 @@ import { cn } from '@/lib/utils';
 import { db } from '@/firebase';
 import { doc, onSnapshot } from 'firebase/firestore';
 
-const CONVERSATION_COUNT_POLL_MS = 30000;
-
 interface ProfileProps {
   user: User;
   transfers: Transfer[];
@@ -75,10 +73,12 @@ export function Profile({ user, transfers }: ProfileProps) {
     }
   };
 
+  // Se carga una vez al entrar al perfil; de ahí en adelante es manual (botón
+  // de refrescar). Con 84 asesores, un auto-refresco cada 30s se comía casi
+  // toda la cuota mensual de invocaciones del plan Hobby de Vercel en un
+  // solo día de uso — no es "tiempo real" automático, es bajo demanda.
   useEffect(() => {
     checkActiveConversations();
-    const interval = setInterval(checkActiveConversations, CONVERSATION_COUNT_POLL_MS);
-    return () => clearInterval(interval);
   }, [user.email]);
 
   // Total de llamadas que sube el equipo Controller — el asesor solo ve el
@@ -249,10 +249,6 @@ export function Profile({ user, transfers }: ProfileProps) {
                   <p className="text-2xl font-black text-secondary">{totalGestiones}</p>
                   <p className="text-[10px] uppercase font-bold text-muted-foreground">Gestiones</p>
                 </motion.div>
-                <motion.div whileHover={{ y: -5 }} className="text-center p-4 bg-muted/30 rounded-3xl min-w-[100px]">
-                  <p className="text-2xl font-black text-primary">LVL 4</p>
-                  <p className="text-[10px] uppercase font-bold text-muted-foreground">Progreso</p>
-                </motion.div>
               </div>
             </div>
           </CardContent>
@@ -368,24 +364,6 @@ export function Profile({ user, transfers }: ProfileProps) {
             </div>
           </section>
 
-          <Card className="bg-secondary rounded-2xl p-5 border-none text-white relative overflow-hidden group shadow-xl shadow-secondary/20">
-            <Trophy className="absolute top-4 right-4 w-12 h-12 text-white/5 group-hover:scale-125 transition-transform duration-700" />
-            <div className="relative z-10">
-              <h3 className="text-xl font-black mb-2">Mi Logro</h3>
-              <p className="text-slate-400 text-sm leading-relaxed mb-6">
-                "El éxito es la suma de pequeños esfuerzos repetidos día tras día."
-              </p>
-              <div className="space-y-3">
-                <div className="flex justify-between text-xs font-bold">
-                  <span className="uppercase">Eficiencia Mensual</span>
-                  <span>92%</span>
-                </div>
-                <div className="h-2 bg-white/10 rounded-full">
-                  <div className="h-full bg-primary w-[92%] rounded-full shadow-[0_0_10px_rgba(161,22,27,0.5)]" />
-                </div>
-              </div>
-            </div>
-          </Card>
         </div>
 
         {/* PERFORMANCE METRICS */}
@@ -446,18 +424,6 @@ export function Profile({ user, transfers }: ProfileProps) {
                 </p>
               </div>
 
-              <div className="sm:col-span-2 p-5 rounded-2xl bg-gradient-to-br from-secondary to-slate-800 text-white relative overflow-hidden flex flex-col items-center justify-center text-center">
-                 <div className="absolute inset-0 bg-[url('https://picsum.photos/seed/tech/800/400')] opacity-5 mix-blend-overlay" />
-                 <Trophy className="w-12 h-12 text-primary mb-4 animate-bounce" />
-                 <h4 className="text-2xl font-black mb-2">¡Asesor Destacado del Mes!</h4>
-                 <p className="text-slate-400 max-w-sm">Has superado tu meta de gestiones en un 15% comparado con el mes anterior.</p>
-                 <Button 
-                   onClick={downloadCertificate}
-                   className="mt-6 bg-white text-secondary hover:bg-slate-100 font-black rounded-xl"
-                 >
-                   Descargar Reconocimiento
-                 </Button>
-              </div>
             </div>
           </section>
         </div>
