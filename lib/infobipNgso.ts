@@ -299,25 +299,46 @@ async function getAgentByName(name: string): Promise<{ id: string } | null> {
   return data.agents?.[0] ?? null;
 }
 
-async function countConversationsByStatus(agentId: string, status: "OPEN" | "WAITING"): Promise<number> {
+async function countConversationsByStatus(
+  agentId: string,
+  status: "OPEN" | "WAITING" | "CLOSED",
+  extraQuery: string = ""
+): Promise<number> {
   const data = await infobipFetch<{ pagination: { totalItems: number } }>(
-    `/ccaas/1/conversations?agentId=${encodeURIComponent(agentId)}&status=${status}&limit=1&page=0`
+    `/ccaas/1/conversations?agentId=${encodeURIComponent(agentId)}&status=${status}&limit=1&page=0${extraQuery}`
   );
   return data.pagination.totalItems;
 }
 
+// Colombia no tiene horario de verano (UTC-5 fijo todo el año), así que
+// basta con restar 5 horas a la hora del servidor (Vercel corre en UTC)
+// para saber qué día es "hoy" en Bogotá — sin esto, "cerradas hoy" quedaría
+// desfasado 5 horas respecto al día real del asesor.
+function bogotaStartOfDayIso(): string {
+  const bogota = new Date(Date.now() - 5 * 60 * 60 * 1000);
+  const y = bogota.getUTCFullYear();
+  const m = String(bogota.getUTCMonth() + 1).padStart(2, "0");
+  const d = String(bogota.getUTCDate()).padStart(2, "0");
+  return `${y}-${m}-${d}T00:00:00.000-0500`;
+}
+
+export type MyConversationStats = { active: number; closedToday: number };
+
 // Conversaciones que este asesor tiene abiertas ahora mismo (OPEN + WAITING)
-// — usado en su perfil para mostrar la carga en tiempo real. Devuelve 0 si
-// no se encuentra ningún agente de CCaaS (en vez de fallar), ya que no todos
-// los usuarios de la app tienen agente en Infobip.
-export async function getMyActiveConversationCount(email: string, name: string): Promise<number> {
+// y las que ha cerrado hoy (CLOSED, desde medianoche hora de Bogotá) —
+// usado en su perfil/tablero para mostrar la carga y el avance del día.
+// Devuelve ceros si no se encuentra ningún agente de CCaaS (en vez de
+// fallar), ya que no todos los usuarios de la app tienen agente en Infobip.
+export async function getMyConversationStats(email: string, name: string): Promise<MyConversationStats> {
   const agent = (await getAgentByEmail(email)) ?? (await getAgentByName(name));
-  if (!agent) return 0;
-  const [open, waiting] = await Promise.all([
+  if (!agent) return { active: 0, closedToday: 0 };
+  const closedAfter = encodeURIComponent(bogotaStartOfDayIso());
+  const [open, waiting, closedToday] = await Promise.all([
     countConversationsByStatus(agent.id, "OPEN"),
     countConversationsByStatus(agent.id, "WAITING"),
+    countConversationsByStatus(agent.id, "CLOSED", `&closedAfter=${closedAfter}`),
   ]);
-  return open + waiting;
+  return { active: open + waiting, closedToday };
 }
 
 export type TagRemovalResult = { tag: string; ok: boolean; error?: string };

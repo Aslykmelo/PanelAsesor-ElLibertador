@@ -58,6 +58,7 @@ export function Profile({ user, transfers }: ProfileProps) {
   }, []);
 
   const [activeConversations, setActiveConversations] = useState<number | null>(null);
+  const [closedTodayConversations, setClosedTodayConversations] = useState<number | null>(null);
   const [checkingConversations, setCheckingConversations] = useState(false);
   const [remainingRefreshes, setRemainingRefreshes] = useState<number | null>(null);
 
@@ -75,7 +76,8 @@ export function Profile({ user, transfers }: ProfileProps) {
     try {
       const res = await fetch(`/api/ngso/my-conversation-count?email=${encodeURIComponent(user.email)}&name=${encodeURIComponent(user.name || '')}`);
       const data = await res.json();
-      setActiveConversations(res.ok ? data.count : null);
+      setActiveConversations(res.ok ? data.active : null);
+      setClosedTodayConversations(res.ok ? data.closedToday : null);
     } catch (e) {
       console.error("Error al consultar conversaciones activas:", e);
     } finally {
@@ -450,6 +452,14 @@ export function Profile({ user, transfers }: ProfileProps) {
                     Te quedan {remainingRefreshes} de 20 consultas hoy
                   </p>
                 )}
+              </div>
+
+              <div className="p-5 rounded-2xl bg-muted/20 border border-border/50 hover:border-emerald-500/20 transition-all group">
+                <div className="w-12 h-12 rounded-2xl bg-emerald-500/10 flex items-center justify-center mb-4 group-hover:rotate-12 transition-transform">
+                  <CheckCircle className="w-6 h-6 text-emerald-600 dark:text-emerald-400" />
+                </div>
+                <p className="text-2xl font-black text-secondary">{closedTodayConversations ?? '—'}</p>
+                <p className="text-sm font-bold text-muted-foreground uppercase mt-1">Conversaciones Cerradas Hoy</p>
               </div>
 
               <div className="p-5 rounded-2xl bg-muted/20 border border-border/50 hover:border-secondary/20 transition-all group">

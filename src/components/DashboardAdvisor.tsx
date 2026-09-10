@@ -62,6 +62,7 @@ export function DashboardAdviser({ transfers, user, onNewTransfer }: DashboardAd
   // apagado. Misma lógica que en Mi Perfil: carga una vez al entrar, de ahí
   // en adelante es manual con enfriamiento de 60s (ver por qué en Profile.tsx).
   const [activeConversations, setActiveConversations] = useState<number | null>(null);
+  const [closedTodayConversations, setClosedTodayConversations] = useState<number | null>(null);
   const [checkingConversations, setCheckingConversations] = useState(false);
   const [remainingRefreshes, setRemainingRefreshes] = useState<number | null>(null);
   const [callTotal, setCallTotal] = useState<number | null>(null);
@@ -84,7 +85,8 @@ export function DashboardAdviser({ transfers, user, onNewTransfer }: DashboardAd
     try {
       const res = await fetch(`/api/ngso/my-conversation-count?email=${encodeURIComponent(user.email)}&name=${encodeURIComponent(user.name || '')}`);
       const data = await res.json();
-      setActiveConversations(res.ok ? data.count : null);
+      setActiveConversations(res.ok ? data.active : null);
+      setClosedTodayConversations(res.ok ? data.closedToday : null);
     } catch (e) {
       console.error("Error al consultar conversaciones activas:", e);
     } finally {
@@ -450,6 +452,25 @@ export function DashboardAdviser({ transfers, user, onNewTransfer }: DashboardAd
                     Te quedan {remainingRefreshes} de 20 consultas hoy
                   </p>
                 )}
+              </div>
+            </CardContent>
+          </Card>
+        </motion.div>
+
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.05 }}
+          className="group flex-1 min-w-[220px] max-w-xs"
+        >
+          <Card className="border-none shadow-md hover:shadow-xl dark:shadow-black/25 rounded-2xl overflow-hidden transition-all duration-300 bg-card/70 backdrop-blur-md border border-border/40 dark:border-border/10 h-full">
+            <CardContent className="p-4 flex items-center gap-3">
+              <div className="w-11 h-11 shrink-0 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 rounded-xl flex items-center justify-center shadow-sm">
+                <CheckCircle2 className="w-5 h-5" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-2xl font-black text-secondary dark:text-foreground tracking-tight leading-tight">{closedTodayConversations ?? '—'}</p>
+                <p className="text-xs font-black text-secondary dark:text-foreground uppercase tracking-wider truncate">Conversaciones Cerradas Hoy</p>
               </div>
             </CardContent>
           </Card>

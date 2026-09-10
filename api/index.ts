@@ -1,7 +1,7 @@
 import express from "express";
 import nodemailer from "nodemailer";
 import dotenv from "dotenv";
-import { getConversationContactTags, findConversationsByRequestNumber, redirectConversationsToNgso, getMyActiveConversationCount } from "../lib/infobipNgso.js";
+import { getConversationContactTags, findConversationsByRequestNumber, redirectConversationsToNgso, getMyConversationStats } from "../lib/infobipNgso.js";
 
 dotenv.config();
 
@@ -215,8 +215,8 @@ app.get("/api/ngso/search", async (req, res) => {
   }
 });
 
-// Perfil: conversaciones que el asesor tiene abiertas ahora mismo en
-// Infobip (busca su agente de CCaaS por correo).
+// Perfil: conversaciones que el asesor tiene abiertas ahora mismo y las que
+// ha cerrado hoy en Infobip (busca su agente de CCaaS por correo).
 app.get("/api/ngso/my-conversation-count", async (req, res) => {
   const email = String(req.query.email || "").trim().toLowerCase();
   const name = String(req.query.name || "").trim();
@@ -224,11 +224,11 @@ app.get("/api/ngso/my-conversation-count", async (req, res) => {
     return res.status(400).json({ error: "email es requerido" });
   }
   try {
-    const count = await getMyActiveConversationCount(email, name);
-    res.json({ count });
+    const stats = await getMyConversationStats(email, name);
+    res.json(stats);
   } catch (error: any) {
-    console.error("Error al consultar conversaciones activas del asesor:", error);
-    res.status(500).json({ error: error.message || "Error desconocido al consultar conversaciones activas" });
+    console.error("Error al consultar conversaciones del asesor:", error);
+    res.status(500).json({ error: error.message || "Error desconocido al consultar conversaciones" });
   }
 });
 
