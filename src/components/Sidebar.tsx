@@ -79,127 +79,113 @@ export const Sidebar: React.FC<SidebarProps> = ({
       )}
 
       <aside className={cn(
-        "fixed md:relative top-0 left-0 h-screen bg-sidebar text-white flex flex-col transition-all duration-500 z-50 overflow-hidden shadow-2xl",
-        isOpen ? "w-64 translate-x-0" : "-translate-x-full md:translate-x-0 md:w-20",
+        "fixed md:relative top-0 left-0 h-screen bg-sidebar text-white flex flex-col transition-all duration-500 z-50 overflow-hidden shadow-xl",
+        isOpen ? "w-56 translate-x-0" : "-translate-x-full md:translate-x-0 md:w-16",
         "border-r border-white/5"
       )}>
-        
-        {/* TOGGLE AREA (ARRIBA DEL LOGO) */}
-        <div className="p-4 flex items-center justify-center border-b border-white/5">
-          <Button 
-            variant="ghost" 
-            size="icon" 
-            onClick={onToggle} 
-            className="text-white/60 hover:text-white hover:bg-white/10 rounded-xl w-10 h-10 transition-all active:scale-95"
+
+        {/* HEADER: logo + wordmark + toggle, one compact row */}
+        <div className="h-14 shrink-0 px-3 flex items-center justify-between border-b border-white/5 gap-2">
+          <div className="flex items-center gap-2 min-w-0">
+            <div className="w-8 h-8 shrink-0 rounded-lg overflow-hidden flex items-center justify-center bg-white/5">
+              {!logoError ? (
+                <img
+                  src="/ellibertador.png"
+                  alt="Logo El Libertador"
+                  className="w-full h-full object-contain"
+                  referrerPolicy="no-referrer"
+                  onError={() => setLogoError(true)}
+                />
+              ) : (
+                <ShieldCheck className="w-5 h-5 text-secondary" />
+              )}
+            </div>
+            {isOpen && (
+              <p className="text-xs font-black uppercase tracking-wide truncate animate-in fade-in duration-300">El Libertador</p>
+            )}
+          </div>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={onToggle}
+            className="text-white/60 hover:text-white hover:bg-white/10 rounded-lg w-8 h-8 shrink-0 transition-all active:scale-95"
           >
-            {isOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+            {isOpen ? <X className="w-4 h-4" /> : <Menu className="w-4 h-4" />}
           </Button>
         </div>
 
-        {/* LOGO AREA */}
-        <div className="p-5 flex flex-col items-center justify-center border-b border-white/5">
-          <div className={cn(
-            "transition-all duration-500 rounded-2xl p-3 flex items-center justify-center overflow-hidden",
-            isOpen ? "w-20 h-20" : "w-11 h-11 p-2"
-          )}>
-            <div className="w-full h-full relative group flex items-center justify-center">
-              {!logoError ? (
-                <img 
-                  src="/ellibertador.png" 
-                  alt="Logo El Libertador" 
-                  className={cn("w-full h-full object-contain transition-all duration-500 rounded-xl", !isOpen ? "p-1" : "")} 
-                  referrerPolicy="no-referrer"
-                  onError={(e) => {
-                    setLogoError(true);
-                  }}
-                />
-              ) : (
-                <ShieldCheck className={cn("text-secondary transition-all", isOpen ? "w-10 h-10" : "w-8 h-8")} />
-              )}
-              <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 rounded-xl transition-colors cursor-pointer flex items-center justify-center">
-                 <ShieldCheck className="text-secondary w-8 h-8 opacity-0 group-hover:opacity-100 transition-opacity" />
-              </div>
-            </div>
-          </div>
-          {isOpen && (
-            <div className="mt-3 text-center animate-in fade-in slide-in-from-top-2 duration-500">
-               <p className="text-[10px] uppercase font-black text-white/30 tracking-[0.3em] whitespace-nowrap">Área Corporativa</p>
-            </div>
-          )}
-        </div>
-
         {/* NAVIGATION */}
-        <nav className="px-3 py-4 space-y-1.5 overflow-y-auto custom-scrollbar">
-          
+        <nav className="px-2 py-3 space-y-1 overflow-y-auto custom-scrollbar">
+
           <Button
             variant="ghost"
             className={cn(
-              "w-full justify-start gap-3 h-10 rounded-xl transition-all duration-300 group overflow-hidden",
-              activeTab === 'profile' 
-                ? "bg-primary text-white shadow-lg shadow-primary/30" 
+              "w-full justify-start gap-2.5 h-9 rounded-lg transition-all duration-300 group overflow-hidden",
+              activeTab === 'profile'
+                ? "bg-primary text-white shadow-sm shadow-primary/30"
                 : "hover:bg-white/10 text-white/60 hover:text-white"
             )}
             onClick={() => onTabChange?.('profile')}
           >
             <UserCircle className={cn(
-              "w-5 h-5 shrink-0 transition-transform duration-300 group-hover:scale-110",
+              "w-4 h-4 shrink-0",
               activeTab === 'profile' ? "text-white" : "text-white/40"
             )} />
-            {isOpen && <span className="font-bold text-sm whitespace-nowrap">Mi Perfil</span>}
+            {isOpen && <span className="font-bold text-xs whitespace-nowrap">Mi Perfil</span>}
           </Button>
 
-          <div className="my-4 h-px bg-white/5 mx-2" />
+          <div className="my-2 h-px bg-white/5 mx-1" />
 
           {filteredMenu.map((item) => (
             <Button
               key={item.id}
               variant="ghost"
               className={cn(
-                "w-full justify-start gap-3 h-10 rounded-xl transition-all duration-300 group overflow-hidden",
-                activeTab === item.id 
-                  ? "bg-primary text-white shadow-lg shadow-primary/30 hover:bg-primary/90" 
+                "w-full justify-start gap-2.5 h-9 rounded-lg transition-all duration-300 group overflow-hidden",
+                activeTab === item.id
+                  ? "bg-primary text-white shadow-sm shadow-primary/30 hover:bg-primary/90"
                   : "hover:bg-white/10 text-white/60 hover:text-white"
               )}
               onClick={() => onTabChange?.(item.id)}
             >
               <item.icon className={cn(
-                "w-5 h-5 shrink-0 transition-transform duration-300 group-hover:scale-110",
+                "w-4 h-4 shrink-0",
                 activeTab === item.id ? "text-white" : "text-white/40"
               )} />
-              {isOpen && <span className="font-bold text-sm whitespace-nowrap">{item.label}</span>}
+              {isOpen && <span className="font-bold text-xs whitespace-nowrap">{item.label}</span>}
             </Button>
           ))}
         </nav>
 
         {/* FOOTER */}
-        <div className="p-4 border-t border-white/5 mt-auto bg-black/20">
+        <div className="p-3 border-t border-white/5 mt-auto bg-black/20">
           {isOpen && user && (
-            <div className="flex items-center gap-3 px-2 py-3 mb-2">
-              <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center border border-primary/30 shrink-0 overflow-hidden">
+            <div className="flex items-center gap-2 px-1 py-2 mb-1">
+              <div className="w-7 h-7 rounded-full bg-primary/20 flex items-center justify-center border border-primary/30 shrink-0 overflow-hidden">
                 {user.photoURL ? (
                   <img src={user.photoURL} alt={user.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
                 ) : (
-                  <UserCircle className="w-6 h-6 text-primary" />
+                  <UserCircle className="w-4 h-4 text-primary" />
                 )}
               </div>
               <div className="overflow-hidden">
-                <p className="text-sm font-black truncate">{user.name}</p>
-                <p className="text-[10px] text-white/40 truncate font-mono uppercase tracking-tighter">{user.role}</p>
+                <p className="text-xs font-black truncate leading-tight">{user.name}</p>
+                <p className="text-[9px] text-white/40 truncate font-mono uppercase tracking-tighter leading-tight">{user.role}</p>
               </div>
             </div>
           )}
-          
-          <Button 
-            variant="ghost" 
+
+          <Button
+            variant="ghost"
             onClick={onLogout}
             className={cn(
-              "w-full justify-start gap-3 h-10 rounded-xl text-white/40 hover:text-white hover:bg-red-500/20 hover:border-red-500/30 border border-transparent transition-all duration-300 overflow-hidden",
-              !isOpen && "px-3"
+              "w-full justify-start gap-2.5 h-9 rounded-lg text-white/40 hover:text-white hover:bg-red-500/20 hover:border-red-500/30 border border-transparent transition-all duration-300 overflow-hidden",
+              !isOpen && "px-2"
             )}
             title="Cerrar Sesión"
           >
-            <LogOut className="w-5 h-5 shrink-0" />
-            {isOpen && <span className="font-bold text-sm whitespace-nowrap">Cerrar Sesión</span>}
+            <LogOut className="w-4 h-4 shrink-0" />
+            {isOpen && <span className="font-bold text-xs whitespace-nowrap">Cerrar Sesión</span>}
           </Button>
         </div>
       </aside>
