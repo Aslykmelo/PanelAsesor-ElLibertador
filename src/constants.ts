@@ -26,7 +26,8 @@ export const CONTROLLER_EMAILS = [
   'helen.pantoja@segurosbolivar.com',
   'sergio.llanos@segurosbolivar.com',
   'luis.padilla@segurosbolivar.com',
-  'doris.benavides@segurosbolivar.com'
+  'doris.benavides@segurosbolivar.com',
+  'asly.camelo@segurosbolivar.com'
 ];
 
 export interface Advisor {

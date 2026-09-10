@@ -78,7 +78,8 @@ service cloud.firestore {
       return email == "helen.pantoja@segurosbolivar.com" ||
              email == "sergio.llanos@segurosbolivar.com" ||
              email == "luis.padilla@segurosbolivar.com" ||
-             email == "doris.benavides@segurosbolivar.com";
+             email == "doris.benavides@segurosbolivar.com" ||
+             email == "asly.camelo@segurosbolivar.com";
     }
 
     function isController() {
