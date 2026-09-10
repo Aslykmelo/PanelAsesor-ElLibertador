@@ -1,12 +1,12 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Transfer, User } from '../types';
 import { cn } from '@/lib/utils';
-import { 
-  Plus, 
-  Send, 
-  Inbox, 
-  Clock, 
-  CheckCircle2, 
+import {
+  Plus,
+  Send,
+  Inbox,
+  Clock,
+  CheckCircle2,
   TrendingUp,
   LayoutDashboard,
   Search,
@@ -19,10 +19,12 @@ import {
   MessageSquare,
   Gift,
   Phone,
+  PhoneCall,
   Award,
   Coins,
   ShieldCheck,
-  BarChart3
+  BarChart3,
+  RefreshCcw
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -33,6 +35,8 @@ import { motion, AnimatePresence } from 'motion/react';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { toast } from 'sonner';
+import { db } from '@/firebase';
+import { doc, onSnapshot } from 'firebase/firestore';
 
 interface DashboardAdvisorProps {
   transfers: Transfer[];
@@ -50,6 +54,59 @@ export function DashboardAdviser({ transfers, user, onNewTransfer }: DashboardAd
 
   const checkFilterActive = (id: string) => {
     return activeTab === id;
+  };
+
+  // Conversaciones activas ahora en Infobip + total de llamadas (Controller)
+  // — los únicos datos "de hoy" que son reales mientras "Nueva Gestión" está
+  // apagado. Misma lógica que en Mi Perfil: carga una vez al entrar, de ahí
+  // en adelante es manual con enfriamiento de 60s (ver por qué en Profile.tsx).
+  const [activeConversations, setActiveConversations] = useState<number | null>(null);
+  const [checkingConversations, setCheckingConversations] = useState(false);
+  const [callTotal, setCallTotal] = useState<number | null>(null);
+  const REFRESH_COOLDOWN_MS = 60000;
+  const [cooldownUntil, setCooldownUntil] = useState(0);
+  const [now, setNow] = useState(() => Date.now());
+
+  const checkActiveConversations = async () => {
+    if (!user.email) return;
+    setCheckingConversations(true);
+    try {
+      const res = await fetch(`/api/ngso/my-conversation-count?email=${encodeURIComponent(user.email)}&name=${encodeURIComponent(user.name || '')}`);
+      const data = await res.json();
+      setActiveConversations(res.ok ? data.count : null);
+    } catch (e) {
+      console.error("Error al consultar conversaciones activas:", e);
+    } finally {
+      setCheckingConversations(false);
+    }
+  };
+
+  useEffect(() => {
+    checkActiveConversations();
+  }, [user.email]);
+
+  useEffect(() => {
+    if (!user.email) return;
+    const unsubscribe = onSnapshot(
+      doc(db, 'call_totals', user.email.toLowerCase()),
+      (snap) => setCallTotal(snap.exists() ? (snap.data().totalCalls ?? null) : null),
+      () => setCallTotal(null)
+    );
+    return () => unsubscribe();
+  }, [user.email]);
+
+  useEffect(() => {
+    const interval = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const cooldownSecondsLeft = Math.max(0, Math.ceil((cooldownUntil - now) / 1000));
+  const isCoolingDown = cooldownSecondsLeft > 0;
+
+  const handleManualRefreshConversations = () => {
+    if (isCoolingDown || checkingConversations) return;
+    setCooldownUntil(Date.now() + REFRESH_COOLDOWN_MS);
+    checkActiveConversations();
   };
 
   // Expanded card state for recent activities on Dashboard Asesor
@@ -348,35 +405,60 @@ export function DashboardAdviser({ transfers, user, onNewTransfer }: DashboardAd
         </div>
       </div>
 
-      {/* STATS ROW */}
+      {/* STATS ROW — datos reales de hoy (lo basado en "Nueva Gestión" está
+          apagado, así que se muestra lo que sí refleja el día real: Infobip) */}
       <div className="flex flex-wrap gap-4">
-        {[
-          { label: 'Enviadas', value: stats.sent, desc: 'Creadas por mí', icon: Send, color: 'text-rose-500 dark:text-rose-400', bg: 'bg-rose-500/10' },
-          { label: 'Recibidas', value: stats.received, desc: 'Asignadas a mí', icon: Inbox, color: 'text-amber-500 dark:text-amber-400', bg: 'bg-amber-500/10' },
-          { label: 'Total del Día', value: stats.totalToday, desc: 'Mis registros de hoy', icon: Calendar, color: 'text-emerald-500 dark:text-emerald-400', bg: 'bg-emerald-500/10' },
-        ].map((stat, i) => (
-          <motion.div
-            key={stat.label}
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: i * 0.1 }}
-            whileHover={{ y: -3 }}
-            className="group cursor-pointer flex-1 min-w-[220px] max-w-xs"
-          >
-            <Card className="border-none shadow-md hover:shadow-xl dark:shadow-black/25 rounded-2xl overflow-hidden transition-all duration-300 bg-card/70 backdrop-blur-md border border-border/40 dark:border-border/10 h-full">
-              <CardContent className="p-4 flex items-center gap-3">
-                <div className={`w-11 h-11 shrink-0 ${stat.bg} ${stat.color} rounded-xl flex items-center justify-center transition-all duration-300 group-hover:scale-110 shadow-sm`}>
-                  <stat.icon className="w-5 h-5" />
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="group flex-1 min-w-[220px] max-w-xs"
+        >
+          <Card className="border-none shadow-md hover:shadow-xl dark:shadow-black/25 rounded-2xl overflow-hidden transition-all duration-300 bg-card/70 backdrop-blur-md border border-border/40 dark:border-border/10 h-full">
+            <CardContent className="p-4 flex items-center gap-3">
+              <div className="w-11 h-11 shrink-0 bg-primary/10 text-primary rounded-xl flex items-center justify-center shadow-sm">
+                <PhoneCall className="w-5 h-5" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2">
+                  <p className="text-2xl font-black text-secondary dark:text-foreground tracking-tight leading-tight">{activeConversations ?? '—'}</p>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-5 w-auto px-1 rounded-full gap-1 ml-auto"
+                    onClick={handleManualRefreshConversations}
+                    disabled={checkingConversations || isCoolingDown}
+                    title={isCoolingDown ? `Puedes refrescar de nuevo en ${cooldownSecondsLeft}s` : 'Refrescar'}
+                  >
+                    <RefreshCcw className={cn("w-3 h-3 text-muted-foreground", checkingConversations && "animate-spin")} />
+                    {isCoolingDown && <span className="text-[9px] font-bold text-muted-foreground">{cooldownSecondsLeft}s</span>}
+                  </Button>
                 </div>
-                <div className="min-w-0">
-                  <p className="text-2xl font-black text-secondary dark:text-foreground tracking-tight leading-tight">{stat.value}</p>
-                  <p className="text-xs font-black text-secondary dark:text-foreground uppercase tracking-wider truncate">{stat.label}</p>
-                  <p className="text-[10px] text-muted-foreground font-medium truncate">{stat.desc}</p>
-                </div>
-              </CardContent>
-            </Card>
-          </motion.div>
-        ))}
+                <p className="text-xs font-black text-secondary dark:text-foreground uppercase tracking-wider truncate">Conversaciones Activas Ahora</p>
+              </div>
+            </CardContent>
+          </Card>
+        </motion.div>
+
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.1 }}
+          className="group flex-1 min-w-[220px] max-w-xs"
+        >
+          <Card className="border-none shadow-md hover:shadow-xl dark:shadow-black/25 rounded-2xl overflow-hidden transition-all duration-300 bg-card/70 backdrop-blur-md border border-border/40 dark:border-border/10 h-full">
+            <CardContent className="p-4 flex items-center gap-3">
+              <div className="w-11 h-11 shrink-0 bg-secondary/10 text-secondary rounded-xl flex items-center justify-center shadow-sm">
+                <Award className="w-5 h-5" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-2xl font-black text-secondary dark:text-foreground tracking-tight leading-tight">{callTotal ?? '—'}</p>
+                <p className="text-xs font-black text-secondary dark:text-foreground uppercase tracking-wider truncate">
+                  {callTotal === null ? 'Total de Llamadas (sin datos)' : 'Total de Llamadas'}
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+        </motion.div>
       </div>
 
       {/* FILTERS SECTION */}
