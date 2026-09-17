@@ -14,6 +14,7 @@ import { RedirectToNgso } from './components/RedirectToNgso';
 import { NgsoValidation } from './components/NgsoValidation';
 import { UploadCallTotals } from './components/UploadCallTotals';
 import { ExecutiveDashboard } from './components/ExecutiveDashboard';
+import { ItbxCallsPanel } from './components/ItbxCallsPanel';
 import { Notifications, Notification } from './components/Notifications';
 import { UserMenu } from './components/UserMenu';
 import { Login } from './components/Login';
@@ -628,6 +629,13 @@ export default function App() {
             user={currentUser!}
           />
         );
+
+      case 'itbx-calls':
+        if (isAsesor) {
+          setActiveTab('dashboard');
+          return null;
+        }
+        return <ItbxCallsPanel />;
 
       case 'executive-dashboard':
         if (isAsesor) {

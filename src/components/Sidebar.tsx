@@ -13,7 +13,8 @@ import {
   DollarSign,
   TrendingUp,
   Building2,
-  ListChecks
+  ListChecks,
+  Phone
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -54,6 +55,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     { id: 'ngso-validation', label: 'Validación NGSO', icon: ShieldCheck, emails: NGSO_VALIDATOR_EMAILS },
     { id: 'call-totals-upload', label: 'Cargar Totales', icon: ListChecks, emails: CONTROLLER_EMAILS },
     { id: 'recaudo', label: 'Seguimiento Recaudo', icon: DollarSign, role: ['admin', 'supervisor'] },
+    { id: 'itbx-calls', label: 'Llamadas por Extensión', icon: Phone, role: ['admin', 'supervisor'] },
     { id: 'advisor-management', label: 'Gestión Asesores', icon: Users, role: ['admin', 'supervisor'] },
     { id: 'ranking', label: 'Clasificación', icon: Trophy, role: ['admin', 'supervisor'] },
     { id: 'user-management', label: 'Usuarios', icon: UserCircle, role: ['admin'] },
