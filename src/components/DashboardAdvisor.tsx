@@ -115,13 +115,13 @@ export function DashboardAdviser({ transfers, user, onNewTransfer }: DashboardAd
   }, []);
 
   // Llamadas según extensión ITBX — la extensión se registra en Mi Perfil.
-  // El endpoint de resumen de ITBX tiene retraso de un día (pendiente con
-  // su soporte), así que se deja elegir el día en vez de forzar "hoy".
+  // Se deja elegir el día, además de "hoy", por si se necesita ver uno
+  // anterior.
   const [itbxCallTotal, setItbxCallTotal] = useState<number | null>(null);
   const [itbxLoading, setItbxLoading] = useState(false);
   const [itbxError, setItbxError] = useState(false);
   const itbxDateOptions = recentDateOptions(7);
-  const [itbxDate, setItbxDate] = useState(itbxDateOptions[1]?.key ?? todayKey());
+  const [itbxDate, setItbxDate] = useState(itbxDateOptions[0]?.key ?? todayKey());
 
   useEffect(() => {
     if (!user.extension) return;

@@ -143,11 +143,10 @@ export function Profile({ user, transfers }: ProfileProps) {
   const [itbxCallTotal, setItbxCallTotal] = useState<number | null>(null);
   const [itbxLoading, setItbxLoading] = useState(false);
   const [itbxError, setItbxError] = useState(false);
-  // El endpoint de resumen de ITBX tiene retraso de un día (pendiente con
-  // su soporte) — mientras tanto se deja elegir el día en vez de forzar
-  // "hoy", que casi siempre sale en cero.
+  // Se deja elegir el día, además de "hoy", por si se necesita ver un día
+  // anterior.
   const itbxDateOptions = recentDateOptions(7);
-  const [itbxDate, setItbxDate] = useState(itbxDateOptions[1]?.key ?? todayKey());
+  const [itbxDate, setItbxDate] = useState(itbxDateOptions[0]?.key ?? todayKey());
 
   useEffect(() => {
     setExtensionInput(user.extension || '');

@@ -48,15 +48,22 @@ type ItbxOutgoingResponse = {
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
+// El "fecha_fin" de ITBX es EXCLUSIVO, no inclusivo: pedir fecha_inicio =
+// fecha_fin = un mismo día SIEMPRE devuelve 0 registros, aunque ese día sí
+// tenga llamadas (confirmado empíricamente contra su propia API: el rango
+// 2026-09-16..2026-09-16 da 0, pero 2026-09-16..2026-09-17 da los mismos
+// totales que muestra el dashboard web de ITBX para el 16). Por eso, para
+// traer un solo día "D" hay que pedir fecha_inicio=D, fecha_fin=D+1.
+function nextDayStr(dateStr: string): string {
+  const [y, m, d] = dateStr.split("-").map(Number);
+  const next = new Date(Date.UTC(y, m - 1, d + 1));
+  return `${next.getUTCFullYear()}-${String(next.getUTCMonth() + 1).padStart(2, "0")}-${String(next.getUTCDate()).padStart(2, "0")}`;
+}
+
 // Llamadas salientes de un día dado, sumadas por extensión — el reporte
 // viene desglosado por estado (Contestada/NoContestada/Ocupado/Fallido) y
 // por troncal (ITBX/ITBX_BK), varias filas por extensión, así que hay que
 // sumar todas las filas que compartan el mismo "source" (la extensión).
-//
-// El endpoint de resumen de ITBX tiene retraso de al menos un día — pedirle
-// el día de hoy suele devolver 0 registros aunque ya haya llamadas hechas
-// (confirmado con soporte de ITBX pendiente); por eso se permite pedir
-// cualquier fecha, no solo "hoy".
 export async function getOutgoingCallTotals(dateStr?: string): Promise<Record<string, number>> {
   const token = requireItbxToken();
   const date = dateStr ?? bogotaDateStr();
@@ -65,7 +72,7 @@ export async function getOutgoingCallTotals(dateStr?: string): Promise<Record<st
   }
   const url =
     `https://api.itbx.co/api/v1/usuario/getOutgoingtraficPBX` +
-    `?token=${encodeURIComponent(token)}&fecha_inicio=${date}&fecha_fin=${date}`;
+    `?token=${encodeURIComponent(token)}&fecha_inicio=${date}&fecha_fin=${nextDayStr(date)}`;
 
   const res = await fetch(url);
   if (!res.ok) {

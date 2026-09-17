@@ -34,11 +34,10 @@ export function recentDateOptions(count: number = 7): { key: string; label: stri
   });
 }
 
-// El endpoint de resumen de ITBX tiene retraso de al menos un día — pedirle
-// "hoy" suele devolver ceros aunque ya haya llamadas. Mientras se resuelve
-// con soporte de ITBX, se deja elegir el día a consultar (ver selector en
-// Profile.tsx / DashboardAdvisor.tsx). Un día que ya pasó no cambia, así
-// que su caché no vence nunca; solo el día de hoy usa la ventana de 10 min.
+// Se deja elegir el día a consultar (ver selector en Profile.tsx /
+// DashboardAdvisor.tsx), no solo "hoy". Un día que ya pasó no vuelve a
+// cambiar, así que su caché no vence nunca; solo el día de hoy usa la
+// ventana de 10 min (sigue acumulando llamadas conforme avanza el día).
 export async function getExtensionCallTotalsForDate(dateKey: string): Promise<Record<string, number>> {
   const ref = doc(db, 'itbx_cache', dateKey);
   const snap = await getDoc(ref);
