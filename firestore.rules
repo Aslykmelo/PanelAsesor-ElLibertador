@@ -157,5 +157,13 @@ service cloud.firestore {
       allow read, write: if isSignedIn() && getEmail() == advisorEmail;
     }
 
+    // 9. Caché compartida del tráfico de llamadas de ITBX (por día) — no es
+    // información sensible por persona, cualquier asesor autenticado puede
+    // leerla y refrescarla; así se evita que cada uno dispare su propia
+    // consulta contra ITBX.
+    match /itbx_cache/{dayKey} {
+      allow read, write: if isSignedIn();
+    }
+
   }
 }

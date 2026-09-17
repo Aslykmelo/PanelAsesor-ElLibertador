@@ -15,9 +15,14 @@ import {
   AlertCircle,
   CheckCircle,
   RefreshCcw,
-  PhoneCall
+  PhoneCall,
+  Pencil,
+  Check as CheckIcon,
+  X as XIcon,
+  Phone
 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
 import { motion } from 'motion/react';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -27,8 +32,9 @@ import { useRef } from 'react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { db } from '@/firebase';
-import { doc, onSnapshot } from 'firebase/firestore';
+import { doc, onSnapshot, updateDoc } from 'firebase/firestore';
 import { tryConsumeDailyRefresh } from '@/lib/refreshLimit';
+import { getExtensionCallTotalsToday } from '@/lib/itbxCache';
 
 interface ProfileProps {
   user: User;
@@ -127,6 +133,55 @@ export function Profile({ user, transfers }: ProfileProps) {
     );
     return () => unsubscribe();
   }, [user.email]);
+
+  // Extensión ITBX — el asesor la escribe una vez en su perfil; con eso se
+  // busca su total de llamadas del día en la caché compartida de ITBX.
+  const [editingExtension, setEditingExtension] = useState(false);
+  const [extensionInput, setExtensionInput] = useState(user.extension || '');
+  const [savingExtension, setSavingExtension] = useState(false);
+  const [itbxCallTotal, setItbxCallTotal] = useState<number | null>(null);
+  const [itbxLoading, setItbxLoading] = useState(false);
+  const [itbxError, setItbxError] = useState(false);
+
+  useEffect(() => {
+    setExtensionInput(user.extension || '');
+  }, [user.extension]);
+
+  const loadItbxCallTotal = async (extension: string) => {
+    setItbxLoading(true);
+    setItbxError(false);
+    try {
+      const totals = await getExtensionCallTotalsToday();
+      setItbxCallTotal(totals[extension] ?? 0);
+    } catch (e) {
+      console.error('Error al consultar llamadas ITBX:', e);
+      setItbxError(true);
+    } finally {
+      setItbxLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (user.extension) {
+      loadItbxCallTotal(user.extension);
+    }
+  }, [user.extension]);
+
+  const saveExtension = async () => {
+    const value = extensionInput.trim();
+    if (!value) return;
+    setSavingExtension(true);
+    try {
+      await updateDoc(doc(db, 'users', user.uid), { extension: value });
+      setEditingExtension(false);
+      toast.success('Extensión guardada');
+    } catch (e) {
+      console.error('Error al guardar extensión:', e);
+      toast.error('No se pudo guardar la extensión');
+    } finally {
+      setSavingExtension(false);
+    }
+  };
 
   const totalValue = transfers.reduce((acc, t) => acc + (t.paymentLinkValue || 0), 0);
   const totalGestiones = transfers.length;
@@ -339,6 +394,56 @@ export function Profile({ user, transfers }: ProfileProps) {
                 </div>
               </div>
 
+              <div className="flex items-start gap-4">
+                <div className="w-10 h-10 rounded-xl bg-muted flex items-center justify-center flex-shrink-0">
+                  <Phone className="w-5 h-5 text-primary" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Extensión (ITBX)</p>
+                  {editingExtension ? (
+                    <div className="flex items-center gap-2 mt-1">
+                      <Input
+                        value={extensionInput}
+                        onChange={(e) => setExtensionInput(e.target.value)}
+                        placeholder="Ej: 1234"
+                        className="h-8 text-sm font-bold max-w-[120px]"
+                        disabled={savingExtension}
+                      />
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7 rounded-full text-emerald-600"
+                        onClick={saveExtension}
+                        disabled={savingExtension || !extensionInput.trim()}
+                      >
+                        <CheckIcon className="w-4 h-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7 rounded-full text-muted-foreground"
+                        onClick={() => { setEditingExtension(false); setExtensionInput(user.extension || ''); }}
+                        disabled={savingExtension}
+                      >
+                        <XIcon className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2">
+                      <p className="font-bold text-secondary">{user.extension || 'Sin registrar'}</p>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-6 w-6 rounded-full"
+                        onClick={() => setEditingExtension(true)}
+                      >
+                        <Pencil className="w-3 h-3 text-muted-foreground" />
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              </div>
+
               {/* SERVIDOR DE CORREO STATUS */}
               <div className="pt-4 mt-4 border-t border-border/50">
                 <div className="flex items-center justify-between mb-4">
@@ -470,6 +575,29 @@ export function Profile({ user, transfers }: ProfileProps) {
                 <p className="text-sm font-bold text-muted-foreground uppercase mt-1">
                   {callTotal === null ? 'Total de Llamadas (sin datos)' : 'Total de Llamadas'}
                 </p>
+              </div>
+
+              <div className="p-5 rounded-2xl bg-muted/20 border border-border/50 hover:border-primary/20 transition-all group">
+                <div className="w-12 h-12 rounded-2xl bg-primary/10 flex items-center justify-center mb-4 group-hover:rotate-12 transition-transform">
+                  <Phone className="w-6 h-6 text-primary" />
+                </div>
+                {!user.extension ? (
+                  <>
+                    <p className="text-2xl font-black text-secondary">—</p>
+                    <p className="text-sm font-bold text-muted-foreground uppercase mt-1">Llamadas Hoy (ITBX)</p>
+                    <p className="text-[10px] text-muted-foreground font-medium mt-1">Registra tu extensión para ver este dato</p>
+                  </>
+                ) : (
+                  <>
+                    <p className="text-2xl font-black text-secondary">
+                      {itbxLoading ? '...' : itbxError ? '—' : itbxCallTotal ?? '—'}
+                    </p>
+                    <p className="text-sm font-bold text-muted-foreground uppercase mt-1">
+                      {itbxError ? 'Llamadas Hoy (ITBX) — error' : 'Llamadas Hoy (ITBX)'}
+                    </p>
+                    <p className="text-[10px] text-muted-foreground font-medium mt-1">Extensión {user.extension}</p>
+                  </>
+                )}
               </div>
 
             </div>

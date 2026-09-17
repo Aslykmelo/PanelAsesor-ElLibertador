@@ -38,6 +38,7 @@ import { toast } from 'sonner';
 import { db } from '@/firebase';
 import { doc, onSnapshot } from 'firebase/firestore';
 import { tryConsumeDailyRefresh } from '@/lib/refreshLimit';
+import { getExtensionCallTotalsToday } from '@/lib/itbxCache';
 
 interface DashboardAdvisorProps {
   transfers: Transfer[];
@@ -112,6 +113,25 @@ export function DashboardAdviser({ transfers, user, onNewTransfer }: DashboardAd
     const interval = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(interval);
   }, []);
+
+  // Llamadas de hoy según extensión ITBX — la extensión se registra en Mi
+  // Perfil; aquí solo se muestra el dato ya cacheado.
+  const [itbxCallTotal, setItbxCallTotal] = useState<number | null>(null);
+  const [itbxLoading, setItbxLoading] = useState(false);
+  const [itbxError, setItbxError] = useState(false);
+
+  useEffect(() => {
+    if (!user.extension) return;
+    setItbxLoading(true);
+    setItbxError(false);
+    getExtensionCallTotalsToday()
+      .then((totals) => setItbxCallTotal(totals[user.extension!] ?? 0))
+      .catch((e) => {
+        console.error('Error al consultar llamadas ITBX:', e);
+        setItbxError(true);
+      })
+      .finally(() => setItbxLoading(false));
+  }, [user.extension]);
 
   const cooldownSecondsLeft = Math.max(0, Math.ceil((cooldownUntil - now) / 1000));
   const isCoolingDown = cooldownSecondsLeft > 0;
@@ -492,6 +512,40 @@ export function DashboardAdviser({ transfers, user, onNewTransfer }: DashboardAd
                 <p className="text-xs font-black text-secondary dark:text-foreground uppercase tracking-wider truncate">
                   {callTotal === null ? 'Total de Llamadas (sin datos)' : 'Total de Llamadas'}
                 </p>
+              </div>
+            </CardContent>
+          </Card>
+        </motion.div>
+
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.15 }}
+          className="group flex-1 min-w-[220px] max-w-xs"
+        >
+          <Card className="border-none shadow-md hover:shadow-xl dark:shadow-black/25 rounded-2xl overflow-hidden transition-all duration-300 bg-card/70 backdrop-blur-md border border-border/40 dark:border-border/10 h-full">
+            <CardContent className="p-4 flex items-center gap-3">
+              <div className="w-11 h-11 shrink-0 bg-primary/10 text-primary rounded-xl flex items-center justify-center shadow-sm">
+                <Phone className="w-5 h-5" />
+              </div>
+              <div className="min-w-0">
+                {!user.extension ? (
+                  <>
+                    <p className="text-2xl font-black text-secondary dark:text-foreground tracking-tight leading-tight">—</p>
+                    <p className="text-xs font-black text-secondary dark:text-foreground uppercase tracking-wider truncate">Llamadas Hoy (ITBX)</p>
+                    <p className="text-[9px] text-muted-foreground font-medium mt-0.5 truncate">Registra tu extensión en Mi Perfil</p>
+                  </>
+                ) : (
+                  <>
+                    <p className="text-2xl font-black text-secondary dark:text-foreground tracking-tight leading-tight">
+                      {itbxLoading ? '...' : itbxError ? '—' : itbxCallTotal ?? '—'}
+                    </p>
+                    <p className="text-xs font-black text-secondary dark:text-foreground uppercase tracking-wider truncate">
+                      {itbxError ? 'Llamadas Hoy (ITBX) — error' : 'Llamadas Hoy (ITBX)'}
+                    </p>
+                    <p className="text-[9px] text-muted-foreground font-medium mt-0.5 truncate">Extensión {user.extension}</p>
+                  </>
+                )}
               </div>
             </CardContent>
           </Card>

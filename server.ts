@@ -6,6 +6,7 @@ import nodemailer from "nodemailer";
 import dotenv from "dotenv";
 import { createClient } from "@supabase/supabase-js";
 import { getConversationContactTags, findConversationsByRequestNumber, redirectConversationsToNgso, getMyConversationStats } from "./lib/infobipNgso";
+import { getOutgoingCallTotalsToday } from "./lib/itbx";
 
 dotenv.config();
 
@@ -262,6 +263,19 @@ async function startServer() {
     } catch (error: any) {
       console.error("Error al consultar conversaciones del asesor:", error);
       res.status(500).json({ error: error.message || "Error desconocido al consultar conversaciones" });
+    }
+  });
+
+  // Perfil: llamadas salientes de hoy por extensión (ITBX), para todos los
+  // asesores a la vez — el cliente cachea esto en Firestore y lo comparte
+  // entre todos, en vez de que cada quien dispare su propia consulta.
+  app.get("/api/itbx/traffic-today", async (req, res) => {
+    try {
+      const data = await getOutgoingCallTotalsToday();
+      res.json({ data });
+    } catch (error: any) {
+      console.error("Error al consultar tráfico de ITBX:", error);
+      res.status(500).json({ error: error.message || "Error desconocido al consultar ITBX" });
     }
   });
 

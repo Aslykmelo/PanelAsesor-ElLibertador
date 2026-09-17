@@ -50,6 +50,9 @@ export interface User {
   lastLoginAt?: any;
   status?: 'online' | 'offline';
   notifications?: Notification[];
+  // Extensión telefónica (ITBX) del asesor — la ingresa él mismo en su
+  // perfil; se usa para mostrarle cuántas llamadas lleva hoy.
+  extension?: string;
 }
 
 export interface Advisor {
