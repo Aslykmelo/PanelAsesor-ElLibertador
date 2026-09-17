@@ -2,7 +2,7 @@ import express from "express";
 import nodemailer from "nodemailer";
 import dotenv from "dotenv";
 import { getConversationContactTags, findConversationsByRequestNumber, redirectConversationsToNgso, getMyConversationStats } from "../lib/infobipNgso.js";
-import { getOutgoingCallTotalsToday } from "../lib/itbx.js";
+import { getOutgoingCallTotals } from "../lib/itbx.js";
 
 dotenv.config();
 
@@ -233,12 +233,15 @@ app.get("/api/ngso/my-conversation-count", async (req, res) => {
   }
 });
 
-// Perfil: llamadas salientes de hoy por extensión (ITBX), para todos los
+// Perfil: llamadas salientes por extensión (ITBX), para todos los
 // asesores a la vez — el cliente cachea esto en Firestore y lo comparte
 // entre todos, en vez de que cada quien dispare su propia consulta.
+// Acepta ?date=YYYY-MM-DD (por defecto hoy) — el endpoint de resumen de
+// ITBX tiene retraso de un día, así que se permite elegir el día a ver.
 app.get("/api/itbx/traffic-today", async (req, res) => {
   try {
-    const data = await getOutgoingCallTotalsToday();
+    const date = typeof req.query.date === "string" ? req.query.date : undefined;
+    const data = await getOutgoingCallTotals(date);
     res.json({ data });
   } catch (error: any) {
     console.error("Error al consultar tráfico de ITBX:", error);

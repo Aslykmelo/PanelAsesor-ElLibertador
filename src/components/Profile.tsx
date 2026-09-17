@@ -34,7 +34,8 @@ import { cn } from '@/lib/utils';
 import { db } from '@/firebase';
 import { doc, onSnapshot, updateDoc } from 'firebase/firestore';
 import { tryConsumeDailyRefresh } from '@/lib/refreshLimit';
-import { getExtensionCallTotalsToday } from '@/lib/itbxCache';
+import { getExtensionCallTotalsForDate, todayKey, recentDateOptions } from '@/lib/itbxCache';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 interface ProfileProps {
   user: User;
@@ -142,16 +143,21 @@ export function Profile({ user, transfers }: ProfileProps) {
   const [itbxCallTotal, setItbxCallTotal] = useState<number | null>(null);
   const [itbxLoading, setItbxLoading] = useState(false);
   const [itbxError, setItbxError] = useState(false);
+  // El endpoint de resumen de ITBX tiene retraso de un día (pendiente con
+  // su soporte) — mientras tanto se deja elegir el día en vez de forzar
+  // "hoy", que casi siempre sale en cero.
+  const itbxDateOptions = recentDateOptions(7);
+  const [itbxDate, setItbxDate] = useState(itbxDateOptions[1]?.key ?? todayKey());
 
   useEffect(() => {
     setExtensionInput(user.extension || '');
   }, [user.extension]);
 
-  const loadItbxCallTotal = async (extension: string) => {
+  const loadItbxCallTotal = async (extension: string, dateKey: string) => {
     setItbxLoading(true);
     setItbxError(false);
     try {
-      const totals = await getExtensionCallTotalsToday();
+      const totals = await getExtensionCallTotalsForDate(dateKey);
       setItbxCallTotal(totals[extension] ?? 0);
     } catch (e) {
       console.error('Error al consultar llamadas ITBX:', e);
@@ -163,9 +169,9 @@ export function Profile({ user, transfers }: ProfileProps) {
 
   useEffect(() => {
     if (user.extension) {
-      loadItbxCallTotal(user.extension);
+      loadItbxCallTotal(user.extension, itbxDate);
     }
-  }, [user.extension]);
+  }, [user.extension, itbxDate]);
 
   const saveExtension = async () => {
     const value = extensionInput.trim();
@@ -578,13 +584,27 @@ export function Profile({ user, transfers }: ProfileProps) {
               </div>
 
               <div className="p-5 rounded-2xl bg-muted/20 border border-border/50 hover:border-primary/20 transition-all group">
-                <div className="w-12 h-12 rounded-2xl bg-primary/10 flex items-center justify-center mb-4 group-hover:rotate-12 transition-transform">
-                  <Phone className="w-6 h-6 text-primary" />
+                <div className="flex items-start justify-between mb-4">
+                  <div className="w-12 h-12 rounded-2xl bg-primary/10 flex items-center justify-center group-hover:rotate-12 transition-transform">
+                    <Phone className="w-6 h-6 text-primary" />
+                  </div>
+                  {user.extension && (
+                    <Select value={itbxDate} onValueChange={setItbxDate}>
+                      <SelectTrigger className="h-6 w-auto px-2 rounded-full text-[9px] font-bold border-none bg-transparent gap-1">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent className="rounded-xl">
+                        {itbxDateOptions.map(opt => (
+                          <SelectItem key={opt.key} value={opt.key} className="text-xs font-medium">{opt.label}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
                 </div>
                 {!user.extension ? (
                   <>
                     <p className="text-2xl font-black text-secondary">—</p>
-                    <p className="text-sm font-bold text-muted-foreground uppercase mt-1">Llamadas Hoy (ITBX)</p>
+                    <p className="text-sm font-bold text-muted-foreground uppercase mt-1">Llamadas (ITBX)</p>
                     <p className="text-[10px] text-muted-foreground font-medium mt-1">Registra tu extensión para ver este dato</p>
                   </>
                 ) : (
@@ -593,7 +613,7 @@ export function Profile({ user, transfers }: ProfileProps) {
                       {itbxLoading ? '...' : itbxError ? '—' : itbxCallTotal ?? '—'}
                     </p>
                     <p className="text-sm font-bold text-muted-foreground uppercase mt-1">
-                      {itbxError ? 'Llamadas Hoy (ITBX) — error' : 'Llamadas Hoy (ITBX)'}
+                      {itbxError ? 'Llamadas (ITBX) — error' : 'Llamadas (ITBX)'}
                     </p>
                     <p className="text-[10px] text-muted-foreground font-medium mt-1">Extensión {user.extension}</p>
                   </>

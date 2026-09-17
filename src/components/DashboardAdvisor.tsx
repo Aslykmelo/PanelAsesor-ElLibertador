@@ -38,7 +38,7 @@ import { toast } from 'sonner';
 import { db } from '@/firebase';
 import { doc, onSnapshot } from 'firebase/firestore';
 import { tryConsumeDailyRefresh } from '@/lib/refreshLimit';
-import { getExtensionCallTotalsToday } from '@/lib/itbxCache';
+import { getExtensionCallTotalsForDate, todayKey, recentDateOptions } from '@/lib/itbxCache';
 
 interface DashboardAdvisorProps {
   transfers: Transfer[];
@@ -114,24 +114,27 @@ export function DashboardAdviser({ transfers, user, onNewTransfer }: DashboardAd
     return () => clearInterval(interval);
   }, []);
 
-  // Llamadas de hoy según extensión ITBX — la extensión se registra en Mi
-  // Perfil; aquí solo se muestra el dato ya cacheado.
+  // Llamadas según extensión ITBX — la extensión se registra en Mi Perfil.
+  // El endpoint de resumen de ITBX tiene retraso de un día (pendiente con
+  // su soporte), así que se deja elegir el día en vez de forzar "hoy".
   const [itbxCallTotal, setItbxCallTotal] = useState<number | null>(null);
   const [itbxLoading, setItbxLoading] = useState(false);
   const [itbxError, setItbxError] = useState(false);
+  const itbxDateOptions = recentDateOptions(7);
+  const [itbxDate, setItbxDate] = useState(itbxDateOptions[1]?.key ?? todayKey());
 
   useEffect(() => {
     if (!user.extension) return;
     setItbxLoading(true);
     setItbxError(false);
-    getExtensionCallTotalsToday()
+    getExtensionCallTotalsForDate(itbxDate)
       .then((totals) => setItbxCallTotal(totals[user.extension!] ?? 0))
       .catch((e) => {
         console.error('Error al consultar llamadas ITBX:', e);
         setItbxError(true);
       })
       .finally(() => setItbxLoading(false));
-  }, [user.extension]);
+  }, [user.extension, itbxDate]);
 
   const cooldownSecondsLeft = Math.max(0, Math.ceil((cooldownUntil - now) / 1000));
   const isCoolingDown = cooldownSecondsLeft > 0;
@@ -528,20 +531,32 @@ export function DashboardAdviser({ transfers, user, onNewTransfer }: DashboardAd
               <div className="w-11 h-11 shrink-0 bg-primary/10 text-primary rounded-xl flex items-center justify-center shadow-sm">
                 <Phone className="w-5 h-5" />
               </div>
-              <div className="min-w-0">
+              <div className="min-w-0 flex-1">
                 {!user.extension ? (
                   <>
                     <p className="text-2xl font-black text-secondary dark:text-foreground tracking-tight leading-tight">—</p>
-                    <p className="text-xs font-black text-secondary dark:text-foreground uppercase tracking-wider truncate">Llamadas Hoy (ITBX)</p>
+                    <p className="text-xs font-black text-secondary dark:text-foreground uppercase tracking-wider truncate">Llamadas (ITBX)</p>
                     <p className="text-[9px] text-muted-foreground font-medium mt-0.5 truncate">Registra tu extensión en Mi Perfil</p>
                   </>
                 ) : (
                   <>
-                    <p className="text-2xl font-black text-secondary dark:text-foreground tracking-tight leading-tight">
-                      {itbxLoading ? '...' : itbxError ? '—' : itbxCallTotal ?? '—'}
-                    </p>
+                    <div className="flex items-center justify-between gap-1">
+                      <p className="text-2xl font-black text-secondary dark:text-foreground tracking-tight leading-tight">
+                        {itbxLoading ? '...' : itbxError ? '—' : itbxCallTotal ?? '—'}
+                      </p>
+                      <Select value={itbxDate} onValueChange={setItbxDate}>
+                        <SelectTrigger className="h-5 w-auto px-1.5 rounded-full text-[9px] font-bold border-none bg-transparent gap-1">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent className="rounded-xl">
+                          {itbxDateOptions.map(opt => (
+                            <SelectItem key={opt.key} value={opt.key} className="text-xs font-medium">{opt.label}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
                     <p className="text-xs font-black text-secondary dark:text-foreground uppercase tracking-wider truncate">
-                      {itbxError ? 'Llamadas Hoy (ITBX) — error' : 'Llamadas Hoy (ITBX)'}
+                      {itbxError ? 'Llamadas (ITBX) — error' : 'Llamadas (ITBX)'}
                     </p>
                     <p className="text-[9px] text-muted-foreground font-medium mt-0.5 truncate">Extensión {user.extension}</p>
                   </>
