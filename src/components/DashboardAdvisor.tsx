@@ -35,8 +35,6 @@ import { motion, AnimatePresence } from 'motion/react';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { toast } from 'sonner';
-import { db } from '@/firebase';
-import { doc, onSnapshot } from 'firebase/firestore';
 import { tryConsumeDailyRefresh } from '@/lib/refreshLimit';
 import { getExtensionCallTotalsForDate, todayKey, recentDateOptions } from '@/lib/itbxCache';
 
@@ -58,15 +56,14 @@ export function DashboardAdviser({ transfers, user, onNewTransfer }: DashboardAd
     return activeTab === id;
   };
 
-  // Conversaciones activas ahora en Infobip + total de llamadas (Controller)
-  // — los únicos datos "de hoy" que son reales mientras "Nueva Gestión" está
-  // apagado. Misma lógica que en Mi Perfil: carga una vez al entrar, de ahí
-  // en adelante es manual con enfriamiento de 60s (ver por qué en Profile.tsx).
+  // Conversaciones activas ahora en Infobip + llamadas de ITBX — los únicos
+  // datos "de hoy" que son reales mientras "Nueva Gestión" está apagado.
+  // Misma lógica que en Mi Perfil: carga una vez al entrar, de ahí en
+  // adelante es manual con enfriamiento de 60s (ver por qué en Profile.tsx).
   const [activeConversations, setActiveConversations] = useState<number | null>(null);
   const [closedTodayConversations, setClosedTodayConversations] = useState<number | null>(null);
   const [checkingConversations, setCheckingConversations] = useState(false);
   const [remainingRefreshes, setRemainingRefreshes] = useState<number | null>(null);
-  const [callTotal, setCallTotal] = useState<number | null>(null);
   const REFRESH_COOLDOWN_MS = 60000;
   const [cooldownUntil, setCooldownUntil] = useState(0);
   const [now, setNow] = useState(() => Date.now());
@@ -100,16 +97,6 @@ export function DashboardAdviser({ transfers, user, onNewTransfer }: DashboardAd
   }, [user.email]);
 
   useEffect(() => {
-    if (!user.email) return;
-    const unsubscribe = onSnapshot(
-      doc(db, 'call_totals', user.email.toLowerCase()),
-      (snap) => setCallTotal(snap.exists() ? (snap.data().totalCalls ?? null) : null),
-      () => setCallTotal(null)
-    );
-    return () => unsubscribe();
-  }, [user.email]);
-
-  useEffect(() => {
     const interval = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(interval);
   }, []);
@@ -118,6 +105,7 @@ export function DashboardAdviser({ transfers, user, onNewTransfer }: DashboardAd
   // Se deja elegir el día, además de "hoy", por si se necesita ver uno
   // anterior.
   const [itbxCallTotal, setItbxCallTotal] = useState<number | null>(null);
+  const [itbxAnswered, setItbxAnswered] = useState<number | null>(null);
   const [itbxLoading, setItbxLoading] = useState(false);
   const [itbxError, setItbxError] = useState(false);
   const itbxDateOptions = recentDateOptions(7);
@@ -128,7 +116,10 @@ export function DashboardAdviser({ transfers, user, onNewTransfer }: DashboardAd
     setItbxLoading(true);
     setItbxError(false);
     getExtensionCallTotalsForDate(itbxDate)
-      .then((totals) => setItbxCallTotal(totals[user.extension!] ?? 0))
+      .then(({ totals, answered }) => {
+        setItbxCallTotal(totals[user.extension!] ?? 0);
+        setItbxAnswered(answered[user.extension!] ?? 0);
+      })
       .catch((e) => {
         console.error('Error al consultar llamadas ITBX:', e);
         setItbxError(true);
@@ -507,27 +498,6 @@ export function DashboardAdviser({ transfers, user, onNewTransfer }: DashboardAd
         >
           <Card className="border-none shadow-md hover:shadow-xl dark:shadow-black/25 rounded-2xl overflow-hidden transition-all duration-300 bg-card/70 backdrop-blur-md border border-border/40 dark:border-border/10 h-full">
             <CardContent className="p-4 flex items-center gap-3">
-              <div className="w-11 h-11 shrink-0 bg-secondary/10 text-secondary rounded-xl flex items-center justify-center shadow-sm">
-                <Award className="w-5 h-5" />
-              </div>
-              <div className="min-w-0">
-                <p className="text-2xl font-black text-secondary dark:text-foreground tracking-tight leading-tight">{callTotal ?? '—'}</p>
-                <p className="text-xs font-black text-secondary dark:text-foreground uppercase tracking-wider truncate">
-                  {callTotal === null ? 'Total de Llamadas (sin datos)' : 'Total de Llamadas'}
-                </p>
-              </div>
-            </CardContent>
-          </Card>
-        </motion.div>
-
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.15 }}
-          className="group flex-1 min-w-[220px] max-w-xs"
-        >
-          <Card className="border-none shadow-md hover:shadow-xl dark:shadow-black/25 rounded-2xl overflow-hidden transition-all duration-300 bg-card/70 backdrop-blur-md border border-border/40 dark:border-border/10 h-full">
-            <CardContent className="p-4 flex items-center gap-3">
               <div className="w-11 h-11 shrink-0 bg-primary/10 text-primary rounded-xl flex items-center justify-center shadow-sm">
                 <Phone className="w-5 h-5" />
               </div>
@@ -561,6 +531,30 @@ export function DashboardAdviser({ transfers, user, onNewTransfer }: DashboardAd
                     <p className="text-[9px] text-muted-foreground font-medium mt-0.5 truncate">Extensión {user.extension}</p>
                   </>
                 )}
+              </div>
+            </CardContent>
+          </Card>
+        </motion.div>
+
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.15 }}
+          className="group flex-1 min-w-[220px] max-w-xs"
+        >
+          <Card className="border-none shadow-md hover:shadow-xl dark:shadow-black/25 rounded-2xl overflow-hidden transition-all duration-300 bg-card/70 backdrop-blur-md border border-border/40 dark:border-border/10 h-full">
+            <CardContent className="p-4 flex items-center gap-3">
+              <div className="w-11 h-11 shrink-0 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 rounded-xl flex items-center justify-center shadow-sm">
+                <PhoneCall className="w-5 h-5" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-2xl font-black text-secondary dark:text-foreground tracking-tight leading-tight">
+                  {!user.extension || itbxError ? '—' : itbxLoading ? '...' : itbxAnswered ?? '—'}
+                </p>
+                <p className="text-xs font-black text-secondary dark:text-foreground uppercase tracking-wider truncate">Llamadas Contestadas</p>
+                <p className="text-[9px] text-muted-foreground font-medium mt-0.5 truncate">
+                  {user.extension ? 'Del día elegido en la tarjeta anterior' : 'Registra tu extensión en Mi Perfil'}
+                </p>
               </div>
             </CardContent>
           </Card>

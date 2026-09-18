@@ -241,8 +241,8 @@ app.get("/api/ngso/my-conversation-count", async (req, res) => {
 app.get("/api/itbx/traffic-today", async (req, res) => {
   try {
     const date = typeof req.query.date === "string" ? req.query.date : undefined;
-    const data = await getOutgoingCallTotals(date);
-    res.json({ data });
+    const { totals, answered } = await getOutgoingCallTotals(date);
+    res.json({ data: totals, answered });
   } catch (error: any) {
     console.error("Error al consultar tráfico de ITBX:", error);
     res.status(500).json({ error: error.message || "Error desconocido al consultar ITBX" });

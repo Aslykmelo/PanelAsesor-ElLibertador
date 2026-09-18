@@ -34,23 +34,39 @@ export function recentDateOptions(count: number = 7): { key: string; label: stri
   });
 }
 
+export type ExtensionCallStats = {
+  totals: Record<string, number>;
+  answered: Record<string, number>;
+};
+
+// Instante (ms) en que terminó el día `dateKey` en hora de Bogotá (UTC-5).
+function endOfDayMs(dateKey: string): number {
+  const [y, m, d] = dateKey.split('-').map(Number);
+  return Date.UTC(y, m - 1, d + 1, 5, 0, 0);
+}
+
 // Se deja elegir el día a consultar (ver selector en Profile.tsx /
 // DashboardAdvisor.tsx), no solo "hoy". Un día que ya pasó no vuelve a
-// cambiar, así que su caché no vence nunca; solo el día de hoy usa la
-// ventana de 10 min (sigue acumulando llamadas conforme avanza el día).
-export async function getExtensionCallTotalsForDate(dateKey: string): Promise<Record<string, number>> {
+// cambiar, así que su caché no vence nunca — siempre que se haya guardado
+// después de que el día terminó (si se guardó a media jornada, está
+// incompleta y se vuelve a pedir). Solo el día de hoy usa la ventana de
+// 10 min. Documentos viejos sin el campo `answered` se ignoran.
+export async function getExtensionCallTotalsForDate(dateKey: string): Promise<ExtensionCallStats> {
   const ref = doc(db, 'itbx_cache', dateKey);
   const snap = await getDoc(ref);
   const isToday = dateKey === todayKey();
 
-  if (snap.exists()) {
-    if (!isToday) {
-      return (snap.data().data as Record<string, number>) ?? {};
-    }
-    const fetchedAt = snap.data().fetchedAt as Timestamp | undefined;
-    const ageMs = fetchedAt ? Date.now() - fetchedAt.toMillis() : Infinity;
-    if (ageMs < CACHE_FRESH_MS) {
-      return (snap.data().data as Record<string, number>) ?? {};
+  if (snap.exists() && snap.data().answered) {
+    const cached = snap.data();
+    const fetchedAtMs = (cached.fetchedAt as Timestamp | undefined)?.toMillis();
+    const usable = isToday
+      ? fetchedAtMs !== undefined && Date.now() - fetchedAtMs < CACHE_FRESH_MS
+      : fetchedAtMs !== undefined && fetchedAtMs >= endOfDayMs(dateKey);
+    if (usable) {
+      return {
+        totals: (cached.data as Record<string, number>) ?? {},
+        answered: (cached.answered as Record<string, number>) ?? {},
+      };
     }
   }
 
@@ -60,14 +76,11 @@ export async function getExtensionCallTotalsForDate(dateKey: string): Promise<Re
     throw new Error(json?.error || 'No fue posible consultar ITBX');
   }
 
-  const data: Record<string, number> = json.data ?? {};
-  await setDoc(ref, { data, fetchedAt: serverTimestamp() }).catch(() => {
+  const totals: Record<string, number> = json.data ?? {};
+  const answered: Record<string, number> = json.answered ?? {};
+  await setDoc(ref, { data: totals, answered, fetchedAt: serverTimestamp() }).catch(() => {
     // Si falla el guardado de la caché no es grave — el dato ya se obtuvo,
     // simplemente el próximo asesor no se beneficia de la caché esta vez.
   });
-  return data;
-}
-
-export async function getExtensionCallTotalsToday(): Promise<Record<string, number>> {
-  return getExtensionCallTotalsForDate(todayKey());
+  return { totals, answered };
 }

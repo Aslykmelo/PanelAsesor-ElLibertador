@@ -13,6 +13,7 @@ import { getExtensionCallTotalsForDate, recentDateOptions, todayKey } from '@/li
 interface ExtensionRow {
   extension: string;
   total: number;
+  answered: number;
   advisorName: string | null;
   advisorEmail: string | null;
 }
@@ -21,6 +22,7 @@ export function ItbxCallsPanel() {
   const dateOptions = recentDateOptions(7);
   const [selectedDate, setSelectedDate] = useState(dateOptions[0]?.key ?? todayKey());
   const [totals, setTotals] = useState<Record<string, number>>({});
+  const [answered, setAnswered] = useState<Record<string, number>>({});
   const [extensionOwners, setExtensionOwners] = useState<Record<string, { name: string; email: string }>>({});
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -50,7 +52,8 @@ export function ItbxCallsPanel() {
     setLoading(true);
     try {
       const data = await getExtensionCallTotalsForDate(dateKey);
-      setTotals(data);
+      setTotals(data.totals);
+      setAnswered(data.answered);
     } catch (e: any) {
       console.error('Error al consultar llamadas ITBX:', e);
       toast.error(e.message || 'No fue posible consultar ITBX');
@@ -68,11 +71,12 @@ export function ItbxCallsPanel() {
       .map(([extension, total]: [string, number]) => ({
         extension,
         total,
+        answered: answered[extension] ?? 0,
         advisorName: extensionOwners[extension]?.name ?? null,
         advisorEmail: extensionOwners[extension]?.email ?? null,
       }))
       .sort((a, b) => b.total - a.total);
-  }, [totals, extensionOwners]);
+  }, [totals, answered, extensionOwners]);
 
   const filteredRows = useMemo(() => {
     const term = search.trim().toLowerCase();
@@ -182,6 +186,7 @@ export function ItbxCallsPanel() {
                 <tr className="border-b border-border/50 text-left">
                   <th className="px-5 py-3 font-bold text-muted-foreground uppercase text-[10px] tracking-wider">Extensión</th>
                   <th className="px-5 py-3 font-bold text-muted-foreground uppercase text-[10px] tracking-wider">Asesor</th>
+                  <th className="px-5 py-3 font-bold text-muted-foreground uppercase text-[10px] tracking-wider text-right">Contestadas</th>
                   <th className="px-5 py-3 font-bold text-muted-foreground uppercase text-[10px] tracking-wider text-right">Llamadas</th>
                 </tr>
               </thead>
@@ -198,12 +203,13 @@ export function ItbxCallsPanel() {
                     <td className="px-5 py-3 text-muted-foreground">
                       {row.advisorName ?? <span className="italic">Sin asesor asociado</span>}
                     </td>
+                    <td className="px-5 py-3 text-right font-bold text-emerald-600 dark:text-emerald-400">{row.answered}</td>
                     <td className="px-5 py-3 text-right font-black text-secondary">{row.total}</td>
                   </motion.tr>
                 ))}
                 {!loading && filteredRows.length === 0 && (
                   <tr>
-                    <td colSpan={3} className="px-5 py-10 text-center text-muted-foreground font-medium">
+                    <td colSpan={4} className="px-5 py-10 text-center text-muted-foreground font-medium">
                       No hay llamadas registradas para este día.
                     </td>
                   </tr>

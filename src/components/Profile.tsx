@@ -11,7 +11,6 @@ import {
   Activity,
   User as UserIcon,
   Briefcase,
-  Award,
   AlertCircle,
   CheckCircle,
   RefreshCcw,
@@ -32,7 +31,7 @@ import { useRef } from 'react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { db } from '@/firebase';
-import { doc, onSnapshot, updateDoc } from 'firebase/firestore';
+import { doc, updateDoc } from 'firebase/firestore';
 import { tryConsumeDailyRefresh } from '@/lib/refreshLimit';
 import { getExtensionCallTotalsForDate, todayKey, recentDateOptions } from '@/lib/itbxCache';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -121,26 +120,13 @@ export function Profile({ user, transfers }: ProfileProps) {
     checkActiveConversations();
   };
 
-  // Total de llamadas que sube el equipo Controller — el asesor solo ve el
-  // suyo (así lo restringen las reglas de Firestore: solo su propio correo).
-  const [callTotal, setCallTotal] = useState<number | null>(null);
-
-  useEffect(() => {
-    if (!user.email) return;
-    const unsubscribe = onSnapshot(
-      doc(db, 'call_totals', user.email.toLowerCase()),
-      (snap) => setCallTotal(snap.exists() ? (snap.data().totalCalls ?? null) : null),
-      () => setCallTotal(null)
-    );
-    return () => unsubscribe();
-  }, [user.email]);
-
   // Extensión ITBX — el asesor la escribe una vez en su perfil; con eso se
   // busca su total de llamadas del día en la caché compartida de ITBX.
   const [editingExtension, setEditingExtension] = useState(false);
   const [extensionInput, setExtensionInput] = useState(user.extension || '');
   const [savingExtension, setSavingExtension] = useState(false);
   const [itbxCallTotal, setItbxCallTotal] = useState<number | null>(null);
+  const [itbxAnswered, setItbxAnswered] = useState<number | null>(null);
   const [itbxLoading, setItbxLoading] = useState(false);
   const [itbxError, setItbxError] = useState(false);
   // Se deja elegir el día, además de "hoy", por si se necesita ver un día
@@ -156,8 +142,9 @@ export function Profile({ user, transfers }: ProfileProps) {
     setItbxLoading(true);
     setItbxError(false);
     try {
-      const totals = await getExtensionCallTotalsForDate(dateKey);
+      const { totals, answered } = await getExtensionCallTotalsForDate(dateKey);
       setItbxCallTotal(totals[extension] ?? 0);
+      setItbxAnswered(answered[extension] ?? 0);
     } catch (e) {
       console.error('Error al consultar llamadas ITBX:', e);
       setItbxError(true);
@@ -572,16 +559,6 @@ export function Profile({ user, transfers }: ProfileProps) {
                 <p className="text-sm font-bold text-muted-foreground uppercase mt-1">Conversaciones Cerradas Hoy</p>
               </div>
 
-              <div className="p-5 rounded-2xl bg-muted/20 border border-border/50 hover:border-secondary/20 transition-all group">
-                <div className="w-12 h-12 rounded-2xl bg-secondary/10 flex items-center justify-center mb-4 group-hover:rotate-12 transition-transform">
-                  <Award className="w-6 h-6 text-secondary" />
-                </div>
-                <p className="text-2xl font-black text-secondary">{callTotal ?? '—'}</p>
-                <p className="text-sm font-bold text-muted-foreground uppercase mt-1">
-                  {callTotal === null ? 'Total de Llamadas (sin datos)' : 'Total de Llamadas'}
-                </p>
-              </div>
-
               <div className="p-5 rounded-2xl bg-muted/20 border border-border/50 hover:border-primary/20 transition-all group">
                 <div className="flex items-start justify-between mb-4">
                   <div className="w-12 h-12 rounded-2xl bg-primary/10 flex items-center justify-center group-hover:rotate-12 transition-transform">
@@ -617,6 +594,19 @@ export function Profile({ user, transfers }: ProfileProps) {
                     <p className="text-[10px] text-muted-foreground font-medium mt-1">Extensión {user.extension}</p>
                   </>
                 )}
+              </div>
+
+              <div className="p-5 rounded-2xl bg-muted/20 border border-border/50 hover:border-emerald-500/20 transition-all group">
+                <div className="w-12 h-12 rounded-2xl bg-emerald-500/10 flex items-center justify-center mb-4 group-hover:rotate-12 transition-transform">
+                  <PhoneCall className="w-6 h-6 text-emerald-600 dark:text-emerald-400" />
+                </div>
+                <p className="text-2xl font-black text-secondary">
+                  {!user.extension || itbxLoading || itbxError ? (itbxLoading && user.extension ? '...' : '—') : itbxAnswered ?? '—'}
+                </p>
+                <p className="text-sm font-bold text-muted-foreground uppercase mt-1">Llamadas Contestadas</p>
+                <p className="text-[10px] text-muted-foreground font-medium mt-1">
+                  {user.extension ? 'Según el día elegido en la tarjeta de al lado' : 'Registra tu extensión para ver este dato'}
+                </p>
               </div>
 
             </div>

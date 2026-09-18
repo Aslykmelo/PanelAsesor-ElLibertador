@@ -64,7 +64,12 @@ function nextDayStr(dateStr: string): string {
 // viene desglosado por estado (Contestada/NoContestada/Ocupado/Fallido) y
 // por troncal (ITBX/ITBX_BK), varias filas por extensión, así que hay que
 // sumar todas las filas que compartan el mismo "source" (la extensión).
-export async function getOutgoingCallTotals(dateStr?: string): Promise<Record<string, number>> {
+export type OutgoingCallStats = {
+  totals: Record<string, number>;
+  answered: Record<string, number>;
+};
+
+export async function getOutgoingCallTotals(dateStr?: string): Promise<OutgoingCallStats> {
   const token = requireItbxToken();
   const date = dateStr ?? bogotaDateStr();
   if (!DATE_RE.test(date)) {
@@ -85,9 +90,13 @@ export async function getOutgoingCallTotals(dateStr?: string): Promise<Record<st
   }
 
   const totals: Record<string, number> = {};
+  const answered: Record<string, number> = {};
   for (const row of data.data ?? []) {
     const n = Number(row.total_calls) || 0;
     totals[row.source] = (totals[row.source] ?? 0) + n;
+    if (row.status === "Contestada") {
+      answered[row.source] = (answered[row.source] ?? 0) + n;
+    }
   }
-  return totals;
+  return { totals, answered };
 }
