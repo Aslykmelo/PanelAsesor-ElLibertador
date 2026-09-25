@@ -37,8 +37,10 @@ import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { toast } from 'sonner';
 import { tryConsumeDailyRefresh } from '@/lib/refreshLimit';
-import { getExtensionCallTotalsForDate, todayKey, recentDateOptions } from '@/lib/itbxCache';
+import { todayKey } from '@/lib/itbxCache';
+import { useItbxCalls } from '@/lib/useItbxCalls';
 import { useMyBitacoras, sortedDays, dayLabel } from '@/components/MyBitacoras';
+import { DailyGoals } from '@/components/DailyGoals';
 
 interface DashboardAdvisorProps {
   transfers: Transfer[];
@@ -111,28 +113,19 @@ export function DashboardAdviser({ transfers, user, onNewTransfer }: DashboardAd
   // Llamadas según extensión ITBX — la extensión se registra en Mi Perfil.
   // Se deja elegir el día, además de "hoy", por si se necesita ver uno
   // anterior.
-  const [itbxCallTotal, setItbxCallTotal] = useState<number | null>(null);
-  const [itbxAnswered, setItbxAnswered] = useState<number | null>(null);
-  const [itbxLoading, setItbxLoading] = useState(false);
-  const [itbxError, setItbxError] = useState(false);
-  const itbxDateOptions = recentDateOptions(7);
-  const [itbxDate, setItbxDate] = useState(itbxDateOptions[0]?.key ?? todayKey());
-
-  useEffect(() => {
-    if (!user.extension) return;
-    setItbxLoading(true);
-    setItbxError(false);
-    getExtensionCallTotalsForDate(itbxDate)
-      .then(({ totals, answered }) => {
-        setItbxCallTotal(totals[user.extension!] ?? 0);
-        setItbxAnswered(answered[user.extension!] ?? 0);
-      })
-      .catch((e) => {
-        console.error('Error al consultar llamadas ITBX:', e);
-        setItbxError(true);
-      })
-      .finally(() => setItbxLoading(false));
-  }, [user.extension, itbxDate]);
+  const {
+    dateOptions: itbxDateOptions,
+    date: itbxDate,
+    setDate: setItbxDate,
+    total: itbxCallTotal,
+    answered: itbxAnswered,
+    todayAnswered: itbxTodayAnswered,
+    loading: itbxLoading,
+    error: itbxError,
+    refresh: refreshItbx,
+    cooldownLeft: itbxCooldownLeft,
+  } = useItbxCalls(user.extension);
+  const todayBitacoras = bitacoraDoc?.days[todayKey()]?.total ?? null;
 
   const cooldownSecondsLeft = Math.max(0, Math.ceil((cooldownUntil - now) / 1000));
   const isCoolingDown = cooldownSecondsLeft > 0;
@@ -521,16 +514,29 @@ export function DashboardAdviser({ transfers, user, onNewTransfer }: DashboardAd
                       <p className="text-2xl font-black text-secondary dark:text-foreground tracking-tight leading-tight">
                         {itbxLoading ? '...' : itbxError ? '—' : itbxCallTotal ?? '—'}
                       </p>
-                      <Select value={itbxDate} onValueChange={setItbxDate}>
-                        <SelectTrigger className="h-5 w-auto px-1.5 rounded-full text-[9px] font-bold border-none bg-transparent gap-1">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent className="rounded-xl">
-                          {itbxDateOptions.map(opt => (
-                            <SelectItem key={opt.key} value={opt.key} className="text-xs font-medium">{opt.label}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                      <div className="flex items-center gap-0.5">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-5 w-auto px-1 rounded-full gap-1"
+                          onClick={refreshItbx}
+                          disabled={itbxLoading || itbxCooldownLeft > 0}
+                          title={itbxCooldownLeft > 0 ? `Puedes actualizar de nuevo en ${itbxCooldownLeft}s` : 'Actualizar llamadas'}
+                        >
+                          <RefreshCcw className={cn("w-3 h-3 text-muted-foreground", itbxLoading && "animate-spin")} />
+                          {itbxCooldownLeft > 0 && <span className="text-[9px] font-bold text-muted-foreground">{itbxCooldownLeft}s</span>}
+                        </Button>
+                        <Select value={itbxDate} onValueChange={setItbxDate}>
+                          <SelectTrigger className="h-5 w-auto px-1.5 rounded-full text-[9px] font-bold border-none bg-transparent gap-1">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent className="rounded-xl">
+                            {itbxDateOptions.map(opt => (
+                              <SelectItem key={opt.key} value={opt.key} className="text-xs font-medium">{opt.label}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
                     </div>
                     <p className="text-xs font-black text-secondary dark:text-foreground uppercase tracking-wider truncate">
                       {itbxError ? 'Llamadas (ITBX) — error' : 'Llamadas (ITBX)'}
@@ -593,6 +599,16 @@ export function DashboardAdviser({ transfers, user, onNewTransfer }: DashboardAd
           </Card>
         </motion.div>
       </div>
+
+      <DailyGoals
+        user={user}
+        calls={user.extension ? itbxTodayAnswered : null}
+        conversations={closedTodayConversations}
+        bitacoras={todayBitacoras}
+        callsLoading={itbxLoading}
+        callsCooldownLeft={itbxCooldownLeft}
+        onRefreshCalls={refreshItbx}
+      />
 
       {/* FILTERS SECTION */}
       <Card className="rounded-2xl border-none card-shadow bg-card/60 backdrop-blur-xl">

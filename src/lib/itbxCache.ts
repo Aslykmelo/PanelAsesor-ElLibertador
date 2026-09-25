@@ -51,7 +51,16 @@ function endOfDayMs(dateKey: string): number {
 // después de que el día terminó (si se guardó a media jornada, está
 // incompleta y se vuelve a pedir). Solo el día de hoy usa la ventana de
 // 10 min. Documentos viejos sin el campo `answered` se ignoran.
-export async function getExtensionCallTotalsForDate(dateKey: string): Promise<ExtensionCallStats> {
+//
+// `maxAgeMs` acorta esa ventana para el botón "Actualizar" (por defecto 10
+// min): así, sin importar cuántos asesores lo pulsen, ITBX recibe como
+// máximo una consulta cada MANUAL_REFRESH_MAX_AGE_MS.
+export const MANUAL_REFRESH_MAX_AGE_MS = 3 * 60 * 1000;
+
+export async function getExtensionCallTotalsForDate(
+  dateKey: string,
+  maxAgeMs: number = CACHE_FRESH_MS
+): Promise<ExtensionCallStats> {
   const ref = doc(db, 'itbx_cache', dateKey);
   const snap = await getDoc(ref);
   const isToday = dateKey === todayKey();
@@ -60,7 +69,7 @@ export async function getExtensionCallTotalsForDate(dateKey: string): Promise<Ex
     const cached = snap.data();
     const fetchedAtMs = (cached.fetchedAt as Timestamp | undefined)?.toMillis();
     const usable = isToday
-      ? fetchedAtMs !== undefined && Date.now() - fetchedAtMs < CACHE_FRESH_MS
+      ? fetchedAtMs !== undefined && Date.now() - fetchedAtMs < maxAgeMs
       : fetchedAtMs !== undefined && fetchedAtMs >= endOfDayMs(dateKey);
     if (usable) {
       return {

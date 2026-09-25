@@ -33,9 +33,11 @@ import { cn } from '@/lib/utils';
 import { db } from '@/firebase';
 import { doc, updateDoc } from 'firebase/firestore';
 import { tryConsumeDailyRefresh } from '@/lib/refreshLimit';
-import { getExtensionCallTotalsForDate, todayKey, recentDateOptions } from '@/lib/itbxCache';
+import { todayKey } from '@/lib/itbxCache';
+import { useItbxCalls } from '@/lib/useItbxCalls';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { MyBitacoras } from '@/components/MyBitacoras';
+import { MyBitacoras, useMyBitacoras } from '@/components/MyBitacoras';
+import { DailyGoals } from '@/components/DailyGoals';
 import { BitacorasUpload } from '@/components/BitacorasUpload';
 import { BITACORA_UPLOADER_EMAILS } from '@/constants';
 
@@ -128,39 +130,24 @@ export function Profile({ user, transfers }: ProfileProps) {
   const [editingExtension, setEditingExtension] = useState(false);
   const [extensionInput, setExtensionInput] = useState(user.extension || '');
   const [savingExtension, setSavingExtension] = useState(false);
-  const [itbxCallTotal, setItbxCallTotal] = useState<number | null>(null);
-  const [itbxAnswered, setItbxAnswered] = useState<number | null>(null);
-  const [itbxLoading, setItbxLoading] = useState(false);
-  const [itbxError, setItbxError] = useState(false);
-  // Se deja elegir el día, además de "hoy", por si se necesita ver un día
-  // anterior.
-  const itbxDateOptions = recentDateOptions(7);
-  const [itbxDate, setItbxDate] = useState(itbxDateOptions[0]?.key ?? todayKey());
+  const {
+    dateOptions: itbxDateOptions,
+    date: itbxDate,
+    setDate: setItbxDate,
+    total: itbxCallTotal,
+    answered: itbxAnswered,
+    todayAnswered: itbxTodayAnswered,
+    loading: itbxLoading,
+    error: itbxError,
+    refresh: refreshItbx,
+    cooldownLeft: itbxCooldownLeft,
+  } = useItbxCalls(user.extension);
+  const { data: bitacoraDoc } = useMyBitacoras(user.email);
+  const todayBitacoras = bitacoraDoc?.days[todayKey()]?.total ?? null;
 
   useEffect(() => {
     setExtensionInput(user.extension || '');
   }, [user.extension]);
-
-  const loadItbxCallTotal = async (extension: string, dateKey: string) => {
-    setItbxLoading(true);
-    setItbxError(false);
-    try {
-      const { totals, answered } = await getExtensionCallTotalsForDate(dateKey);
-      setItbxCallTotal(totals[extension] ?? 0);
-      setItbxAnswered(answered[extension] ?? 0);
-    } catch (e) {
-      console.error('Error al consultar llamadas ITBX:', e);
-      setItbxError(true);
-    } finally {
-      setItbxLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    if (user.extension) {
-      loadItbxCallTotal(user.extension, itbxDate);
-    }
-  }, [user.extension, itbxDate]);
 
   const saveExtension = async () => {
     const value = extensionInput.trim();
@@ -501,6 +488,16 @@ export function Profile({ user, transfers }: ProfileProps) {
 
         {/* PERFORMANCE METRICS */}
         <div className="md:col-span-2 space-y-8">
+          <DailyGoals
+            user={user}
+            calls={user.extension ? itbxTodayAnswered : null}
+            conversations={closedTodayConversations}
+            bitacoras={todayBitacoras}
+            callsLoading={itbxLoading}
+            callsCooldownLeft={itbxCooldownLeft}
+            onRefreshCalls={refreshItbx}
+          />
+
           <section className="bg-card rounded-2xl p-5 card-shadow">
             <div className="flex items-center justify-between mb-8">
               <h3 className="text-xl font-black text-secondary">Estadísticas Consolidadas</h3>
@@ -568,16 +565,29 @@ export function Profile({ user, transfers }: ProfileProps) {
                     <Phone className="w-6 h-6 text-primary" />
                   </div>
                   {user.extension && (
-                    <Select value={itbxDate} onValueChange={setItbxDate}>
-                      <SelectTrigger className="h-6 w-auto px-2 rounded-full text-[9px] font-bold border-none bg-transparent gap-1">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent className="rounded-xl">
-                        {itbxDateOptions.map(opt => (
-                          <SelectItem key={opt.key} value={opt.key} className="text-xs font-medium">{opt.label}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <div className="flex items-center gap-1">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-6 w-auto px-1.5 rounded-full gap-1"
+                        onClick={refreshItbx}
+                        disabled={itbxLoading || itbxCooldownLeft > 0}
+                        title={itbxCooldownLeft > 0 ? `Puedes actualizar de nuevo en ${itbxCooldownLeft}s` : 'Actualizar llamadas'}
+                      >
+                        <RefreshCcw className={cn("w-3 h-3 text-muted-foreground", itbxLoading && "animate-spin")} />
+                        {itbxCooldownLeft > 0 && <span className="text-[9px] font-bold text-muted-foreground">{itbxCooldownLeft}s</span>}
+                      </Button>
+                      <Select value={itbxDate} onValueChange={setItbxDate}>
+                        <SelectTrigger className="h-6 w-auto px-2 rounded-full text-[9px] font-bold border-none bg-transparent gap-1">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent className="rounded-xl">
+                          {itbxDateOptions.map(opt => (
+                            <SelectItem key={opt.key} value={opt.key} className="text-xs font-medium">{opt.label}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
                   )}
                 </div>
                 {!user.extension ? (
