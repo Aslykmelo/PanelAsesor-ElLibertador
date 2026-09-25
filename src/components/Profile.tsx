@@ -35,6 +35,9 @@ import { doc, updateDoc } from 'firebase/firestore';
 import { tryConsumeDailyRefresh } from '@/lib/refreshLimit';
 import { getExtensionCallTotalsForDate, todayKey, recentDateOptions } from '@/lib/itbxCache';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { MyBitacoras } from '@/components/MyBitacoras';
+import { BitacorasUpload } from '@/components/BitacorasUpload';
+import { BITACORA_UPLOADER_EMAILS } from '@/constants';
 
 interface ProfileProps {
   user: User;
@@ -611,6 +614,12 @@ export function Profile({ user, transfers }: ProfileProps) {
 
             </div>
           </section>
+
+          <MyBitacoras email={user.email} />
+
+          {BITACORA_UPLOADER_EMAILS.includes((user.email || '').toLowerCase()) && (
+            <BitacorasUpload currentUser={user} />
+          )}
         </div>
 
       </div>

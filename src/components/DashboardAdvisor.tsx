@@ -24,7 +24,8 @@ import {
   Coins,
   ShieldCheck,
   BarChart3,
-  RefreshCcw
+  RefreshCcw,
+  BookOpen
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -37,6 +38,7 @@ import { es } from 'date-fns/locale';
 import { toast } from 'sonner';
 import { tryConsumeDailyRefresh } from '@/lib/refreshLimit';
 import { getExtensionCallTotalsForDate, todayKey, recentDateOptions } from '@/lib/itbxCache';
+import { useMyBitacoras, sortedDays, dayLabel } from '@/components/MyBitacoras';
 
 interface DashboardAdvisorProps {
   transfers: Transfer[];
@@ -100,6 +102,11 @@ export function DashboardAdviser({ transfers, user, onNewTransfer }: DashboardAd
     const interval = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(interval);
   }, []);
+
+  // Bitácoras del asesor (solo lee su propio documento) — el detalle está en Mi Perfil.
+  const { data: bitacoraDoc } = useMyBitacoras(user.email);
+  const latestBitacoraDay = sortedDays(bitacoraDoc)[0];
+  const latestBitacora = latestBitacoraDay ? bitacoraDoc?.days[latestBitacoraDay] : undefined;
 
   // Llamadas según extensión ITBX — la extensión se registra en Mi Perfil.
   // Se deja elegir el día, además de "hoy", por si se necesita ver uno
@@ -554,6 +561,32 @@ export function DashboardAdviser({ transfers, user, onNewTransfer }: DashboardAd
                 <p className="text-xs font-black text-secondary dark:text-foreground uppercase tracking-wider truncate">Llamadas Contestadas</p>
                 <p className="text-[9px] text-muted-foreground font-medium mt-0.5 truncate">
                   {user.extension ? 'Del día elegido en la tarjeta anterior' : 'Registra tu extensión en Mi Perfil'}
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+        </motion.div>
+
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.2 }}
+          className="group flex-1 min-w-[220px] max-w-xs"
+        >
+          <Card className="border-none shadow-md hover:shadow-xl dark:shadow-black/25 rounded-2xl overflow-hidden transition-all duration-300 bg-card/70 backdrop-blur-md border border-border/40 dark:border-border/10 h-full">
+            <CardContent className="p-4 flex items-center gap-3">
+              <div className="w-11 h-11 shrink-0 bg-secondary/10 text-secondary rounded-xl flex items-center justify-center shadow-sm">
+                <BookOpen className="w-5 h-5" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-2xl font-black text-secondary dark:text-foreground tracking-tight leading-tight">
+                  {latestBitacora ? latestBitacora.total : '—'}
+                </p>
+                <p className="text-xs font-black text-secondary dark:text-foreground uppercase tracking-wider truncate">Mis Bitácoras</p>
+                <p className="text-[9px] text-muted-foreground font-medium mt-0.5 truncate">
+                  {latestBitacora && latestBitacoraDay
+                    ? `${dayLabel(latestBitacoraDay)} · ${latestBitacora.solicitudes} solicitudes`
+                    : 'Aún sin datos cargados'}
                 </p>
               </div>
             </CardContent>

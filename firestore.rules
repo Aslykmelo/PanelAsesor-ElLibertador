@@ -87,6 +87,12 @@ service cloud.firestore {
       return isSignedIn() && (isKnownControllerEmail(email) || isAdmin());
     }
 
+    // Único que carga el reporte de bitácoras por asesor (desde su perfil).
+    function isBitacoraUploader() {
+      let email = getEmail();
+      return isSignedIn() && (email == "asly.camelo@segurosbolivar.com" || isAdmin());
+    }
+
     // --- REGLAS POR COLECCIÓN ---
 
     // 1. Usuarios (Directorio y Perfiles)
@@ -163,6 +169,13 @@ service cloud.firestore {
     // consulta contra ITBX.
     match /itbx_cache/{dayKey} {
       allow read, write: if isSignedIn();
+    }
+
+    // 10. Bitácoras por asesor (las sube quien administra el reporte). El id
+    // del documento es el correo del asesor: cada uno lee solo la suya.
+    match /bitacoras/{advisorEmail} {
+      allow read: if isSignedIn() && (getEmail() == advisorEmail || isBitacoraUploader());
+      allow write: if isBitacoraUploader();
     }
 
   }
