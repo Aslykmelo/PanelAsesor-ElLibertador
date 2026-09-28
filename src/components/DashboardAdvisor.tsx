@@ -38,6 +38,7 @@ import { es } from 'date-fns/locale';
 import { toast } from 'sonner';
 import { todayKey } from '@/lib/itbxCache';
 import { useItbxCalls } from '@/lib/useItbxCalls';
+import { useConversations } from '@/lib/useConversations';
 import { useMyBitacoras, sortedDays, dayLabel } from '@/components/MyBitacoras';
 import { DailyGoals } from '@/components/DailyGoals';
 
@@ -63,24 +64,12 @@ export function DashboardAdviser({ transfers, user, onNewTransfer }: DashboardAd
   // datos "de hoy" que son reales mientras "Nueva Gestión" está apagado. No
   // se cargan solas al entrar: el único botón "Actualizar" (más abajo) las
   // trae a las dos a la vez, con un enfriamiento de 5 minutos.
-  const [activeConversations, setActiveConversations] = useState<number | null>(null);
-  const [closedTodayConversations, setClosedTodayConversations] = useState<number | null>(null);
-  const [checkingConversations, setCheckingConversations] = useState(false);
-
-  const checkActiveConversations = async () => {
-    if (!user.email) return;
-    setCheckingConversations(true);
-    try {
-      const res = await fetch(`/api/ngso/my-conversation-count?email=${encodeURIComponent(user.email)}&name=${encodeURIComponent(user.name || '')}`);
-      const data = await res.json();
-      setActiveConversations(res.ok ? data.active : null);
-      setClosedTodayConversations(res.ok ? data.closedToday : null);
-    } catch (e) {
-      console.error("Error al consultar conversaciones activas:", e);
-    } finally {
-      setCheckingConversations(false);
-    }
-  };
+  const {
+    active: activeConversations,
+    closedToday: closedTodayConversations,
+    loading: checkingConversations,
+    check: checkActiveConversations,
+  } = useConversations(user);
 
   // Bitácoras del asesor (solo lee su propio documento) — el detalle está en Mi Perfil.
   const { data: bitacoraDoc } = useMyBitacoras(user.email);

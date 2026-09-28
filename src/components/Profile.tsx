@@ -34,6 +34,7 @@ import { db } from '@/firebase';
 import { doc, updateDoc } from 'firebase/firestore';
 import { todayKey } from '@/lib/itbxCache';
 import { useItbxCalls } from '@/lib/useItbxCalls';
+import { useConversations } from '@/lib/useConversations';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { MyBitacoras, useMyBitacoras } from '@/components/MyBitacoras';
 import { DailyGoals } from '@/components/DailyGoals';
@@ -67,24 +68,12 @@ export function Profile({ user, transfers }: ProfileProps) {
     checkMailStatus();
   }, []);
 
-  const [activeConversations, setActiveConversations] = useState<number | null>(null);
-  const [closedTodayConversations, setClosedTodayConversations] = useState<number | null>(null);
-  const [checkingConversations, setCheckingConversations] = useState(false);
-
-  const checkActiveConversations = async () => {
-    if (!user.email) return;
-    setCheckingConversations(true);
-    try {
-      const res = await fetch(`/api/ngso/my-conversation-count?email=${encodeURIComponent(user.email)}&name=${encodeURIComponent(user.name || '')}`);
-      const data = await res.json();
-      setActiveConversations(res.ok ? data.active : null);
-      setClosedTodayConversations(res.ok ? data.closedToday : null);
-    } catch (e) {
-      console.error("Error al consultar conversaciones activas:", e);
-    } finally {
-      setCheckingConversations(false);
-    }
-  };
+  const {
+    active: activeConversations,
+    closedToday: closedTodayConversations,
+    loading: checkingConversations,
+    check: checkActiveConversations,
+  } = useConversations(user);
 
   // Extensión ITBX — el asesor la escribe una vez en su perfil; con eso se
   // busca su total de llamadas del día en la caché compartida de ITBX.

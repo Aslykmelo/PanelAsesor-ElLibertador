@@ -87,6 +87,14 @@ service cloud.firestore {
       return isSignedIn() && (isKnownControllerEmail(email) || isAdmin());
     }
 
+    // Correo del supervisor asignado al usuario autenticado, según su propio
+    // documento en /users — usado para que un asesor solo pueda leer las
+    // conversaciones de sus propios compañeros de equipo.
+    function myOwnSupervisorEmail() {
+      let profile = get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+      return ('supervisorEmail' in profile) ? profile.supervisorEmail.lower() : '';
+    }
+
     // Único que carga el reporte de bitácoras por asesor (desde su perfil).
     function isBitacoraUploader() {
       let email = getEmail();
@@ -163,6 +171,19 @@ service cloud.firestore {
     // consulta contra ITBX.
     match /itbx_cache/{dayKey} {
       allow read, write: if isSignedIn();
+    }
+
+    // 11. Conversaciones de hoy por asesor (Infobip) — cada quien publica la
+    // suya al refrescarla en su perfil. Solo puede leerse la propia, la de
+    // un compañero con el mismo supervisor (para "Mi Equipo"), o si quien
+    // consulta es supervisor/admin.
+    match /conversation_stats/{advisorEmail} {
+      allow read: if isSignedIn() && (
+        getEmail() == advisorEmail ||
+        isSupervisor() ||
+        myOwnSupervisorEmail() == resource.data.supervisorEmail
+      );
+      allow write: if isSignedIn() && getEmail() == advisorEmail;
     }
 
     // 10. Bitácoras por asesor (las sube quien administra el reporte). El id
