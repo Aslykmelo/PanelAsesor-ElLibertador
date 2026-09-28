@@ -131,6 +131,13 @@ export function Profile({ user, transfers }: ProfileProps) {
     refreshItbx();
   };
 
+  // Una sola carga al entrar al perfil — no cuenta para el enfriamiento del
+  // botón, así que "Actualizar" queda disponible de inmediato después.
+  useEffect(() => {
+    checkActiveConversations();
+    refreshItbx();
+  }, [user.email, user.extension]);
+
   useEffect(() => {
     setExtensionInput(user.extension || '');
   }, [user.extension]);

@@ -127,6 +127,13 @@ export function DashboardAdviser({ transfers, user, onNewTransfer }: DashboardAd
     refreshItbx();
   };
 
+  // Una sola carga al entrar al dashboard — no cuenta para el enfriamiento
+  // del botón, así que "Actualizar" queda disponible de inmediato después.
+  useEffect(() => {
+    checkActiveConversations();
+    refreshItbx();
+  }, [user.email, user.extension]);
+
   // Expanded card state for recent activities on Dashboard Asesor
   const [expandedActivity, setExpandedActivity] = useState<Record<string, boolean>>({});
   const [copiedId, setCopiedId] = useState<string | null>(null);
