@@ -661,7 +661,7 @@ export default function App() {
 
 
       case 'profile':
-        return <Profile user={currentUser!} transfers={filteredData.filter(t => t.fromAdvisorEmail === currentUser!.email)} />;
+        return <Profile user={currentUser!} transfers={filteredData.filter(t => t.fromAdvisorEmail === currentUser!.email)} advisors={advisors} />;
 
       case 'user-management':
         return effectiveRole === 'admin' ? <UserManagement /> : null;

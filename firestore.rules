@@ -176,11 +176,12 @@ service cloud.firestore {
     // 11. Conversaciones de hoy por asesor (Infobip) — cada quien publica la
     // suya al refrescarla en su perfil. Solo puede leerse la propia, la de
     // un compañero con el mismo supervisor (para "Mi Equipo"), o si quien
-    // consulta es supervisor/admin.
+    // consulta es supervisor/admin/Controller (para "Buscar Asesor").
     match /conversation_stats/{advisorEmail} {
       allow read: if isSignedIn() && (
         getEmail() == advisorEmail ||
         isSupervisor() ||
+        isController() ||
         myOwnSupervisorEmail() == resource.data.supervisorEmail
       );
       allow write: if isSignedIn() && getEmail() == advisorEmail;

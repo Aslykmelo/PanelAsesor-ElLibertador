@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { User, Transfer } from '../types';
+import { User, Transfer, Advisor } from '../types';
 import { Button } from '@/components/ui/button';
 import {
   Building2,
@@ -39,14 +39,16 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { MyBitacoras, useMyBitacoras } from '@/components/MyBitacoras';
 import { DailyGoals } from '@/components/DailyGoals';
 import { BitacorasUpload } from '@/components/BitacorasUpload';
-import { BITACORA_UPLOADER_EMAILS } from '@/constants';
+import { AdvisorSearch } from '@/components/AdvisorSearch';
+import { BITACORA_UPLOADER_EMAILS, CONTROLLER_EMAILS } from '@/constants';
 
 interface ProfileProps {
   user: User;
   transfers: Transfer[];
+  advisors: Advisor[];
 }
 
-export function Profile({ user, transfers }: ProfileProps) {
+export function Profile({ user, transfers, advisors }: ProfileProps) {
   const certificateRef = useRef<HTMLDivElement>(null);
   const [mailStatus, setMailStatus] = useState<{ emailUserSet: boolean, emailPassSet: boolean } | null>(null);
   const [checking, setChecking] = useState(false);
@@ -577,6 +579,10 @@ export function Profile({ user, transfers }: ProfileProps) {
           </section>
 
           <MyBitacoras email={user.email} />
+
+          {CONTROLLER_EMAILS.includes((user.email || '').toLowerCase()) && (
+            <AdvisorSearch advisors={advisors} />
+          )}
 
           {BITACORA_UPLOADER_EMAILS.includes((user.email || '').toLowerCase()) && (
             <BitacorasUpload currentUser={user} />
