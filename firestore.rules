@@ -157,12 +157,6 @@ service cloud.firestore {
       allow write: if isController();
     }
 
-    // 8. Tope diario de refrescos manuales del contador de conversaciones
-    // activas — cada asesor solo puede leer/escribir su propio contador.
-    match /refresh_usage/{advisorEmail}/days/{dayKey} {
-      allow read, write: if isSignedIn() && getEmail() == advisorEmail;
-    }
-
     // 9. Caché compartida del tráfico de llamadas de ITBX (por día) — no es
     // información sensible por persona, cualquier asesor autenticado puede
     // leerla y refrescarla; así se evita que cada uno dispare su propia

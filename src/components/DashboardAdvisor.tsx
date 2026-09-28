@@ -36,7 +36,6 @@ import { motion, AnimatePresence } from 'motion/react';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { toast } from 'sonner';
-import { tryConsumeDailyRefresh } from '@/lib/refreshLimit';
 import { todayKey } from '@/lib/itbxCache';
 import { useItbxCalls } from '@/lib/useItbxCalls';
 import { useMyBitacoras, sortedDays, dayLabel } from '@/components/MyBitacoras';
@@ -61,28 +60,15 @@ export function DashboardAdviser({ transfers, user, onNewTransfer }: DashboardAd
   };
 
   // Conversaciones activas ahora en Infobip + llamadas de ITBX — los únicos
-  // datos "de hoy" que son reales mientras "Nueva Gestión" está apagado.
-  // Misma lógica que en Mi Perfil: carga una vez al entrar, de ahí en
-  // adelante es manual con enfriamiento de 60s (ver por qué en Profile.tsx).
+  // datos "de hoy" que son reales mientras "Nueva Gestión" está apagado. No
+  // se cargan solas al entrar: el único botón "Actualizar" (más abajo) las
+  // trae a las dos a la vez, con un enfriamiento de 5 minutos.
   const [activeConversations, setActiveConversations] = useState<number | null>(null);
   const [closedTodayConversations, setClosedTodayConversations] = useState<number | null>(null);
   const [checkingConversations, setCheckingConversations] = useState(false);
-  const [remainingRefreshes, setRemainingRefreshes] = useState<number | null>(null);
-  const REFRESH_COOLDOWN_MS = 60000;
-  const [cooldownUntil, setCooldownUntil] = useState(0);
-  const [now, setNow] = useState(() => Date.now());
 
   const checkActiveConversations = async () => {
     if (!user.email) return;
-    // Tope diario real (Firestore, no el navegador) — compartido con Mi
-    // Perfil (mismo correo, mismo día), protege la cuota de invocaciones de
-    // Vercel sin depender de que 84 asesores se autorregulen.
-    const limitResult = await tryConsumeDailyRefresh(user.email).catch(() => ({ allowed: true, count: 0, limit: 20 }));
-    setRemainingRefreshes(Math.max(0, limitResult.limit - limitResult.count));
-    if (!limitResult.allowed) {
-      toast.error(`Ya usaste las ${limitResult.limit} consultas del día para este dato. Mañana se reinicia.`);
-      return;
-    }
     setCheckingConversations(true);
     try {
       const res = await fetch(`/api/ngso/my-conversation-count?email=${encodeURIComponent(user.email)}&name=${encodeURIComponent(user.name || '')}`);
@@ -95,15 +81,6 @@ export function DashboardAdviser({ transfers, user, onNewTransfer }: DashboardAd
       setCheckingConversations(false);
     }
   };
-
-  useEffect(() => {
-    checkActiveConversations();
-  }, [user.email]);
-
-  useEffect(() => {
-    const interval = setInterval(() => setNow(Date.now()), 1000);
-    return () => clearInterval(interval);
-  }, []);
 
   // Bitácoras del asesor (solo lee su propio documento) — el detalle está en Mi Perfil.
   const { data: bitacoraDoc } = useMyBitacoras(user.email);
@@ -123,17 +100,31 @@ export function DashboardAdviser({ transfers, user, onNewTransfer }: DashboardAd
     loading: itbxLoading,
     error: itbxError,
     refresh: refreshItbx,
-    cooldownLeft: itbxCooldownLeft,
   } = useItbxCalls(user.extension);
   const todayBitacoras = bitacoraDoc?.days[todayKey()]?.total ?? null;
 
+  // Un solo botón "Actualizar" trae llamadas y conversaciones a la vez (ver
+  // por qué en Profile.tsx).
+  const REFRESH_COOLDOWN_MS = 5 * 60 * 1000;
+  const [cooldownUntil, setCooldownUntil] = useState(0);
+  const [now, setNow] = useState(() => Date.now());
+
+  useEffect(() => {
+    if (cooldownUntil <= Date.now()) return;
+    const interval = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(interval);
+  }, [cooldownUntil]);
+
   const cooldownSecondsLeft = Math.max(0, Math.ceil((cooldownUntil - now) / 1000));
   const isCoolingDown = cooldownSecondsLeft > 0;
+  const refreshing = checkingConversations || itbxLoading;
 
-  const handleManualRefreshConversations = () => {
-    if (isCoolingDown || checkingConversations) return;
+  const handleRefreshAll = () => {
+    if (isCoolingDown || refreshing) return;
+    setNow(Date.now());
     setCooldownUntil(Date.now() + REFRESH_COOLDOWN_MS);
     checkActiveConversations();
+    refreshItbx();
   };
 
   // Expanded card state for recent activities on Dashboard Asesor
@@ -446,26 +437,8 @@ export function DashboardAdviser({ transfers, user, onNewTransfer }: DashboardAd
                 <PhoneCall className="w-5 h-5" />
               </div>
               <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-2">
-                  <p className="text-2xl font-black text-secondary dark:text-foreground tracking-tight leading-tight">{activeConversations ?? '—'}</p>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-5 w-auto px-1 rounded-full gap-1 ml-auto"
-                    onClick={handleManualRefreshConversations}
-                    disabled={checkingConversations || isCoolingDown}
-                    title={isCoolingDown ? `Puedes refrescar de nuevo en ${cooldownSecondsLeft}s` : 'Refrescar'}
-                  >
-                    <RefreshCcw className={cn("w-3 h-3 text-muted-foreground", checkingConversations && "animate-spin")} />
-                    {isCoolingDown && <span className="text-[9px] font-bold text-muted-foreground">{cooldownSecondsLeft}s</span>}
-                  </Button>
-                </div>
+                <p className="text-2xl font-black text-secondary dark:text-foreground tracking-tight leading-tight">{activeConversations ?? '—'}</p>
                 <p className="text-xs font-black text-secondary dark:text-foreground uppercase tracking-wider truncate">Conversaciones Activas Ahora</p>
-                {remainingRefreshes !== null && (
-                  <p className="text-[9px] text-muted-foreground font-medium mt-0.5">
-                    Te quedan {remainingRefreshes} de 20 consultas hoy
-                  </p>
-                )}
               </div>
             </CardContent>
           </Card>
@@ -514,29 +487,16 @@ export function DashboardAdviser({ transfers, user, onNewTransfer }: DashboardAd
                       <p className="text-2xl font-black text-secondary dark:text-foreground tracking-tight leading-tight">
                         {itbxLoading ? '...' : itbxError ? '—' : itbxCallTotal ?? '—'}
                       </p>
-                      <div className="flex items-center gap-0.5">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-5 w-auto px-1 rounded-full gap-1"
-                          onClick={refreshItbx}
-                          disabled={itbxLoading || itbxCooldownLeft > 0}
-                          title={itbxCooldownLeft > 0 ? `Puedes actualizar de nuevo en ${itbxCooldownLeft}s` : 'Actualizar llamadas'}
-                        >
-                          <RefreshCcw className={cn("w-3 h-3 text-muted-foreground", itbxLoading && "animate-spin")} />
-                          {itbxCooldownLeft > 0 && <span className="text-[9px] font-bold text-muted-foreground">{itbxCooldownLeft}s</span>}
-                        </Button>
-                        <Select value={itbxDate} onValueChange={setItbxDate}>
-                          <SelectTrigger className="h-5 w-auto px-1.5 rounded-full text-[9px] font-bold border-none bg-transparent gap-1">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent className="rounded-xl">
-                            {itbxDateOptions.map(opt => (
-                              <SelectItem key={opt.key} value={opt.key} className="text-xs font-medium">{opt.label}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
+                      <Select value={itbxDate} onValueChange={setItbxDate}>
+                        <SelectTrigger className="h-5 w-auto px-1.5 rounded-full text-[9px] font-bold border-none bg-transparent gap-1">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent className="rounded-xl">
+                          {itbxDateOptions.map(opt => (
+                            <SelectItem key={opt.key} value={opt.key} className="text-xs font-medium">{opt.label}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                     </div>
                     <p className="text-xs font-black text-secondary dark:text-foreground uppercase tracking-wider truncate">
                       {itbxError ? 'Llamadas (ITBX) — error' : 'Llamadas (ITBX)'}
@@ -605,9 +565,9 @@ export function DashboardAdviser({ transfers, user, onNewTransfer }: DashboardAd
         calls={user.extension ? itbxTodayAnswered : null}
         conversations={closedTodayConversations}
         bitacoras={todayBitacoras}
-        callsLoading={itbxLoading}
-        callsCooldownLeft={itbxCooldownLeft}
-        onRefreshCalls={refreshItbx}
+        refreshing={refreshing}
+        cooldownLeft={cooldownSecondsLeft}
+        onRefresh={handleRefreshAll}
       />
 
       {/* FILTERS SECTION */}

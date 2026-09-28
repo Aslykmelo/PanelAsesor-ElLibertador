@@ -9,9 +9,9 @@ interface DailyGoalsProps {
   calls: number | null;
   conversations: number | null;
   bitacoras: number | null;
-  callsLoading: boolean;
-  callsCooldownLeft: number;
-  onRefreshCalls: () => void;
+  refreshing: boolean;
+  cooldownLeft: number;
+  onRefresh: () => void;
 }
 
 function GoalRow({ label, hint, current, goal }: { label: string; hint: string; current: number | null; goal: number }) {
@@ -39,7 +39,7 @@ function GoalRow({ label, hint, current, goal }: { label: string; hint: string; 
   );
 }
 
-export function DailyGoals({ user, calls, conversations, bitacoras, callsLoading, callsCooldownLeft, onRefreshCalls }: DailyGoalsProps) {
+export function DailyGoals({ user, calls, conversations, bitacoras, refreshing, cooldownLeft, onRefresh }: DailyGoalsProps) {
   const goal = getDailyGoal(user, todayKey());
   if (!goal) return null;
 
@@ -59,12 +59,12 @@ export function DailyGoals({ user, calls, conversations, bitacoras, callsLoading
           variant="outline"
           size="sm"
           className="h-8 rounded-full gap-1.5 text-xs font-bold shrink-0"
-          onClick={onRefreshCalls}
-          disabled={callsLoading || callsCooldownLeft > 0}
-          title="Vuelve a consultar tus llamadas en ITBX"
+          onClick={onRefresh}
+          disabled={refreshing || cooldownLeft > 0}
+          title="Trae tus llamadas y conversaciones más recientes"
         >
-          <RefreshCcw className={cn('w-3 h-3', callsLoading && 'animate-spin')} />
-          {callsCooldownLeft > 0 ? `${callsCooldownLeft}s` : 'Actualizar llamadas'}
+          <RefreshCcw className={cn('w-3 h-3', refreshing && 'animate-spin')} />
+          {cooldownLeft > 0 ? `${cooldownLeft}s` : 'Actualizar'}
         </Button>
       </div>
 

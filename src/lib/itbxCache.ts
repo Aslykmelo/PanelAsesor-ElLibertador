@@ -8,7 +8,11 @@ import { doc, getDoc, setDoc, serverTimestamp, Timestamp } from 'firebase/firest
 // compartida en Firestore; el resto simplemente la lee mientras siga
 // fresca — así, sin importar cuántos asesores entren, el consumo real
 // contra ITBX queda acotado a unas pocas veces por franja de tiempo.
-const CACHE_FRESH_MS = 10 * 60 * 1000; // 10 minutos
+// Ventana de "dato fresco" para el día de hoy — coincide con el
+// enfriamiento del botón único de actualizar (ver useItbxCalls.ts), así que
+// sin importar cuántos asesores lo pulsen, ITBX recibe como máximo una
+// consulta real cada 5 minutos.
+export const CACHE_FRESH_MS = 5 * 60 * 1000;
 
 // daysAgo=0 -> hoy, 1 -> ayer, etc. (hora de Bogotá).
 export function dateKeyDaysAgo(daysAgo: number): string {
@@ -49,14 +53,8 @@ function endOfDayMs(dateKey: string): number {
 // DashboardAdvisor.tsx), no solo "hoy". Un día que ya pasó no vuelve a
 // cambiar, así que su caché no vence nunca — siempre que se haya guardado
 // después de que el día terminó (si se guardó a media jornada, está
-// incompleta y se vuelve a pedir). Solo el día de hoy usa la ventana de
-// 10 min. Documentos viejos sin el campo `answered` se ignoran.
-//
-// `maxAgeMs` acorta esa ventana para el botón "Actualizar" (por defecto 10
-// min): así, sin importar cuántos asesores lo pulsen, ITBX recibe como
-// máximo una consulta cada MANUAL_REFRESH_MAX_AGE_MS.
-export const MANUAL_REFRESH_MAX_AGE_MS = 3 * 60 * 1000;
-
+// incompleta y se vuelve a pedir). Solo el día de hoy usa CACHE_FRESH_MS.
+// Documentos viejos sin el campo `answered` se ignoran.
 export async function getExtensionCallTotalsForDate(
   dateKey: string,
   maxAgeMs: number = CACHE_FRESH_MS

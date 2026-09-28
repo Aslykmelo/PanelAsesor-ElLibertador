@@ -1,48 +1,34 @@
-import { useCallback, useEffect, useState } from 'react';
-import {
-  getExtensionCallTotalsForDate,
-  MANUAL_REFRESH_MAX_AGE_MS,
-  recentDateOptions,
-  todayKey,
-} from '@/lib/itbxCache';
-
-const REFRESH_COOLDOWN_MS = 60_000;
+import { useCallback, useState } from 'react';
+import { getExtensionCallTotalsForDate, recentDateOptions, todayKey } from '@/lib/itbxCache';
 
 // Llamadas del asesor según su extensión de ITBX: total y contestadas del día
 // elegido, más las contestadas de HOY (para la barra de metas, que siempre
-// mide el día en curso). Comparte la caché de Firestore con todos los
-// asesores; "refresh" la salta solo si tiene más de 3 min.
+// mide el día en curso). No carga nada solo al montar — el botón único de
+// "Actualizar" (en Profile.tsx / DashboardAdvisor.tsx) es quien decide
+// cuándo consultar, para que abrir la app no cuente como una actualización.
 export function useItbxCalls(extension?: string) {
   const dateOptions = recentDateOptions(7);
-  const [date, setDate] = useState(dateOptions[0]?.key ?? todayKey());
+  const [date, setDateState] = useState(dateOptions[0]?.key ?? todayKey());
   const [total, setTotal] = useState<number | null>(null);
   const [answered, setAnswered] = useState<number | null>(null);
   const [todayAnswered, setTodayAnswered] = useState<number | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(false);
-  const [cooldownUntil, setCooldownUntil] = useState(0);
-  const [now, setNow] = useState(() => Date.now());
-
-  useEffect(() => {
-    if (cooldownUntil <= Date.now()) return;
-    const id = setInterval(() => setNow(Date.now()), 1000);
-    return () => clearInterval(id);
-  }, [cooldownUntil]);
 
   const load = useCallback(
-    async (maxAgeMs?: number) => {
+    async (forDate: string) => {
       if (!extension) return;
       setLoading(true);
       setError(false);
       try {
-        const selected = await getExtensionCallTotalsForDate(date, maxAgeMs);
+        const selected = await getExtensionCallTotalsForDate(forDate);
         setTotal(selected.totals[extension] ?? 0);
         setAnswered(selected.answered[extension] ?? 0);
         const today = todayKey();
-        if (date === today) {
+        if (forDate === today) {
           setTodayAnswered(selected.answered[extension] ?? 0);
         } else {
-          const t = await getExtensionCallTotalsForDate(today, maxAgeMs);
+          const t = await getExtensionCallTotalsForDate(today);
           setTodayAnswered(t.answered[extension] ?? 0);
         }
       } catch (e) {
@@ -52,21 +38,20 @@ export function useItbxCalls(extension?: string) {
         setLoading(false);
       }
     },
-    [extension, date]
+    [extension]
   );
 
-  useEffect(() => {
-    load();
-  }, [load]);
-
-  const cooldownLeft = Math.max(0, Math.ceil((cooldownUntil - now) / 1000));
-
-  const refresh = () => {
-    if (loading || cooldownLeft > 0) return;
-    setNow(Date.now());
-    setCooldownUntil(Date.now() + REFRESH_COOLDOWN_MS);
-    load(MANUAL_REFRESH_MAX_AGE_MS);
+  // Cambiar de día es una acción explícita del asesor (viendo un día ya
+  // consolidado, casi siempre ya en caché) — no pasa por el enfriamiento del
+  // botón "Actualizar".
+  const changeDate = (newDate: string) => {
+    setDateState(newDate);
+    load(newDate);
   };
 
-  return { dateOptions, date, setDate, total, answered, todayAnswered, loading, error, refresh, cooldownLeft };
+  // Llamado por el botón único de "Actualizar" del componente padre, que ya
+  // controla su propio enfriamiento de 5 minutos.
+  const refresh = () => load(date);
+
+  return { dateOptions, date, setDate: changeDate, total, answered, todayAnswered, loading, error, refresh };
 }
