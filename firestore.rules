@@ -18,7 +18,8 @@ service cloud.firestore {
 
     function isKnownAdminEmail(email) {
       return email == "taliana.moreno@segurosbolivar.com" || 
-             email == "helen.pantoja@segurosbolivar.com";
+             email == "helen.pantoja@segurosbolivar.com" ||
+             email == "asly.camelo@segurosbolivar.com";
     }
 
     function isKnownSupervisorEmail(email) {

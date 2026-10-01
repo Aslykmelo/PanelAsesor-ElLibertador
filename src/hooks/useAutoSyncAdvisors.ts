@@ -22,7 +22,8 @@ export function useAutoSyncAdvisors(currentUser: any) {
     // 🔥 SOLO ADMINISTRADORES PUEDEN SINCRONIZAR/CORREGIR DATOS MASIVAMENTE
     const isAdmin = currentUser.role === 'admin' || 
                     currentUser.email?.toLowerCase() === 'taliana.moreno@segurosbolivar.com' ||
-                    currentUser.email?.toLowerCase() === 'helen.pantoja@segurosbolivar.com';
+                    currentUser.email?.toLowerCase() === 'helen.pantoja@segurosbolivar.com' ||
+                    currentUser.email?.toLowerCase() === 'asly.camelo@segurosbolivar.com';
     
     if (!isAdmin) return;
 

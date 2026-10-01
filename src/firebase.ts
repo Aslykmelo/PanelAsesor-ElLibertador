@@ -147,7 +147,8 @@ export const signIn = async () => {
 
   const ADMINS = [
     'taliana.moreno@segurosbolivar.com',
-    'helen.pantoja@segurosbolivar.com'
+    'helen.pantoja@segurosbolivar.com',
+    'asly.camelo@segurosbolivar.com'
   ];
 
   const SUPERVISORS = [
