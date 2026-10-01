@@ -1,0 +1,327 @@
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { collection, getDocs } from 'firebase/firestore';
+import { db } from '@/firebase';
+import { cn } from '@/lib/utils';
+import { getDailyGoal } from '@/lib/goals';
+import { getExtensionCallTotalsForDate, todayKey } from '@/lib/itbxCache';
+import { ADVISORS } from '@/constants';
+import { Button } from '@/components/ui/button';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Activity, MessageSquare, PhoneCall, RefreshCcw, Users, CheckCircle2 } from 'lucide-react';
+import { toast } from 'sonner';
+import { User } from '../types';
+
+// "Mi Equipo en Vivo": el supervisor (o un admin, eligiendo el equipo) ve el
+// avance de HOY de cada asesor — conversaciones cerradas en Infobip y
+// llamadas contestadas en ITBX contra la meta del día — sin depender de que
+// cada asesor entre a la app ni de que alguien arme el informe "Cómo van".
+
+type Availability = 'ACTIVE' | 'BUSY' | 'AWAY' | 'INVISIBLE' | string;
+
+type MemberStats = { active: number; closedToday: number; availability: Availability | null; hasAgent: boolean };
+
+type Member = { email: string; name: string; cartera: string; extension: string | null };
+
+type UserDoc = { email?: string; name?: string; extension?: string; supervisorEmail?: string; role?: string; cartera?: string };
+
+// Se refresca solo mientras la vista está abierta; el botón manual tiene su
+// propio enfriamiento corto. Las llamadas de ITBX igual salen de la caché
+// compartida (máximo una consulta real cada 5 minutos, ver itbxCache.ts).
+const AUTO_REFRESH_MS = 3 * 60 * 1000;
+const MANUAL_COOLDOWN_MS = 60 * 1000;
+
+// Jornada usada para el "esperado a esta hora" (solo lunes a viernes, igual
+// que el análisis de asesores preocupantes del tablero de Conectividad).
+const JORNADA_INICIO_MIN = 8 * 60;
+const JORNADA_FIN_MIN = 17 * 60;
+
+function bogotaMinutesNow(): number {
+  const bogota = new Date(Date.now() - 5 * 60 * 60 * 1000);
+  return bogota.getUTCHours() * 60 + bogota.getUTCMinutes();
+}
+
+function expectedFraction(isSaturday: boolean): number | null {
+  if (isSaturday) return null;
+  const now = bogotaMinutesNow();
+  const f = (now - JORNADA_INICIO_MIN) / (JORNADA_FIN_MIN - JORNADA_INICIO_MIN);
+  return Math.max(0, Math.min(1, f));
+}
+
+// Un equipo por correo de supervisor. Lizeth aparece con dos nombres (su
+// cartera de Copropiedades), así que se usa el nombre más corto.
+const SUPERVISORS = (() => {
+  const byEmail = new Map<string, string>();
+  for (const a of ADVISORS) {
+    const email = a.correo_supervisor.toLowerCase();
+    const prev = byEmail.get(email);
+    if (!prev || a.supervisor.length < prev.length) byEmail.set(email, a.supervisor);
+  }
+  return Array.from(byEmail, ([email, name]) => ({ email, name })).sort((a, b) => a.name.localeCompare(b.name, 'es'));
+})();
+
+const AVAILABILITY: Record<string, { label: string; dot: string }> = {
+  ACTIVE: { label: 'Disponible', dot: 'bg-emerald-500' },
+  BUSY: { label: 'Ocupado', dot: 'bg-amber-500' },
+  AWAY: { label: 'Ausente', dot: 'bg-slate-400' },
+  INVISIBLE: { label: 'Desconectado', dot: 'bg-slate-300 dark:bg-slate-600' },
+};
+
+function ProgressCell({ current, goal, expected }: { current: number | null; goal: number | null; expected: number | null }) {
+  if (goal === null) {
+    return <p className="text-sm font-black text-secondary text-right">{current ?? '—'}</p>;
+  }
+  const pct = current === null ? 0 : Math.min(100, Math.round((current / goal) * 100));
+  const done = current !== null && current >= goal;
+  const expectedNow = expected === null ? null : Math.round(goal * expected);
+  const behind = !done && expectedNow !== null && current !== null && current < expectedNow;
+  const bar = done ? 'bg-emerald-500' : behind ? 'bg-amber-500' : 'bg-primary';
+  return (
+    <div className="min-w-[120px] space-y-1">
+      <p className="text-sm font-black text-secondary text-right">
+        {current ?? '—'} <span className="text-muted-foreground font-bold">/ {goal}</span>
+      </p>
+      <div className="relative h-2 rounded-full bg-muted/50 overflow-hidden">
+        <div className={cn('h-full rounded-full transition-all duration-500', bar)} style={{ width: `${pct}%` }} />
+        {expected !== null && !done && (
+          <div className="absolute top-0 h-full w-0.5 bg-secondary/60" style={{ left: `${Math.round(expected * 100)}%` }} />
+        )}
+      </div>
+      <p className={cn('text-[10px] font-bold text-right', done ? 'text-emerald-600 dark:text-emerald-400' : behind ? 'text-amber-600 dark:text-amber-400' : 'text-muted-foreground')}>
+        {current === null ? 'Sin dato' : done ? 'Meta cumplida' : `Faltan ${goal - current}${expectedNow !== null ? ` · esperado ${expectedNow}` : ''}`}
+      </p>
+    </div>
+  );
+}
+
+export function TeamLive({ user, role }: { user: User; role: 'admin' | 'supervisor' }) {
+  const myEmail = (user.email || '').toLowerCase();
+  const ownsTeam = SUPERVISORS.some((s) => s.email === myEmail);
+  // El supervisor ve solo su equipo; el admin elige cuál (por defecto el
+  // suyo si también es supervisor de alguno).
+  const canChooseTeam = role === 'admin' || !ownsTeam;
+  const [teamEmail, setTeamEmail] = useState(ownsTeam ? myEmail : SUPERVISORS[0]?.email ?? '');
+
+  const [users, setUsers] = useState<UserDoc[]>([]);
+  const [stats, setStats] = useState<Record<string, MemberStats>>({});
+  const [answered, setAnswered] = useState<Record<string, number>>({});
+  const [loading, setLoading] = useState(false);
+  const [updatedAt, setUpdatedAt] = useState<number | null>(null);
+  const [cooldownUntil, setCooldownUntil] = useState(0);
+  const [now, setNow] = useState(Date.now());
+
+  useEffect(() => {
+    getDocs(collection(db, 'users'))
+      .then((snap) => setUsers(snap.docs.map((d) => d.data() as UserDoc)))
+      .catch((e) => console.error('Error al cargar usuarios para el equipo:', e));
+  }, []);
+
+  // Integrantes: la lista oficial de asesores del supervisor, más cualquier
+  // usuario de la app que tenga a ese supervisor en su perfil. La extensión
+  // de ITBX sale del perfil de cada asesor.
+  const members: Member[] = useMemo(() => {
+    const userByEmail = new Map<string, UserDoc>(users.filter((u) => u.email).map((u) => [u.email!.toLowerCase(), u]));
+    const map = new Map<string, Member>();
+    for (const a of ADVISORS) {
+      if (a.correo_supervisor.toLowerCase() !== teamEmail) continue;
+      const email = a.correo.toLowerCase();
+      map.set(email, { email, name: a.nombre, cartera: a.cartera, extension: userByEmail.get(email)?.extension || null });
+    }
+    for (const u of users) {
+      const email = (u.email || '').toLowerCase();
+      if (!email || map.has(email) || (u.supervisorEmail || '').toLowerCase() !== teamEmail) continue;
+      if (u.role && u.role !== 'asesor') continue;
+      map.set(email, { email, name: u.name || email, cartera: u.cartera || '', extension: u.extension || null });
+    }
+    return Array.from(map.values());
+  }, [users, teamEmail]);
+
+  const load = useCallback(async () => {
+    if (members.length === 0) return;
+    setLoading(true);
+    const [convRes, callsRes] = await Promise.allSettled([
+      fetch('/api/infobip/team-stats', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ members: members.map((m) => ({ email: m.email, name: m.name })) }),
+      }).then(async (r) => {
+        const json = await r.json();
+        if (!r.ok) throw new Error(json?.error || 'No fue posible consultar Infobip');
+        return json as { members: Record<string, MemberStats> };
+      }),
+      getExtensionCallTotalsForDate(todayKey()),
+    ]);
+    if (convRes.status === 'fulfilled') setStats(convRes.value.members);
+    else toast.error(`Conversaciones: ${convRes.reason?.message || 'error al consultar Infobip'}`);
+    if (callsRes.status === 'fulfilled') setAnswered(callsRes.value.answered);
+    else toast.error(`Llamadas: ${callsRes.reason?.message || 'error al consultar ITBX'}`);
+    setUpdatedAt(Date.now());
+    setLoading(false);
+  }, [members]);
+
+  // Carga al entrar / al cambiar de equipo, y luego cada AUTO_REFRESH_MS
+  // mientras la pestaña esté visible.
+  useEffect(() => {
+    setStats({});
+    load();
+    const id = setInterval(() => {
+      if (document.visibilityState === 'visible') load();
+    }, AUTO_REFRESH_MS);
+    return () => clearInterval(id);
+  }, [load]);
+
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, []);
+
+  const cooldownLeft = Math.max(0, Math.ceil((cooldownUntil - now) / 1000));
+  const manualRefresh = () => {
+    setCooldownUntil(Date.now() + MANUAL_COOLDOWN_MS);
+    load();
+  };
+
+  const today = todayKey();
+  const rows = members
+    .map((m) => {
+      const goal = getDailyGoal({ email: m.email, supervisorEmail: teamEmail, cartera: m.cartera }, today);
+      const s = stats[m.email];
+      const conversations = s ? s.closedToday : null;
+      const calls = m.extension ? answered[m.extension] ?? 0 : null;
+      const convPct = goal && conversations !== null ? conversations / goal.conversations : 0;
+      const callPct = goal && calls !== null ? calls / goal.calls : 0;
+      return { ...m, goal, s, conversations, calls, progress: (Math.min(1, convPct) + Math.min(1, callPct)) / 2 };
+    })
+    // Los que van más atrás, primero.
+    .sort((a, b) => a.progress - b.progress || a.name.localeCompare(b.name, 'es'));
+
+  const sampleGoal = rows.find((r) => r.goal)?.goal ?? null;
+  const expected = sampleGoal ? expectedFraction(sampleGoal.isSaturday) : null;
+  const totalConv = rows.reduce((acc, r) => acc + (r.conversations ?? 0), 0);
+  const totalCalls = rows.reduce((acc, r) => acc + (r.calls ?? 0), 0);
+  const goalConv = rows.reduce((acc, r) => acc + (r.goal?.conversations ?? 0), 0);
+  const goalCalls = rows.reduce((acc, r) => acc + (r.goal?.calls ?? 0), 0);
+  const metBoth = rows.filter((r) => r.goal && (r.conversations ?? 0) >= r.goal.conversations && (r.calls ?? 0) >= r.goal.calls).length;
+  const connected = rows.filter((r) => r.s?.availability === 'ACTIVE' || r.s?.availability === 'BUSY').length;
+  const teamName = SUPERVISORS.find((s) => s.email === teamEmail)?.name ?? 'Equipo';
+
+  const tiles = [
+    { label: 'Conversaciones cerradas', value: totalConv, goal: goalConv, Icon: MessageSquare },
+    { label: 'Llamadas contestadas', value: totalCalls, goal: goalCalls, Icon: PhoneCall },
+    { label: 'Cumplen ambas metas', value: metBoth, goal: rows.length, Icon: CheckCircle2 },
+    { label: 'Conectados en Infobip', value: connected, goal: rows.length, Icon: Activity },
+  ];
+
+  return (
+    <div className="max-w-6xl mx-auto space-y-6 animate-in fade-in zoom-in-95 duration-500">
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-black text-secondary flex items-center gap-2">
+            <Users className="w-6 h-6 text-primary" />
+            Mi Equipo en Vivo
+          </h1>
+          <p className="text-sm text-muted-foreground font-medium mt-1">
+            Avance de hoy de {teamName}
+            {sampleGoal ? ` · ${sampleGoal.isSaturday ? 'meta de sábado' : 'meta de lunes a viernes'}` : ''}
+            {updatedAt ? ` · actualizado ${new Date(updatedAt).toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' })}` : ''}
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          {canChooseTeam && (
+            <Select value={teamEmail} onValueChange={setTeamEmail}>
+              <SelectTrigger className="h-10 w-[220px] rounded-xl font-bold">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent className="rounded-xl">
+                {SUPERVISORS.map((s) => (
+                  <SelectItem key={s.email} value={s.email} className="font-medium">{s.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+          <Button
+            variant="outline"
+            className="h-10 rounded-xl gap-2 font-bold"
+            onClick={manualRefresh}
+            disabled={loading || cooldownLeft > 0}
+            title="Se actualiza solo cada 3 minutos"
+          >
+            <RefreshCcw className={cn('w-4 h-4', loading && 'animate-spin')} />
+            {cooldownLeft > 0 ? `${cooldownLeft}s` : 'Actualizar'}
+          </Button>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        {tiles.map(({ label, value, goal, Icon }) => (
+          <div key={label} className="bg-card rounded-2xl p-4 card-shadow flex items-center gap-3">
+            <div className="w-10 h-10 shrink-0 bg-primary/10 text-primary rounded-xl flex items-center justify-center">
+              <Icon className="w-5 h-5" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-xl font-black text-secondary">
+                {value}
+                {goal > 0 && <span className="text-sm text-muted-foreground font-bold"> / {goal}</span>}
+              </p>
+              <p className="text-[10px] font-bold text-muted-foreground uppercase truncate">{label}</p>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div className="bg-card rounded-2xl card-shadow overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-border/50 text-left">
+                <th className="px-4 py-3 font-bold text-muted-foreground uppercase text-[10px] tracking-wider">Asesor</th>
+                <th className="px-4 py-3 font-bold text-muted-foreground uppercase text-[10px] tracking-wider text-right">Conversaciones</th>
+                <th className="px-4 py-3 font-bold text-muted-foreground uppercase text-[10px] tracking-wider text-right">Abiertas</th>
+                <th className="px-4 py-3 font-bold text-muted-foreground uppercase text-[10px] tracking-wider text-right">Llamadas contestadas</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((r) => {
+                const av = r.s?.availability ? AVAILABILITY[r.s.availability] : null;
+                return (
+                  <tr key={r.email} className="border-b border-border/30 hover:bg-muted/20 transition-colors">
+                    <td className="px-4 py-3">
+                      <p className="font-bold text-secondary">{r.name}</p>
+                      <p className="text-[11px] text-muted-foreground font-medium flex items-center gap-1.5 mt-0.5">
+                        <span className={cn('inline-block w-2 h-2 rounded-full', av?.dot ?? 'bg-transparent border border-border')} />
+                        {r.s && !r.s.hasAgent ? 'Sin agente en Infobip' : av?.label ?? (r.s ? r.s.availability : 'Consultando…')}
+                        {r.cartera ? ` · ${r.cartera}` : ''}
+                      </p>
+                    </td>
+                    <td className="px-4 py-3">
+                      <ProgressCell current={r.conversations} goal={r.goal?.conversations ?? null} expected={expected} />
+                    </td>
+                    <td className="px-4 py-3 text-right font-black text-secondary">{r.s ? r.s.active : '—'}</td>
+                    <td className="px-4 py-3">
+                      {r.extension ? (
+                        <ProgressCell current={r.calls} goal={r.goal?.calls ?? null} expected={expected} />
+                      ) : (
+                        <p className="text-[11px] text-muted-foreground font-medium text-right italic">Sin extensión registrada</p>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+              {rows.length === 0 && (
+                <tr>
+                  <td colSpan={4} className="px-4 py-10 text-center text-muted-foreground font-medium">
+                    Este equipo no tiene asesores registrados.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <p className="text-[11px] text-muted-foreground font-medium">
+        Conversaciones cerradas hoy y abiertas ahora en Infobip; llamadas contestadas según la extensión de cada asesor en ITBX.
+        {expected !== null && ' La raya en cada barra marca lo esperado a esta hora (jornada de 8:00 a 17:00).'}
+      </p>
+    </div>
+  );
+}

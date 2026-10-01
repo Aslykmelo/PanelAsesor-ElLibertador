@@ -404,3 +404,126 @@ export async function redirectConversationsToNgso(
 
   return results;
 }
+
+// --- Equipo en vivo (vista del supervisor) ---------------------------------
+//
+// Avance de hoy de todo un equipo a la vez. En vez de repetir por asesor las
+// 3 consultas de getMyConversationStats (con ~20 asesores serían ~60
+// peticiones y Infobip empieza a responder 429), se traen UNA vez las listas
+// de toda la cuenta — agentes, conversaciones abiertas/en espera y cerradas
+// hoy — y se agrupan por agente. Así el costo contra Infobip es el mismo sin
+// importar cuántos asesores tenga el equipo ni cuántos supervisores miren.
+
+type InfobipAgentSummary = { id: string; displayName: string; availability?: string; enabled?: boolean };
+type InfobipConversationLite = { id: string; agentId: string | null };
+
+const LIST_PAGE_LIMIT = 999;
+
+async function listAllPages<T>(path: string, key: string): Promise<T[]> {
+  const out: T[] = [];
+  const sep = path.includes("?") ? "&" : "?";
+  for (let page = 0; ; page++) {
+    const data = await infobipFetch<Record<string, any>>(`${path}${sep}limit=${LIST_PAGE_LIMIT}&page=${page}`);
+    const items = (data[key] ?? []) as T[];
+    out.push(...items);
+    if (items.length === 0 || out.length >= (data.pagination?.totalItems ?? 0)) break;
+  }
+  return out;
+}
+
+function countByAgent(conversations: InfobipConversationLite[]): Map<string, number> {
+  const counts = new Map<string, number>();
+  for (const c of conversations) {
+    if (c.agentId) counts.set(c.agentId, (counts.get(c.agentId) ?? 0) + 1);
+  }
+  return counts;
+}
+
+type AccountSnapshot = {
+  agentsById: Map<string, InfobipAgentSummary>;
+  activeByAgent: Map<string, number>;
+  closedTodayByAgent: Map<string, number>;
+  fetchedAt: number;
+};
+
+// Si varios supervisores abren la vista casi al tiempo, comparten la misma
+// foto de la cuenta en vez de disparar cada uno sus propias consultas.
+const SNAPSHOT_TTL_MS = 60 * 1000;
+let snapshotCache: AccountSnapshot | null = null;
+let snapshotInFlight: Promise<AccountSnapshot> | null = null;
+
+async function getAccountSnapshot(): Promise<AccountSnapshot> {
+  if (snapshotCache && Date.now() - snapshotCache.fetchedAt < SNAPSHOT_TTL_MS) return snapshotCache;
+  if (snapshotInFlight) return snapshotInFlight;
+  snapshotInFlight = (async () => {
+    const closedAfter = encodeURIComponent(bogotaStartOfDayIso());
+    const [agents, open, waiting, closed] = await Promise.all([
+      listAllPages<InfobipAgentSummary>("/ccaas/1/agents", "agents"),
+      listAllPages<InfobipConversationLite>("/ccaas/1/conversations?status=OPEN", "conversations"),
+      listAllPages<InfobipConversationLite>("/ccaas/1/conversations?status=WAITING", "conversations"),
+      listAllPages<InfobipConversationLite>(`/ccaas/1/conversations?status=CLOSED&closedAfter=${closedAfter}`, "conversations"),
+    ]);
+    const snapshot: AccountSnapshot = {
+      agentsById: new Map(agents.map((a) => [a.id, a])),
+      activeByAgent: countByAgent([...open, ...waiting]),
+      closedTodayByAgent: countByAgent(closed),
+      fetchedAt: Date.now(),
+    };
+    snapshotCache = snapshot;
+    return snapshot;
+  })().finally(() => {
+    snapshotInFlight = null;
+  });
+  return snapshotInFlight;
+}
+
+// La lista de agentes de Infobip no trae el correo (solo se puede filtrar por
+// él), así que el cruce correo -> agente se resuelve uno a uno con la misma
+// búsqueda de getMyConversationStats (correo y, si no aparece, nombre) y se
+// recuerda: el agente de un asesor casi nunca cambia. Un "no encontrado" se
+// recuerda menos tiempo, por si lo crean en Infobip durante el día.
+const AGENT_ID_TTL_MS = 6 * 60 * 60 * 1000;
+const AGENT_MISS_TTL_MS = 30 * 60 * 1000;
+const agentIdByEmail = new Map<string, { id: string | null; at: number }>();
+
+async function resolveAgentId(email: string, name: string): Promise<string | null> {
+  const cached = agentIdByEmail.get(email);
+  if (cached && Date.now() - cached.at < (cached.id ? AGENT_ID_TTL_MS : AGENT_MISS_TTL_MS)) return cached.id;
+  const agent = (await getAgentByEmail(email)) ?? (await getAgentByName(name));
+  agentIdByEmail.set(email, { id: agent?.id ?? null, at: Date.now() });
+  return agent?.id ?? null;
+}
+
+export type TeamMemberStats = {
+  active: number;
+  closedToday: number;
+  availability: string | null; // ACTIVE / BUSY / AWAY / INVISIBLE (Infobip); null = sin agente
+  hasAgent: boolean;
+};
+
+export async function getTeamConversationStats(
+  members: { email: string; name: string }[]
+): Promise<{ members: Record<string, TeamMemberStats>; fetchedAt: number }> {
+  const snapshot = await getAccountSnapshot();
+
+  // De a pocos, para no chocar con el límite por segundo de Infobip la
+  // primera vez (después casi todo sale de la memoria).
+  const agentIds: (string | null)[] = [];
+  const BATCH_SIZE = 5;
+  for (let i = 0; i < members.length; i += BATCH_SIZE) {
+    const batch = members.slice(i, i + BATCH_SIZE);
+    agentIds.push(...(await Promise.all(batch.map((m) => resolveAgentId(m.email, m.name).catch(() => null)))));
+  }
+
+  const result: Record<string, TeamMemberStats> = {};
+  members.forEach((m, i) => {
+    const agentId = agentIds[i];
+    result[m.email] = {
+      active: agentId ? snapshot.activeByAgent.get(agentId) ?? 0 : 0,
+      closedToday: agentId ? snapshot.closedTodayByAgent.get(agentId) ?? 0 : 0,
+      availability: agentId ? snapshot.agentsById.get(agentId)?.availability ?? null : null,
+      hasAgent: !!agentId,
+    };
+  });
+  return { members: result, fetchedAt: snapshot.fetchedAt };
+}

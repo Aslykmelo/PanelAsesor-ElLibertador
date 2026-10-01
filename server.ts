@@ -5,7 +5,7 @@ import { fileURLToPath } from "url";
 import nodemailer from "nodemailer";
 import dotenv from "dotenv";
 import { createClient } from "@supabase/supabase-js";
-import { getConversationContactTags, findConversationsByRequestNumber, redirectConversationsToNgso, getMyConversationStats } from "./lib/infobipNgso";
+import { getConversationContactTags, findConversationsByRequestNumber, redirectConversationsToNgso, getMyConversationStats, getTeamConversationStats } from "./lib/infobipNgso";
 import { getOutgoingCallTotals } from "./lib/itbx";
 
 dotenv.config();
@@ -263,6 +263,25 @@ async function startServer() {
     } catch (error: any) {
       console.error("Error al consultar conversaciones del asesor:", error);
       res.status(500).json({ error: error.message || "Error desconocido al consultar conversaciones" });
+    }
+  });
+
+  // Mi Equipo en Vivo: conversaciones abiertas y cerradas hoy de todos los
+  // asesores de un equipo, en una sola consulta (ver getTeamConversationStats).
+  app.post("/api/infobip/team-stats", async (req, res) => {
+    const raw = Array.isArray(req.body?.members) ? req.body.members : [];
+    const members = raw
+      .map((m: any) => ({ email: String(m?.email || "").trim().toLowerCase(), name: String(m?.name || "").trim() }))
+      .filter((m: { email: string }) => m.email)
+      .slice(0, 120);
+    if (members.length === 0) {
+      return res.status(400).json({ error: "members es requerido" });
+    }
+    try {
+      res.json(await getTeamConversationStats(members));
+    } catch (error: any) {
+      console.error("Error al consultar conversaciones del equipo:", error);
+      res.status(500).json({ error: error.message || "Error desconocido al consultar el equipo" });
     }
   });
 

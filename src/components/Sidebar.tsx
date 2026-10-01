@@ -14,7 +14,8 @@ import {
   TrendingUp,
   Building2,
   ListChecks,
-  Phone
+  Phone,
+  Activity
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -51,6 +52,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const menuItems = [
     { id: 'dashboard', label: isAsesor ? 'Mi Gestión' : 'Tablero', icon: LayoutDashboard },
     { id: 'team-goals', label: 'Mi Equipo', icon: Users, role: ['asesor'] },
+    { id: 'team-live', label: 'Mi Equipo en Vivo', icon: Activity, role: ['admin', 'supervisor'] },
     { id: 'executive-dashboard', label: 'Dashboard Ejecutivo', icon: TrendingUp, role: ['admin', 'supervisor'] },
     { id: 'redirect-ngso', label: 'Redirigir a NGSO', icon: Building2 },
     { id: 'ngso-validation', label: 'Validación NGSO', icon: ShieldCheck, emails: NGSO_VALIDATOR_EMAILS },

@@ -16,6 +16,7 @@ import { UploadCallTotals } from './components/UploadCallTotals';
 import { ExecutiveDashboard } from './components/ExecutiveDashboard';
 import { ItbxCallsPanel } from './components/ItbxCallsPanel';
 import { TeamGoals } from './components/TeamGoals';
+import { TeamLive } from './components/TeamLive';
 import { Notifications, Notification } from './components/Notifications';
 import { UserMenu } from './components/UserMenu';
 import { Login } from './components/Login';
@@ -213,7 +214,8 @@ export default function App() {
     if (!currentUser) return 'asesor';
     const isAdminEmail = (
       currentUser.email?.toLowerCase() === 'taliana.moreno@segurosbolivar.com' || 
-      currentUser.email?.toLowerCase() === 'helen.pantoja@segurosbolivar.com'
+      currentUser.email?.toLowerCase() === 'helen.pantoja@segurosbolivar.com' ||
+      currentUser.email?.toLowerCase() === 'asly.camelo@segurosbolivar.com'
     );
     return isAdminEmail ? 'admin' : currentUser.role;
   }, [currentUser]);
@@ -254,7 +256,8 @@ export default function App() {
           } else {
             console.log("Documento de usuario aún no existe para UID:", firebaseUser.uid);
             const isAdmin = firebaseUser.email?.toLowerCase() === 'taliana.moreno@segurosbolivar.com' || 
-                           firebaseUser.email?.toLowerCase() === 'helen.pantoja@segurosbolivar.com';
+                           firebaseUser.email?.toLowerCase() === 'helen.pantoja@segurosbolivar.com' ||
+                           firebaseUser.email?.toLowerCase() === 'asly.camelo@segurosbolivar.com';
             
             setCurrentUser({
               uid: firebaseUser.uid,
@@ -274,7 +277,8 @@ export default function App() {
           if (error.code === 'permission-denied') {
             logWarn("Permisos insuficientes para sync. Usando info de Google Auth.", "App/UserSyncPermissionDenied");
             const isAdmin = firebaseUser.email?.toLowerCase() === 'taliana.moreno@segurosbolivar.com' || 
-                           firebaseUser.email?.toLowerCase() === 'helen.pantoja@segurosbolivar.com';
+                           firebaseUser.email?.toLowerCase() === 'helen.pantoja@segurosbolivar.com' ||
+                           firebaseUser.email?.toLowerCase() === 'asly.camelo@segurosbolivar.com';
             
             setCurrentUser({
               uid: firebaseUser.uid,
@@ -644,6 +648,13 @@ export default function App() {
           return null;
         }
         return <TeamGoals user={currentUser!} />;
+
+      case 'team-live':
+        if (isAsesor) {
+          setActiveTab('dashboard');
+          return null;
+        }
+        return <TeamLive user={currentUser!} role={effectiveRole === 'admin' ? 'admin' : 'supervisor'} />;
 
       case 'executive-dashboard':
         if (isAsesor) {
