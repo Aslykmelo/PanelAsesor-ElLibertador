@@ -12,7 +12,6 @@ import { AdvisorManagement } from './components/AdvisorManagement';
 import { RecaudoTracking } from './components/RecaudoTracking';
 import { RedirectToNgso } from './components/RedirectToNgso';
 import { NgsoValidation } from './components/NgsoValidation';
-import { UploadCallTotals } from './components/UploadCallTotals';
 import { ExecutiveDashboard } from './components/ExecutiveDashboard';
 import { ItbxCallsPanel } from './components/ItbxCallsPanel';
 import { TeamGoals } from './components/TeamGoals';
@@ -23,7 +22,7 @@ import { Login } from './components/Login';
 import { ThemeToggle } from './components/ThemeToggle';
 import { Toaster } from '@/components/ui/sonner';
 import { Transfer, User, Advisor } from './types';
-import { NGSO_VALIDATOR_EMAILS, CONTROLLER_EMAILS } from './constants';
+import { NGSO_VALIDATOR_EMAILS } from './constants';
 import { Search, Menu, X, Loader2, User as UserIcon, Shield, Database } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -583,7 +582,7 @@ export default function App() {
     switch (activeTab) {
       case 'dashboard':
         return isAsesor 
-          ? <DashboardAdviser transfers={filteredData} user={currentUser!} onNewTransfer={() => setActiveTab('new-transfer')} />
+          ? <DashboardAdviser user={currentUser!} />
           : <DashboardAdmin transfers={filteredData} user={currentUser!} advisors={advisors} />;
       
       case 'new-transfer':
@@ -601,13 +600,6 @@ export default function App() {
           return null;
         }
         return <NgsoValidation currentUser={currentUser!} />;
-
-      case 'call-totals-upload':
-        if (!CONTROLLER_EMAILS.includes((currentUser?.email || '').toLowerCase())) {
-          setActiveTab('dashboard');
-          return null;
-        }
-        return <UploadCallTotals currentUser={currentUser!} />;
 
       case 'my-tasks':
       case 'history':

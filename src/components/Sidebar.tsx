@@ -13,14 +13,13 @@ import {
   DollarSign,
   TrendingUp,
   Building2,
-  ListChecks,
   Phone,
   Activity
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { User } from '../types';
-import { NGSO_VALIDATOR_EMAILS, CONTROLLER_EMAILS } from '../constants';
+import { NGSO_VALIDATOR_EMAILS } from '../constants';
 
 interface SidebarProps {
   activeTab?: string;
@@ -56,7 +55,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
     { id: 'executive-dashboard', label: 'Dashboard Ejecutivo', icon: TrendingUp, role: ['admin', 'supervisor'] },
     { id: 'redirect-ngso', label: 'Redirigir a NGSO', icon: Building2 },
     { id: 'ngso-validation', label: 'Validación NGSO', icon: ShieldCheck, emails: NGSO_VALIDATOR_EMAILS },
-    { id: 'call-totals-upload', label: 'Cargar Totales', icon: ListChecks, emails: CONTROLLER_EMAILS },
     { id: 'recaudo', label: 'Seguimiento Recaudo', icon: DollarSign, role: ['admin', 'supervisor'] },
     { id: 'itbx-calls', label: 'Llamadas por Extensión', icon: Phone, role: ['admin', 'supervisor'] },
     { id: 'advisor-management', label: 'Gestión Asesores', icon: Users, role: ['admin', 'supervisor'] },

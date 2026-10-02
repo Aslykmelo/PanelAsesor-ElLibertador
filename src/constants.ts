@@ -20,8 +20,8 @@ export const NGSO_VALIDATOR_EMAILS = [
   'asly.camelo@segurosbolivar.com'
 ];
 
-// Únicos correos del equipo Controller que pueden subir el CSV de totales de
-// llamadas por asesor, sin importar su rol.
+// Correos del equipo Controller: pueden usar "Buscar Asesor" en su perfil y
+// ver las conversaciones de cualquier asesor, sin importar su rol.
 export const CONTROLLER_EMAILS = [
   'helen.pantoja@segurosbolivar.com',
   'sergio.llanos@segurosbolivar.com',

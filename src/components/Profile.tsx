@@ -1,33 +1,12 @@
 import { useState, useEffect } from 'react';
 import { User, Transfer, Advisor } from '../types';
 import { Button } from '@/components/ui/button';
-import {
-  Building2,
-  Mail,
-  Shield,
-  Calendar,
-  Trophy,
-  Star,
-  Activity,
-  User as UserIcon,
-  Briefcase,
-  AlertCircle,
-  CheckCircle,
-  RefreshCcw,
-  PhoneCall,
-  Pencil,
-  Check as CheckIcon,
-  X as XIcon,
-  Phone
-} from 'lucide-react';
+import { Building2, Mail, Shield, Calendar, Star, Activity, User as UserIcon, Briefcase, AlertCircle, CheckCircle, RefreshCcw, PhoneCall, Pencil, Check as CheckIcon, X as XIcon, Phone } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { motion } from 'motion/react';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
-import jsPDF from 'jspdf';
-import html2canvas from 'html2canvas';
-import { useRef } from 'react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { db } from '@/firebase';
@@ -49,7 +28,6 @@ interface ProfileProps {
 }
 
 export function Profile({ user, transfers, advisors }: ProfileProps) {
-  const certificateRef = useRef<HTMLDivElement>(null);
   const [mailStatus, setMailStatus] = useState<{ emailUserSet: boolean, emailPassSet: boolean } | null>(null);
   const [checking, setChecking] = useState(false);
 
@@ -152,109 +130,11 @@ export function Profile({ user, transfers, advisors }: ProfileProps) {
   const totalValue = transfers.reduce((acc, t) => acc + (t.paymentLinkValue || 0), 0);
   const totalGestiones = transfers.length;
 
-  const downloadCertificate = async () => {
-    if (!certificateRef.current) return;
-    
-    const toastId = toast.loading('Generando reconocimiento premium...');
-    
-    try {
-      // Pequeña espera para asegurar renderizado
-      await new Promise(resolve => setTimeout(resolve, 500));
-      
-      const canvas = await html2canvas(certificateRef.current, {
-        scale: 3, // Mayor calidad
-        useCORS: true,
-        logging: false,
-        backgroundColor: '#ffffff'
-      });
-      
-      const imgData = canvas.toDataURL('image/png', 1.0);
-      const pdf = new jsPDF('landscape', 'mm', 'a4');
-      
-      const pageWidth = pdf.internal.pageSize.getWidth();
-      const pageHeight = pdf.internal.pageSize.getHeight();
-      
-      pdf.addImage(imgData, 'PNG', 0, 0, pageWidth, pageHeight);
-      pdf.save(`Reconocimiento_Libertador_${(user.name || 'Asesor').split(' ')[0]}.pdf`);
-      
-      toast.dismiss(toastId);
-      toast.success('¡Reconocimiento descargado con éxito!');
-    } catch (error) {
-      console.error('Cert error:', error);
-      toast.dismiss(toastId);
-      toast.error('Error al generar el certificado');
-    }
-  };
-
   const roleLabel = (user.role === 'admin' || user.email === 'taliana.moreno@segurosbolivar.com') ? 'Administrador' : user.role === 'supervisor' ? 'Supervisor' : 'Asesor Corporativo';
   
   return (
     <div className="max-w-5xl mx-auto space-y-8 animate-in fade-in zoom-in-95 duration-500">
       
-      {/* HIDDEN CERTIFICATE FOR DOM CAPTURE */}
-      <div className="absolute top-0 left-0 -z-50 pointer-events-none overflow-hidden h-0 w-0">
-        <div 
-          ref={certificateRef}
-          className="w-[1123px] h-[794px] bg-white p-6 flex flex-col items-center justify-between border-[24px] border-[#153157] relative"
-        >
-          {/* Decorative Corner Patters */}
-          <div className="absolute top-0 right-0 w-48 h-48 border-t-[12px] border-r-[12px] border-[#a1161b] m-8" />
-          <div className="absolute bottom-0 left-0 w-48 h-48 border-b-[12px] border-l-[12px] border-[#a1161b] m-8" />
-          
-          {/* Header */}
-          <div className="text-center space-y-4 w-full pt-8">
-             <div className="flex justify-center items-center gap-4 mb-4">
-               <div className="h-1 w-32 bg-[#a1161b]" />
-               <Star className="text-[#a1161b] w-8 h-8 fill-[#a1161b]" />
-               <div className="h-1 w-32 bg-[#a1161b]" />
-             </div>
-             <h1 className="text-[#153157] text-2xl font-bold tracking-[0.8em] uppercase">Mención de Honor</h1>
-             <h2 className="text-[#153157] text-7xl font-black italic uppercase tracking-tighter">El Libertador</h2>
-             <p className="text-[#a1161b] font-black tracking-[0.3em] uppercase">Seguros Bolívar S.A.</p>
-          </div>
-
-          {/* Main Content */}
-          <div className="text-center space-y-8 flex-1 flex flex-col justify-center">
-            <p className="text-2xl text-slate-400 font-medium">Se otorga con orgullo el presente reconocimiento a:</p>
-            <div className="space-y-2">
-              <h3 className="text-8xl font-black text-[#153157] uppercase tracking-tight leading-none px-4">{user.name}</h3>
-              <div className="h-2 w-full bg-gradient-to-r from-transparent via-[#a1161b] to-transparent max-w-3xl mx-auto" />
-            </div>
-            <p className="text-2xl text-slate-600 max-w-3xl mx-auto italic leading-relaxed">
-              "Por su compromiso excepcional, liderazgo inspirador y resultados sobresalientes 
-              en la gestión de carteras y transferencias corporativas."
-            </p>
-          </div>
-
-          {/* Footer */}
-          <div className="w-full flex justify-between items-end px-20 pb-12">
-            <div className="text-center space-y-3">
-              <div className="w-56 h-0.5 bg-[#153157]" />
-              <p className="text-sm font-black text-[#153157] uppercase tracking-wider">Dirección Nacional</p>
-            </div>
-            
-            <div className="relative">
-               <div className="w-40 h-40 bg-[#153157] rounded-full flex items-center justify-center border-8 border-white shadow-2xl scale-110">
-                  <Trophy className="w-24 h-24 text-[#a1161b]" />
-               </div>
-               <div className="absolute -top-4 -right-4 w-12 h-12 bg-[#a1161b] rounded-full border-4 border-white flex items-center justify-center">
-                  <Star className="text-white w-6 h-6 fill-white" />
-               </div>
-            </div>
-
-            <div className="text-center space-y-3">
-              <div className="w-56 h-0.5 bg-[#153157]" />
-              <p className="text-sm font-black text-[#153157] uppercase tracking-wider">Gestión Humana</p>
-            </div>
-          </div>
-          
-          {/* Watermark Background */}
-          <div className="absolute inset-0 opacity-[0.03] pointer-events-none flex items-center justify-center">
-             <Trophy className="w-[600px] h-[600px] text-[#153157]" />
-          </div>
-        </div>
-      </div>
-
       {/* PROFILE HEADER CARD */}
       <div className="relative group">
         <div className="absolute -inset-1 bg-gradient-to-r from-primary to-secondary rounded-2xl blur opacity-25 group-hover:opacity-50 transition duration-1000 group-hover:duration-200"></div>

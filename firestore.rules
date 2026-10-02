@@ -73,8 +73,8 @@ service cloud.firestore {
       return isSignedIn() && (isKnownNgsoValidatorEmail(email) || isAdmin());
     }
 
-    // Únicos que pueden subir el CSV de totales de llamadas por asesor —
-    // independiente del rol/cartera.
+    // Equipo Controller: puede buscar cualquier asesor y ver sus conversaciones
+    // (conversation_stats) — independiente del rol/cartera.
     function isKnownControllerEmail(email) {
       return email == "helen.pantoja@segurosbolivar.com" ||
              email == "sergio.llanos@segurosbolivar.com" ||
@@ -157,13 +157,6 @@ service cloud.firestore {
       allow create: if isSignedIn();
       allow update: if isSignedIn() && isNgsoValidator();
       allow delete: if isSignedIn() && isAdmin();
-    }
-
-    // 7. Totales de llamadas por asesor (subidos por Controller). El asesor
-    // solo ve su propio total — el id del documento es su correo.
-    match /call_totals/{advisorEmail} {
-      allow read: if isSignedIn() && (getEmail() == advisorEmail || isController());
-      allow write: if isController();
     }
 
     // 9. Caché compartida del tráfico de llamadas de ITBX (por día) — no es
