@@ -582,14 +582,11 @@ export default function App() {
     switch (activeTab) {
       case 'dashboard':
         return isAsesor 
-          ? <DashboardAdviser user={currentUser!} />
+          ? <DashboardAdviser transfers={filteredData} user={currentUser!} onNewTransfer={() => setActiveTab('new-transfer')} onViewHistory={() => setActiveTab('my-tasks')} />
           : <DashboardAdmin transfers={filteredData} user={currentUser!} advisors={advisors} />;
-      
+
       case 'new-transfer':
-        // Deshabilitado temporalmente a pedido, mientras se revisa cómo va
-        // funcionando el flujo de gestiones enviadas/recibidas.
-        setActiveTab('dashboard');
-        return null;
+        return <TransferForm onSubmit={handleNewTransfer} currentUser={currentUser!} advisors={advisors} />;
 
       case 'redirect-ngso':
         return <RedirectToNgso currentUser={currentUser!} />;
@@ -602,11 +599,40 @@ export default function App() {
         return <NgsoValidation currentUser={currentUser!} />;
 
       case 'my-tasks':
+        return (
+          <TransferList
+            title="Mis Gestiones"
+            transfers={filteredData.filter(t => {
+              const creatorEmail = (t.createdByEmail || t.createdBy || '').toLowerCase().trim();
+              const fromEmail = (t.fromAdvisorEmail || '').toLowerCase().trim();
+              const toEmail = (t.toAdvisorEmail || '').toLowerCase().trim();
+              const currentUserEmail = (currentUser?.email || '').toLowerCase().trim();
+              const currentUserUid = currentUser?.uid || '';
+              return (
+                creatorEmail === currentUserEmail ||
+                t.createdBy === currentUserUid ||
+                fromEmail === currentUserEmail ||
+                toEmail === currentUserEmail
+              );
+            })}
+            onStatusChange={handleStatusChange}
+            onDelete={handleDelete}
+            userRole={effectiveRole}
+            advisors={advisors}
+            currentUser={currentUser!}
+          />
+        );
+
       case 'history':
-        // Deshabilitado temporalmente a pedido, mientras se revisa cómo va
-        // funcionando el flujo de gestiones enviadas/recibidas.
-        setActiveTab('dashboard');
-        return null;
+        return (
+          <TransferList
+            transfers={filteredData}
+            onStatusChange={handleStatusChange}
+            onDelete={handleDelete}
+            userRole={effectiveRole}
+            advisors={advisors}
+          />
+        );
 
       case 'ranking':
         if (isAsesor) {
