@@ -2,9 +2,7 @@ import React from 'react';
 import { 
   UserCircle, 
   LogOut, 
-  Settings, 
-  User as UserIcon,
-  Shield
+  User as UserIcon
 } from 'lucide-react';
 import { 
   DropdownMenu, 
@@ -20,9 +18,10 @@ import { User } from '../types';
 interface UserMenuProps {
   user: User;
   onLogout: () => void;
+  onProfile: () => void;
 }
 
-export const UserMenu: React.FC<UserMenuProps> = ({ user, onLogout }) => {
+export const UserMenu: React.FC<UserMenuProps> = ({ user, onLogout, onProfile }) => {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger className="flex items-center gap-3 px-3 h-12 hover:bg-muted/50 rounded-xl transition-all outline-none">
@@ -47,17 +46,9 @@ export const UserMenu: React.FC<UserMenuProps> = ({ user, onLogout }) => {
           </div>
         </div>
         <DropdownMenuSeparator />
-        <DropdownMenuItem className="gap-3 h-11 rounded-xl cursor-pointer focus:bg-primary/5 focus:text-primary">
+        <DropdownMenuItem className="gap-3 h-11 rounded-xl cursor-pointer focus:bg-primary/5 focus:text-primary" onClick={onProfile}>
           <UserIcon className="w-4 h-4 opacity-70" />
           <span className="font-bold text-sm">Mi Perfil</span>
-        </DropdownMenuItem>
-        <DropdownMenuItem className="gap-3 h-11 rounded-xl cursor-pointer focus:bg-primary/5 focus:text-primary">
-          <Shield className="w-4 h-4 opacity-70" />
-          <span className="font-bold text-sm">Seguridad</span>
-        </DropdownMenuItem>
-        <DropdownMenuItem className="gap-3 h-11 rounded-xl cursor-pointer focus:bg-primary/5 focus:text-primary">
-          <Settings className="w-4 h-4 opacity-70" />
-          <span className="font-bold text-sm">Ajustes</span>
         </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem 

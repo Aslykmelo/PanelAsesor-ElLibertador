@@ -754,7 +754,7 @@ export default function App() {
               </div>
             </div>
             <div className="md:hidden">
-              <UserMenu user={{...currentUser!, role: effectiveRole}} onLogout={() => signOut()} />
+              <UserMenu user={{...currentUser!, role: effectiveRole}} onLogout={() => signOut()} onProfile={() => setActiveTab('profile')} />
             </div>
           </div>
 
