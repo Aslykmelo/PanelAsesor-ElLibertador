@@ -41,6 +41,8 @@ export function recentDateOptions(count: number = 7): { key: string; label: stri
 export type ExtensionCallStats = {
   totals: Record<string, number>;
   answered: Record<string, number>;
+  // true: ITBX no respondió y estos números vienen de una caché ya vencida.
+  stale?: boolean;
 };
 
 // Instante (ms) en que terminó el día `dateKey` en hora de Bogotá (UTC-5).
@@ -77,10 +79,24 @@ export async function getExtensionCallTotalsForDate(
     }
   }
 
-  const res = await fetch(`/api/itbx/traffic-today?date=${encodeURIComponent(dateKey)}`);
-  const json = await res.json();
-  if (!res.ok) {
-    throw new Error(json?.error || 'No fue posible consultar ITBX');
+  let json: any;
+  try {
+    const res = await fetch(`/api/itbx/traffic-today?date=${encodeURIComponent(dateKey)}`);
+    json = await res.json();
+    if (!res.ok) throw new Error(json?.error || 'No fue posible consultar ITBX');
+  } catch (e) {
+    // Si ITBX falla pero hay un dato de hoy en la caché (aunque ya esté
+    // vencido), es mejor mostrarlo que dejar al asesor sin nada. Se marca
+    // como `stale` para que quien lo use sepa que debe reintentar.
+    if (isToday && snap.exists() && snap.data().answered) {
+      const cached = snap.data();
+      return {
+        totals: (cached.data as Record<string, number>) ?? {},
+        answered: (cached.answered as Record<string, number>) ?? {},
+        stale: true,
+      };
+    }
+    throw e;
   }
 
   const totals: Record<string, number> = json.data ?? {};

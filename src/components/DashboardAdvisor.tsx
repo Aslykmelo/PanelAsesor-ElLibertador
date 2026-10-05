@@ -37,8 +37,7 @@ import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { toast } from 'sonner';
 import { todayKey } from '@/lib/itbxCache';
-import { useItbxCalls } from '@/lib/useItbxCalls';
-import { useConversations } from '@/lib/useConversations';
+import { useMyDayStats } from '@/lib/useMyDayStats';
 import { useMyBitacoras, sortedDays, dayLabel } from '@/components/MyBitacoras';
 import { DailyGoals } from '@/components/DailyGoals';
 
@@ -61,68 +60,32 @@ export function DashboardAdviser({ transfers, user, onNewTransfer, onViewHistory
     return activeTab === id;
   };
 
-  // Conversaciones activas ahora en Infobip + llamadas de ITBX — los únicos
-  // datos "de hoy" que son reales mientras "Nueva Gestión" está apagado. No
-  // se cargan solas al entrar: el único botón "Actualizar" (más abajo) las
-  // trae a las dos a la vez, con un enfriamiento de 5 minutos.
+  // Conversaciones (Infobip) y llamadas (ITBX) del asesor, con el único botón
+  // "Actualizar" y su enfriamiento. Ver useMyDayStats.
   const {
-    active: activeConversations,
-    closedToday: closedTodayConversations,
-    loading: checkingConversations,
-    check: checkActiveConversations,
-  } = useConversations(user);
+    activeConversations,
+    closedTodayConversations,
+    conversationsError,
+    callsFailed,
+    itbxDateOptions,
+    itbxDate,
+    setItbxDate,
+    itbxCallTotal,
+    itbxAnswered,
+    itbxTodayAnswered,
+    itbxLoading,
+    itbxError,
+    refreshing,
+    cooldownSecondsLeft,
+    handleRefreshAll,
+    updatedAt,
+  } = useMyDayStats(user);
 
   // Bitácoras del asesor (solo lee su propio documento) — el detalle está en Mi Perfil.
   const { data: bitacoraDoc } = useMyBitacoras(user.email);
   const latestBitacoraDay = sortedDays(bitacoraDoc)[0];
   const latestBitacora = latestBitacoraDay ? bitacoraDoc?.days[latestBitacoraDay] : undefined;
-
-  // Llamadas según extensión ITBX — la extensión se registra en Mi Perfil.
-  // Se deja elegir el día, además de "hoy", por si se necesita ver uno
-  // anterior.
-  const {
-    dateOptions: itbxDateOptions,
-    date: itbxDate,
-    setDate: setItbxDate,
-    total: itbxCallTotal,
-    answered: itbxAnswered,
-    todayAnswered: itbxTodayAnswered,
-    loading: itbxLoading,
-    error: itbxError,
-    refresh: refreshItbx,
-  } = useItbxCalls(user.extension);
   const todayBitacoras = bitacoraDoc?.days[todayKey()]?.total ?? null;
-
-  // Un solo botón "Actualizar" trae llamadas y conversaciones a la vez (ver
-  // por qué en Profile.tsx).
-  const REFRESH_COOLDOWN_MS = 5 * 60 * 1000;
-  const [cooldownUntil, setCooldownUntil] = useState(0);
-  const [now, setNow] = useState(() => Date.now());
-
-  useEffect(() => {
-    if (cooldownUntil <= Date.now()) return;
-    const interval = setInterval(() => setNow(Date.now()), 1000);
-    return () => clearInterval(interval);
-  }, [cooldownUntil]);
-
-  const cooldownSecondsLeft = Math.max(0, Math.ceil((cooldownUntil - now) / 1000));
-  const isCoolingDown = cooldownSecondsLeft > 0;
-  const refreshing = checkingConversations || itbxLoading;
-
-  const handleRefreshAll = () => {
-    if (isCoolingDown || refreshing) return;
-    setNow(Date.now());
-    setCooldownUntil(Date.now() + REFRESH_COOLDOWN_MS);
-    checkActiveConversations();
-    refreshItbx();
-  };
-
-  // Una sola carga al entrar al dashboard — no cuenta para el enfriamiento
-  // del botón, así que "Actualizar" queda disponible de inmediato después.
-  useEffect(() => {
-    checkActiveConversations();
-    refreshItbx();
-  }, [user.email, user.extension]);
 
   // Expanded card state for recent activities on Dashboard Asesor
   const [expandedActivity, setExpandedActivity] = useState<Record<string, boolean>>({});
@@ -593,6 +556,9 @@ export function DashboardAdviser({ transfers, user, onNewTransfer, onViewHistory
         refreshing={refreshing}
         cooldownLeft={cooldownSecondsLeft}
         onRefresh={handleRefreshAll}
+        callsError={callsFailed}
+        conversationsError={conversationsError}
+        updatedAt={updatedAt}
       />
 
       {/* FILTERS SECTION */}

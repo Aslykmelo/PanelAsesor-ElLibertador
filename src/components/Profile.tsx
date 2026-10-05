@@ -12,8 +12,7 @@ import { cn } from '@/lib/utils';
 import { db } from '@/firebase';
 import { doc, updateDoc } from 'firebase/firestore';
 import { todayKey } from '@/lib/itbxCache';
-import { useItbxCalls } from '@/lib/useItbxCalls';
-import { useConversations } from '@/lib/useConversations';
+import { useMyDayStats } from '@/lib/useMyDayStats';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { MyBitacoras, useMyBitacoras } from '@/components/MyBitacoras';
 import { DailyGoals } from '@/components/DailyGoals';
@@ -48,64 +47,34 @@ export function Profile({ user, transfers, advisors }: ProfileProps) {
     checkMailStatus();
   }, []);
 
-  const {
-    active: activeConversations,
-    closedToday: closedTodayConversations,
-    loading: checkingConversations,
-    check: checkActiveConversations,
-  } = useConversations(user);
-
   // Extensión ITBX — el asesor la escribe una vez en su perfil; con eso se
   // busca su total de llamadas del día en la caché compartida de ITBX.
   const [editingExtension, setEditingExtension] = useState(false);
   const [extensionInput, setExtensionInput] = useState(user.extension || '');
   const [savingExtension, setSavingExtension] = useState(false);
+  // Conversaciones (Infobip) y llamadas (ITBX) del asesor, con el único botón
+  // "Actualizar" y su enfriamiento. Ver useMyDayStats.
   const {
-    dateOptions: itbxDateOptions,
-    date: itbxDate,
-    setDate: setItbxDate,
-    total: itbxCallTotal,
-    answered: itbxAnswered,
-    todayAnswered: itbxTodayAnswered,
-    loading: itbxLoading,
-    error: itbxError,
-    refresh: refreshItbx,
-  } = useItbxCalls(user.extension);
+    activeConversations,
+    closedTodayConversations,
+    conversationsError,
+    callsFailed,
+    itbxDateOptions,
+    itbxDate,
+    setItbxDate,
+    itbxCallTotal,
+    itbxAnswered,
+    itbxTodayAnswered,
+    itbxLoading,
+    itbxError,
+    refreshing,
+    cooldownSecondsLeft,
+    handleRefreshAll,
+    updatedAt,
+  } = useMyDayStats(user);
+
   const { data: bitacoraDoc } = useMyBitacoras(user.email);
   const todayBitacoras = bitacoraDoc?.days[todayKey()]?.total ?? null;
-
-  // Un solo botón "Actualizar" trae llamadas (ITBX) y conversaciones
-  // (Infobip) a la vez. No se dispara solo por entrar al perfil — antes
-  // eso mismo consumía un refresco del tope diario; ahora abrir la app no
-  // cuenta como actualización, y el único límite es este enfriamiento.
-  const REFRESH_COOLDOWN_MS = 5 * 60 * 1000;
-  const [cooldownUntil, setCooldownUntil] = useState(0);
-  const [now, setNow] = useState(() => Date.now());
-
-  useEffect(() => {
-    if (cooldownUntil <= Date.now()) return;
-    const interval = setInterval(() => setNow(Date.now()), 1000);
-    return () => clearInterval(interval);
-  }, [cooldownUntil]);
-
-  const cooldownSecondsLeft = Math.max(0, Math.ceil((cooldownUntil - now) / 1000));
-  const isCoolingDown = cooldownSecondsLeft > 0;
-  const refreshing = checkingConversations || itbxLoading;
-
-  const handleRefreshAll = () => {
-    if (isCoolingDown || refreshing) return;
-    setNow(Date.now());
-    setCooldownUntil(Date.now() + REFRESH_COOLDOWN_MS);
-    checkActiveConversations();
-    refreshItbx();
-  };
-
-  // Una sola carga al entrar al perfil — no cuenta para el enfriamiento del
-  // botón, así que "Actualizar" queda disponible de inmediato después.
-  useEffect(() => {
-    checkActiveConversations();
-    refreshItbx();
-  }, [user.email, user.extension]);
 
   useEffect(() => {
     setExtensionInput(user.extension || '');
@@ -360,6 +329,9 @@ export function Profile({ user, transfers, advisors }: ProfileProps) {
             refreshing={refreshing}
             cooldownLeft={cooldownSecondsLeft}
             onRefresh={handleRefreshAll}
+            callsError={callsFailed}
+            conversationsError={conversationsError}
+            updatedAt={updatedAt}
           />
 
           <section className="bg-card rounded-2xl p-5 card-shadow">
