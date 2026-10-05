@@ -1,4 +1,4 @@
-// Lectura del reporte "GESTION BITACORAS TOTALES" y cruce de nombres con los
+// Lectura de los reportes de bitácoras ("GESTION BITACORAS TOTALES" y "CUOTAS AL DIA CON GESTION", mismo formato) y cruce de nombres con los
 // asesores. Es lógica pura (sin Firebase) para poder probarla aparte.
 //
 // El reporte no trae correos: cada fila es UNA bitácora, con el nombre de
@@ -173,6 +173,12 @@ export type MatchOutcome =
 // faltante — el reporte a veces pierde la "ñ" ("ESTUPIAN" por "ESTUPIÑAN").
 function sameToken(x: string, y: string): boolean {
   if (x === y) return true;
+  // Una letra cambiada en palabras largas ("STIVEN" por "STEVEN").
+  if (x.length === y.length && x.length >= 6) {
+    let diff = 0;
+    for (let i = 0; i < x.length && diff < 2; i++) if (x[i] !== y[i]) diff++;
+    if (diff === 1) return true;
+  }
   const [short, long] = x.length <= y.length ? [x, y] : [y, x];
   if (long.length < 6 || long.length - short.length !== 1) return false;
   for (let i = 0; i < long.length; i++) {

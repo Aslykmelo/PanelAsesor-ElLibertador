@@ -437,7 +437,16 @@ export function Profile({ user, transfers, advisors }: ProfileProps) {
           )}
 
           {BITACORA_UPLOADER_EMAILS.includes((user.email || '').toLowerCase()) && (
-            <BitacorasUpload currentUser={user} />
+            <>
+              <BitacorasUpload currentUser={user} />
+              <BitacorasUpload
+                currentUser={user}
+                title="Cargar Bitácoras · Cuotas al Día"
+                reportName="CUOTAS AL DIA CON GESTION"
+                expectedTitle="CUOTAS AL DIA"
+                description="Es el reporte aparte del equipo de Cuotas al Día. Esos asesores verán sus bitácoras en la misma pantalla que los demás. Volver a subir un día lo reemplaza; los demás días se conservan."
+              />
+            </>
           )}
         </div>
 

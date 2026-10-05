@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { ADVISORS } from '@/constants';
 import { logError } from '../logger';
 import { User } from '../types';
-import { DayStats, NameCandidate, matchAuthor, parseBitacoraRows } from '@/lib/bitacoraParse';
+import { DayStats, NameCandidate, matchAuthor, normalizeHeader, parseBitacoraRows } from '@/lib/bitacoraParse';
 
 type Matched = { email: string; name: string; days: Record<string, DayStats> };
 type Preview = {
@@ -19,6 +19,8 @@ type Preview = {
   automatic: number;
   dayKeys: string[];
   fileName: string;
+  // Texto del título del archivo (celda A1) cuando no es el reporte esperado.
+  titleWarning: string | null;
 };
 
 function mergeDays(a: Record<string, DayStats>, b: Record<string, DayStats>): Record<string, DayStats> {
@@ -68,7 +70,34 @@ async function loadCandidates(): Promise<NameCandidate[]> {
   return [...byEmail.values()];
 }
 
-export function BitacorasUpload({ currentUser }: { currentUser: User }) {
+interface BitacorasUploadProps {
+  currentUser: User;
+  // Qué reporte se sube en este espacio (el de Cuotas al Día viene de otro
+  // archivo que el de bitácoras totales).
+  title?: string;
+  reportName?: string;
+  description?: string;
+  // Palabra que debe aparecer en el título del archivo (celda A1); si no está
+  // se avisa antes de publicar, para no subir el reporte equivocado.
+  expectedTitle?: string;
+}
+
+// Primer texto de las primeras filas del archivo (ej. "CUOTAS AL DIA CON GESTION").
+function fileTitle(rows: unknown[][]): string {
+  for (const r of rows.slice(0, 3)) {
+    const cell = r.find((c) => String(c ?? '').trim() !== '');
+    if (cell !== undefined) return String(cell).trim();
+  }
+  return '';
+}
+
+export function BitacorasUpload({
+  currentUser,
+  title = 'Cargar Bitácoras',
+  reportName = 'GESTION BITACORAS TOTALES',
+  description = 'Cada asesor verá solo sus propias bitácoras. Volver a subir un día lo reemplaza; los demás días se conservan.',
+  expectedTitle,
+}: BitacorasUploadProps) {
   const fileRef = useRef<HTMLInputElement>(null);
   const [working, setWorking] = useState(false);
   const [preview, setPreview] = useState<Preview | null>(null);
@@ -82,6 +111,8 @@ export function BitacorasUpload({ currentUser }: { currentUser: User }) {
       const wb = XLSX.read(await file.arrayBuffer(), { type: 'array' });
       const rows = XLSX.utils.sheet_to_json<unknown[]>(wb.Sheets[wb.SheetNames[0]], { header: 1, defval: '' });
       const parsed = parseBitacoraRows(rows);
+      const foundTitle = fileTitle(rows);
+      const titleWarning = expectedTitle && !normalizeHeader(foundTitle).includes(normalizeHeader(expectedTitle)) ? foundTitle || 'sin título' : null;
       if (parsed.authors.size === 0) {
         toast.error('No se encontraron bitácoras escritas por personas en el archivo.');
         return;
@@ -114,6 +145,7 @@ export function BitacorasUpload({ currentUser }: { currentUser: User }) {
         automatic: parsed.automatic,
         dayKeys: parsed.dayKeys,
         fileName: file.name,
+        titleWarning,
       });
     } catch (e: any) {
       logError(e, 'BitacorasUpload/parse');
@@ -171,10 +203,10 @@ export function BitacorasUpload({ currentUser }: { currentUser: User }) {
     <section className="bg-card rounded-2xl p-5 card-shadow space-y-4">
       <div className="flex items-center gap-2">
         <FileSpreadsheet className="w-5 h-5 text-primary" />
-        <h3 className="text-lg font-black text-secondary">Cargar Bitácoras</h3>
+        <h3 className="text-lg font-black text-secondary">{title}</h3>
       </div>
       <p className="text-xs text-muted-foreground">
-        Sube el reporte "GESTION BITACORAS TOTALES" (.xlsx). Cada asesor verá solo sus propias bitácoras. Volver a subir un día lo reemplaza; los demás días se conservan.
+        Sube el reporte "{reportName}" (.xlsx). {description}
       </p>
 
       <input
@@ -199,6 +231,11 @@ export function BitacorasUpload({ currentUser }: { currentUser: User }) {
       {preview && (
         <div className="space-y-3 rounded-2xl border border-border/50 bg-muted/20 p-4 text-sm">
           <p className="font-bold text-secondary break-all">{preview.fileName}</p>
+          {preview.titleWarning && (
+            <p className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-2 text-xs font-bold text-amber-700 dark:text-amber-400">
+              Ojo: este archivo se titula "{preview.titleWarning}" y aquí se espera "{reportName}". Verifica que sea el reporte correcto antes de publicar.
+            </p>
+          )}
           <ul className="space-y-1 text-muted-foreground">
             <li>Días en el archivo: <b className="text-secondary">{preview.dayKeys.join(', ') || '—'}</b></li>
             <li>Asesores identificados: <b className="text-secondary">{preview.matched.length}</b> ({matchedTotal} bitácoras)</li>
