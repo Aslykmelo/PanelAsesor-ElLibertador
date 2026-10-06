@@ -36,6 +36,7 @@ import { Badge } from '@/components/ui/badge';
 import { Transfer, User, Advisor } from '@/types';
 import { supabase, runWithRetry, runSupabaseHealthCheck, SupabaseHealthStatus } from '@/supabase';
 import { logError, logWarn } from '@/logger';
+import { loadRecaudoShared } from '@/lib/recaudoStore';
 import { toast } from 'sonner';
 import { 
   ResponsiveContainer, 
@@ -144,6 +145,17 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({ transfer
         logError(sErr, "Supabase/fetchFromSupabaseException");
       }
     } else {
+      // Sin Supabase, el recaudo se comparte por Firestore (ver recaudoStore.ts).
+      try {
+        const shared = await loadRecaudoShared<RecaudoHistoricoDB>();
+        if (shared.exists) {
+          setBankRecords(shared.records);
+          setIsLoadingDb(false);
+          return;
+        }
+      } catch (sharedErr: any) {
+        logError(sharedErr, "Firestore/loadRecaudoShared");
+      }
       logWarn("Supabase not available, using offline cache fallback.", "Supabase/fetchFromSupabase");
     }
 

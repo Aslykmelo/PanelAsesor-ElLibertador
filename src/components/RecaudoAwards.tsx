@@ -169,6 +169,17 @@ export function RecaudoAwards({ transfers, advisors }: RecaudoAwardsProps) {
     return [...rows.values()].filter((r) => r.links > 0 || r.recaudo > 0);
   }, [transfers, records, advisorByEmail, from, to]);
 
+  // Para entender por qué un recaudo no aparece: cuántos pagos trae el
+  // reporte y cuántos terminan asignados a un link generado en el panel.
+  const diagnostic = useMemo(() => {
+    const regaloIds = new Set(transfers.filter((t) => t.type === 'regalo' && t.id).map((t) => t.id as string));
+    const recibo = records.filter((r) => String(r.estado_recibo || '').toUpperCase() === 'RECIBO');
+    const tipoS = recibo.filter((r) => String(r.tipo_recaudo || '').trim().toUpperCase() === 'S');
+    const cruzan = recibo.filter((r) => regaloIds.has(r.id_registro_crm));
+    const cruzanS = tipoS.filter((r) => regaloIds.has(r.id_registro_crm));
+    return { total: records.length, recibo: recibo.length, tipoS: tipoS.length, cruzan: cruzan.length, cruzanS: cruzanS.length, links: regaloIds.size };
+  }, [records, transfers]);
+
   const carteras = useMemo(() => [...new Set(allRows.map((r) => r.cartera))].sort(), [allRows]);
 
   const ranking = useMemo(() => {
@@ -424,6 +435,19 @@ export function RecaudoAwards({ transfers, advisors }: RecaudoAwardsProps) {
           </ul>
         )}
       </section>
+
+      {!loading && records.length > 0 && (
+        <details className="bg-card rounded-2xl card-shadow px-5 py-3 text-xs">
+          <summary className="cursor-pointer font-black text-secondary">¿Por qué el recaudo sale en cero o menor al esperado?</summary>
+          <ul className="mt-2 space-y-1 text-muted-foreground font-medium">
+            <li>Registros en el reporte bancario cargado: <b className="text-secondary">{diagnostic.total}</b></li>
+            <li>Con estado RECIBO (pagados): <b className="text-secondary">{diagnostic.recibo}</b>, de los cuales de tipo "S" (recaudo efectivo): <b className="text-secondary">{diagnostic.tipoS}</b></li>
+            <li>Links de pago (Regalo) generados en el panel: <b className="text-secondary">{diagnostic.links}</b></li>
+            <li>Pagos RECIBO que corresponden a un link del panel: <b className="text-secondary">{diagnostic.cruzan}</b> (de tipo "S": <b className="text-secondary">{diagnostic.cruzanS}</b>)</li>
+            <li>Solo los pagos de tipo "S" que corresponden a un link del panel, y cuya fecha de pago cae en el periodo elegido, suman al recaudo de cada asesor.</li>
+          </ul>
+        </details>
+      )}
 
       {meta && (
         <p className="text-[11px] text-muted-foreground font-medium text-center">
