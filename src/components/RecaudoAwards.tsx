@@ -19,6 +19,7 @@ type Row = {
   name: string;
   cartera: string;
   supervisor: string;
+  supervisorEmail: string;
   links: number; // links de pago generados en el periodo
   valorLinks: number; // suma del valor de esos links
   pagados: number; // links cuyo pago entró en el periodo
@@ -114,6 +115,7 @@ export function RecaudoAwards({ transfers, advisors }: RecaudoAwardsProps) {
   const [customTo, setCustomTo] = useState('');
   const [metric, setMetric] = useState<Metric>('recaudo');
   const [cartera, setCartera] = useState('todas');
+  const [supervisor, setSupervisor] = useState('todos');
   const [showIdle, setShowIdle] = useState(false);
 
   const { from, to } = periodRange(period, customFrom, customTo);
@@ -146,6 +148,7 @@ export function RecaudoAwards({ transfers, advisors }: RecaudoAwardsProps) {
           name: known?.name || t.createdByName || t.fromAdvisorName || email,
           cartera: known?.cartera || t.cartera || '—',
           supervisor: known?.supervisor || t.supervisorName || '—',
+          supervisorEmail: (known?.supervisorEmail || t.supervisorEmail || '').toLowerCase().trim(),
           links: 0,
           valorLinks: 0,
           pagados: 0,
@@ -182,19 +185,40 @@ export function RecaudoAwards({ transfers, advisors }: RecaudoAwardsProps) {
 
   const carteras = useMemo(() => [...new Set(allRows.map((r) => r.cartera))].sort(), [allRows]);
 
+  // Supervisores para el filtro: los de los asesores registrados y los que
+  // aparecen en los links. Un mismo supervisor puede traer nombres distintos
+  // (p. ej. por su cartera de Copropiedades), así que se agrupa por correo y
+  // se usa el nombre más corto.
+  const supervisors = useMemo(() => {
+    const byEmail = new Map<string, string>();
+    const add = (email: string, name: string) => {
+      const e = (email || '').toLowerCase().trim();
+      if (!e || !name || name === '—') return;
+      const prev = byEmail.get(e);
+      if (!prev || name.length < prev.length) byEmail.set(e, name);
+    };
+    advisors.forEach((a) => {
+      if (a.active !== false && a.role !== 'supervisor' && a.role !== 'admin') add(a.supervisorEmail, a.supervisor);
+    });
+    allRows.forEach((r) => add(r.supervisorEmail, r.supervisor));
+    return [...byEmail].map(([email, name]) => ({ email, name })).sort((a, b) => a.name.localeCompare(b.name, 'es'));
+  }, [advisors, allRows]);
+  const supervisorName = supervisors.find((x) => x.email === supervisor)?.name ?? supervisor;
+
   const ranking = useMemo(() => {
     const value = (r: Row) => (metric === 'recaudo' ? r.recaudo : metric === 'links' ? r.links : r.valorLinks);
     return allRows
       .filter((r) => cartera === 'todas' || r.cartera === cartera)
+      .filter((r) => supervisor === 'todos' || r.supervisorEmail === supervisor)
       .sort((a, b) => value(b) - value(a) || b.recaudo - a.recaudo || b.links - a.links || a.name.localeCompare(b.name));
-  }, [allRows, metric, cartera]);
+  }, [allRows, metric, cartera, supervisor]);
 
   const idleAdvisors = useMemo(() => {
     const active = new Set(ranking.map((r) => r.email));
     return advisors
-      .filter((a) => a.active !== false && a.email && !active.has(a.email.toLowerCase().trim()) && (cartera === 'todas' || a.cartera === cartera))
+      .filter((a) => a.active !== false && a.email && !active.has(a.email.toLowerCase().trim()) && (cartera === 'todas' || a.cartera === cartera) && (supervisor === 'todos' || (a.supervisorEmail || '').toLowerCase().trim() === supervisor))
       .sort((a, b) => a.name.localeCompare(b.name));
-  }, [advisors, ranking, cartera]);
+  }, [advisors, ranking, cartera, supervisor]);
 
   const totals = useMemo(
     () => ({
@@ -282,6 +306,18 @@ export function RecaudoAwards({ transfers, advisors }: RecaudoAwardsProps) {
               <SelectItem value="todas">Todas las carteras</SelectItem>
               {carteras.map((c) => (
                 <SelectItem key={c} value={c}>{c}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </label>
+        <label className="space-y-1">
+          <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Supervisor</span>
+          <Select value={supervisor} onValueChange={setSupervisor}>
+            <SelectTrigger className="h-9 rounded-xl text-xs font-bold"><SelectValue>{supervisor === 'todos' ? 'Todos los supervisores' : supervisorName}</SelectValue></SelectTrigger>
+            <SelectContent className="rounded-xl">
+              <SelectItem value="todos">Todos los supervisores</SelectItem>
+              {supervisors.map((x) => (
+                <SelectItem key={x.email} value={x.email}>{x.name}</SelectItem>
               ))}
             </SelectContent>
           </Select>
