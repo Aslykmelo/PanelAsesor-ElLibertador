@@ -10,6 +10,7 @@ import { Profile } from './components/Profile';
 import { UserManagement } from './components/UserManagement';
 import { AdvisorManagement } from './components/AdvisorManagement';
 import { RecaudoTracking } from './components/RecaudoTracking';
+import { RecaudoAwards } from './components/RecaudoAwards';
 import { RedirectToNgso } from './components/RedirectToNgso';
 import { NgsoValidation } from './components/NgsoValidation';
 import { ExecutiveDashboard } from './components/ExecutiveDashboard';
@@ -640,6 +641,13 @@ export default function App() {
           return null;
         }
         return <Ranking transfers={filteredData} advisors={advisors} />;
+
+      case 'recaudo-awards':
+        if (isAsesor) {
+          setActiveTab('dashboard');
+          return null;
+        }
+        return <RecaudoAwards transfers={transfers} advisors={advisors} />;
 
       case 'recaudo':
         if (isAsesor) {
