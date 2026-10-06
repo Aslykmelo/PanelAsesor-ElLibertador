@@ -32,7 +32,11 @@ import { supabase, runWithRetry, runSupabaseHealthCheck, SupabaseHealthStatus } 
 import { logError, logWarn } from '@/logger';
 import { loadRecaudoShared, saveRecaudoShared } from '@/lib/recaudoStore';
 
+// Versión de la regla con que se emparejan pagos y links (ver processExcelData).
+const MATCH_RULE = 'valor-v2';
+
 interface ExcelMetadata {
+  matchRule?: string;
   fileName: string;
   uploadedAtDate: string;
   uploadedAtTime: string;
@@ -385,13 +389,35 @@ export const RecaudoTracking: React.FC<RecaudoTrackingProps> = ({ transfers, use
         return;
       }
 
-      // Read current persistent entries
-      const recordsMap = new Map<string, RecaudoHistoricoDB>();
-      bankRecords.forEach(r => {
-        recordsMap.set(r.id_registro_crm, r);
-      });
+      // REGLA DE COINCIDENCIA (valor + fecha). Un pago del Excel pertenece a un
+      // link del panel solo si:
+      //   - es de la MISMA solicitud,
+      //   - su estado es RECIBO con tipo de recaudo "S",
+      //   - su fecha de pago es igual o posterior al día en que se generó el
+      //     link, y
+      //   - su valor coincide con el valor del link (tolerancia de 0,5 %).
+      // Cada fila del Excel se usa una sola vez. Si ninguna fila cumple, el
+      // link queda sin pago (en vez de quedarse con una fila cualquiera por
+      // orden, como antes: una solicitud puede traer decenas de filas de
+      // otros conceptos — arriendo, IVA, honorarios — que no son el link).
+      // Las filas ANULADO / LIQUIDACION se emparejan igual (por valor) solo
+      // para mostrar el estado del link.
+      const VALUE_TOLERANCE = 0.005;
+      const valueMatches = (linkValue: number, rowValue: number) =>
+        linkValue > 0 && Math.abs(rowValue - linkValue) <= Math.max(1, linkValue * VALUE_TOLERANCE);
 
-      // Filter active (Regalo) links that are not already recorded as RECIBO in Supabase
+      // Read current persistent entries. Con el recaudo compartido en Firestore
+      // (sin Supabase), lo cargado antes con la regla anterior no es confiable:
+      // se parte de cero y se vuelve a conciliar con este archivo.
+      const recordsMap = new Map<string, RecaudoHistoricoDB>();
+      const legacyShared = !supabase && metadata?.matchRule !== MATCH_RULE;
+      if (!legacyShared) {
+        bankRecords.forEach(r => {
+          recordsMap.set(r.id_registro_crm, r);
+        });
+      }
+
+      // Filter active (Regalo) links that are not already recorded as RECIBO
       const eligibleLinks = activeLinks.filter(al => {
         const existing = recordsMap.get(al.id || '');
         return !existing || existing.estado_recibo !== 'RECIBO';
@@ -419,63 +445,84 @@ export const RecaudoTracking: React.FC<RecaudoTrackingProps> = ({ transfers, use
 
       const newUpserts: RecaudoHistoricoDB[] = [];
       let consolidatedPayments = 0;
+      let linksWithoutPayment = 0;
 
-      // Match 1-to-1 order of appearance per solicitud
       eligibleLinksGroup.forEach((crmLinks, normSol) => {
-        const excelRows = excelGroup.get(normSol) || [];
-        const N = crmLinks.length;
-        const M = excelRows.length;
+        const candidates = (excelGroup.get(normSol) || []).map(row => ({ row, used: false }));
+        // Los links más antiguos primero: así un pago se asigna al primer link que lo explica.
+        const ordered = [...crmLinks].sort((x, y) => formatGenerateDateString(x.createdAt).localeCompare(formatGenerateDateString(y.createdAt)));
 
-        for (let i = 0; i < Math.max(N, M); i++) {
-          if (i < N) {
-            const link = crmLinks[i];
-            const hasExisting = recordsMap.get(link.id || '');
+        ordered.forEach(link => {
+          const linkDay = formatGenerateDateString(link.createdAt);
+          const linkValue = link.paymentLinkValue || 0;
 
-            if (i < M) {
-              const excelRow = excelRows[i];
-              const resolvedRec: RecaudoHistoricoDB = {
+          const pick = (estado: string, onlyTypeS: boolean) => {
+            let best: { row: (typeof parsedRows)[number]; used: boolean } | null = null;
+            let bestDiff = Infinity;
+            candidates.forEach(c => {
+              if (c.used || c.row.estadoRecibo !== estado) return;
+              if (onlyTypeS && String(c.row.tipoRecaudo || '').trim().toUpperCase() !== 'S') return;
+              // Fecha: el pago (RECIBO) no puede ser anterior al link; para las demás filas se usa la fecha de liquidación.
+              const rowDay = estado === 'RECIBO' ? c.row.fechaPago : c.row.fechaGeneracion;
+              if (estado === 'RECIBO' && (rowDay === '-' || rowDay < linkDay)) return;
+              if (estado !== 'RECIBO' && rowDay !== '-' && rowDay < linkDay) return;
+              if (!valueMatches(linkValue, c.row.valorLiquidacion)) return;
+              const diff = Math.abs(c.row.valorLiquidacion - linkValue);
+              if (diff < bestDiff) {
+                best = c;
+                bestDiff = diff;
+              }
+            });
+            return best as { row: (typeof parsedRows)[number]; used: boolean } | null;
+          };
+
+          const hit = pick('RECIBO', true) ?? pick('ANULADO', false) ?? pick('LIQUIDACION', false);
+
+          if (hit) {
+            hit.used = true;
+            const excelRow = hit.row;
+            const resolvedRec: RecaudoHistoricoDB = {
+              id_registro_crm: link.id || '',
+              solicitud: link.requestNumber,
+              cliente: link.customerName,
+              estado_recibo: excelRow.estadoRecibo,
+              valor_link_crm: linkValue,
+              valor_liquidacion: excelRow.estadoRecibo === 'RECIBO' ? excelRow.valorLiquidacion : 0,
+              funcionario: excelRow.funcionario,
+              fecha_generacion_link: excelRow.fechaGeneracion !== '-' ? excelRow.fechaGeneracion : linkDay,
+              fecha_vencimiento_link: excelRow.fechaVencimiento,
+              fecha_pago: excelRow.estadoRecibo === 'RECIBO' ? excelRow.fechaPago : '-',
+              archivo_origen: fileName,
+              usuario_importacion: user.email || user.name || 'Usuario',
+              tipo_recaudo: excelRow.tipoRecaudo
+            };
+            newUpserts.push(resolvedRec);
+            recordsMap.set(link.id || '', resolvedRec);
+            if (excelRow.estadoRecibo === 'RECIBO') consolidatedPayments++;
+          } else {
+            if (candidates.length > 0) linksWithoutPayment++;
+            // Sin pago que coincida: se conserva lo que ya hubiera o se deja en su estado inicial.
+            if (!recordsMap.get(link.id || '')) {
+              const defaultRec: RecaudoHistoricoDB = {
                 id_registro_crm: link.id || '',
                 solicitud: link.requestNumber,
                 cliente: link.customerName,
-                estado_recibo: excelRow.estadoRecibo,
-                valor_link_crm: link.paymentLinkValue || 0,
-                valor_liquidacion: excelRow.estadoRecibo === 'RECIBO' ? excelRow.valorLiquidacion : 0,
-                funcionario: excelRow.funcionario,
-                fecha_generacion_link: excelRow.fechaGeneracion !== '-' ? excelRow.fechaGeneracion : formatGenerateDateString(link.createdAt),
-                fecha_vencimiento_link: excelRow.fechaVencimiento,
-                fecha_pago: excelRow.estadoRecibo === 'RECIBO' ? excelRow.fechaPago : '-',
-                archivo_origen: fileName,
-                usuario_importacion: user.email || user.name || 'Usuario',
-                tipo_recaudo: excelRow.tipoRecaudo
+                estado_recibo: 'LIQUIDACION',
+                valor_link_crm: linkValue,
+                valor_liquidacion: 0,
+                funcionario: '-',
+                fecha_generacion_link: linkDay,
+                fecha_vencimiento_link: '-',
+                fecha_pago: '-',
+                archivo_origen: '-',
+                usuario_importacion: '-',
+                tipo_recaudo: ''
               };
-
-              newUpserts.push(resolvedRec);
-              recordsMap.set(link.id || '', resolvedRec);
-              consolidatedPayments++;
-            } else {
-              // No matching Excel row left to map. Keep prior db status or default to initial state
-              if (!hasExisting) {
-                const defaultRec: RecaudoHistoricoDB = {
-                  id_registro_crm: link.id || '',
-                  solicitud: link.requestNumber,
-                  cliente: link.customerName,
-                  estado_recibo: 'LIQUIDACION',
-                  valor_link_crm: link.paymentLinkValue || 0,
-                  valor_liquidacion: 0,
-                  funcionario: '-',
-                  fecha_generacion_link: formatGenerateDateString(link.createdAt),
-                  fecha_vencimiento_link: '-',
-                  fecha_pago: '-',
-                  archivo_origen: '-',
-                  usuario_importacion: '-',
-                  tipo_recaudo: ''
-                };
-                newUpserts.push(defaultRec);
-                recordsMap.set(link.id || '', defaultRec);
-              }
+              newUpserts.push(defaultRec);
+              recordsMap.set(link.id || '', defaultRec);
             }
           }
-        }
+        });
       });
 
       const nextRecords = Array.from(recordsMap.values());
@@ -501,6 +548,7 @@ export const RecaudoTracking: React.FC<RecaudoTrackingProps> = ({ transfers, use
       // Metadata update
       const today = new Date();
       const nextMeta = {
+        matchRule: MATCH_RULE,
         fileName,
         uploadedAtDate: today.toLocaleDateString('es-CO'),
         uploadedAtTime: today.toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' }),
@@ -562,7 +610,8 @@ export const RecaudoTracking: React.FC<RecaudoTrackingProps> = ({ transfers, use
         `📥 Cargue incremental: ${fileName}`,
         `👤 Uploader: ${user.name || user.email}`,
         `📁 Filas leídas: ${parsedRows.length}`,
-        `✅ Conciliaciones efectuadas: ${consolidatedPayments}`,
+        `✅ Pagos conciliados (misma solicitud, RECIBO tipo S, fecha ≥ link y valor igual): ${consolidatedPayments}`,
+        `📎 Links con filas de su solicitud pero sin pago que coincida en valor y fecha: ${linksWithoutPayment}`,
         `💰 Total Recaudado Acumulado: $${Math.round(totalRecaudo).toLocaleString('es-CO')}`
       ]);
 

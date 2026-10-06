@@ -16,6 +16,8 @@ const LOCAL_RECORDS_KEY = 'recaudo_historico_local_cache';
 const LOCAL_META_KEY = 'recaudo_excel_metadata_v2';
 
 export type SharedRecaudoMeta = {
+  // Versión de la regla con que se emparejaron pagos y links (ver RecaudoTracking).
+  matchRule?: string;
   fileName: string;
   uploadedAtDate: string;
   uploadedAtTime: string;
