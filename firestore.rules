@@ -167,6 +167,13 @@ service cloud.firestore {
       allow read, write: if isSignedIn();
     }
 
+    // Recaudo bancario compartido (Seguimiento Recaudo / Premiación Recaudo).
+    // Trae nombres de clientes y valores: solo supervisores, administradores y
+    // Controller pueden leerlo o cargarlo — nunca los asesores.
+    match /recaudo_shared/{docId} {
+      allow read, write: if isSupervisor() || isController();
+    }
+
     // 11. Conversaciones de hoy por asesor (Infobip) — cada quien publica la
     // suya al refrescarla en su perfil. Solo puede leerse la propia, la de
     // un compañero con el mismo supervisor (para "Mi Equipo"), o si quien

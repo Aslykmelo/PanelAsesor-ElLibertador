@@ -30,6 +30,7 @@ import { Transfer, User } from '@/types';
 import { toast } from 'sonner';
 import { supabase, runWithRetry, runSupabaseHealthCheck, SupabaseHealthStatus } from '@/supabase';
 import { logError, logWarn } from '@/logger';
+import { loadRecaudoShared, saveRecaudoShared } from '@/lib/recaudoStore';
 
 interface ExcelMetadata {
   fileName: string;
@@ -228,6 +229,20 @@ export const RecaudoTracking: React.FC<RecaudoTrackingProps> = ({ transfers, use
         logError(sErr, "Supabase/loadRecaudoDataException");
       }
     } else {
+      // Sin Supabase, el recaudo se comparte por Firestore para que lo vean
+      // todos los supervisores/administradores (ver recaudoStore.ts).
+      try {
+        const shared = await loadRecaudoShared<RecaudoHistoricoDB>();
+        if (shared.exists) {
+          // Lo compartido manda: si está vacío es porque alguien reinició el recaudo.
+          setBankRecords(shared.records);
+          setMetadata(shared.meta);
+          setIsLoadingDb(false);
+          return;
+        }
+      } catch (sharedErr: any) {
+        logError(sharedErr, "Firestore/loadRecaudoShared");
+      }
       logWarn("Supabase not available, using offline cache fallback.", "Supabase/loadRecaudoData");
     }
 
@@ -481,8 +496,6 @@ export const RecaudoTracking: React.FC<RecaudoTrackingProps> = ({ transfers, use
         } else {
           toast.success(`Consolidados ${newUpserts.length} cambios en Supabase.`);
         }
-      } else if (newUpserts.length > 0) {
-        toast.warning(`Sincronizado localmente, pero la base de datos de Supabase no está configurada.`);
       }
 
       // Metadata update
@@ -512,6 +525,17 @@ export const RecaudoTracking: React.FC<RecaudoTrackingProps> = ({ transfers, use
         usuario_importacion: user.email || user.name || 'Usuario',
         tipo_recaudo: 'METADATA'
       };
+
+      if (!supabase) {
+        // Sin Supabase el recaudo completo se guarda en Firestore.
+        try {
+          await saveRecaudoShared(nextRecords, nextMeta);
+          toast.success('Recaudo guardado y compartido con supervisores y administradores.');
+        } catch (shareErr: any) {
+          logError(shareErr, "Firestore/saveRecaudoShared");
+          toast.warning('El recaudo quedó solo en este navegador: no se pudo compartir. ' + (shareErr?.message || ''));
+        }
+      }
 
       if (supabase) {
         const { error: metaErr } = await runWithRetry<any>(async () => {
@@ -589,6 +613,8 @@ export const RecaudoTracking: React.FC<RecaudoTrackingProps> = ({ transfers, use
           .neq('id_registro_crm', 'xxx_none_xxx');
         
         if (error) throw error;
+      } else {
+        await saveRecaudoShared([], null);
       }
       setBankRecords([]);
       setMetadata(null);

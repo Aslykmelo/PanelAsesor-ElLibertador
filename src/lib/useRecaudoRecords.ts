@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { supabase, runWithRetry } from '@/supabase';
 import { logError } from '@/logger';
+import { loadRecaudoShared } from '@/lib/recaudoStore';
 
 // Pagos del recaudo bancario ya cargados en "Seguimiento Recaudo" (tabla
 // recaudo_historico de Supabase). Aquí solo se LEEN; la carga y el reinicio
@@ -51,6 +52,22 @@ export function useRecaudoRecords() {
         }
       } catch (e) {
         logError(e as Error, 'useRecaudoRecords/loadException');
+      }
+    }
+    if (!supabase) {
+      // Sin Supabase en este despliegue, el recaudo vive en Firestore (lo
+      // comparte "Seguimiento Recaudo"; ver recaudoStore.ts).
+      try {
+        const shared = await loadRecaudoShared<RecaudoRecord>();
+        setRecords(shared.records);
+        setMeta(
+          shared.meta
+            ? { fileName: shared.meta.fileName || '-', uploadedAt: `${shared.meta.uploadedAtDate || ''} ${shared.meta.uploadedAtTime || ''}`.trim(), recordCount: shared.meta.recordCount }
+            : null
+        );
+        loaded = true;
+      } catch (e) {
+        logError(e as Error, 'useRecaudoRecords/sharedLoad');
       }
     }
     if (!loaded) {
