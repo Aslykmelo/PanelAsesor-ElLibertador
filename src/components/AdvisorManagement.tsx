@@ -63,6 +63,7 @@ export function AdvisorManagement() {
     supervisor: '',
     supervisorEmail: '',
     cartera: '',
+    extension: '',
     role: 'advisor',
     active: true
   });
@@ -115,6 +116,7 @@ export function AdvisorManagement() {
     try {
       await addDoc(collection(db, 'asesores'), {
         ...newAdvisor,
+        extension: (newAdvisor.extension || '').trim(),
         email: newAdvisor.email.toLowerCase(),
         supervisorEmail: newAdvisor.supervisorEmail.toLowerCase(),
         createdAt: serverTimestamp(),
@@ -128,6 +130,7 @@ export function AdvisorManagement() {
         supervisor: '',
         supervisorEmail: '',
         cartera: '',
+        extension: '',
         role: 'advisor',
         active: true
       });
@@ -154,6 +157,7 @@ export function AdvisorManagement() {
         supervisor: editingAdvisor.supervisor,
         supervisorEmail: editingAdvisor.supervisorEmail?.toLowerCase() || '',
         cartera: editingAdvisor.cartera,
+        extension: (editingAdvisor.extension || '').trim(),
         role: editingAdvisor.role,
         active: editingAdvisor.active
       });
@@ -242,6 +246,16 @@ export function AdvisorManagement() {
                       onChange={e => setNewAdvisor({...newAdvisor, email: e.target.value})}
                     />
                   </div>
+                  <div className="space-y-2">
+                    <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">Extensión ITBX</Label>
+                    <Input
+                      inputMode="numeric"
+                      placeholder="Ej. 2546"
+                      className="h-12 bg-muted/50 border-none rounded-2xl font-bold"
+                      value={newAdvisor.extension}
+                      onChange={e => setNewAdvisor({...newAdvisor, extension: e.target.value})}
+                    />
+                  </div>
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">Supervisor *</Label>
@@ -328,6 +342,16 @@ export function AdvisorManagement() {
                         className="h-12 bg-muted/50 border-none rounded-2xl font-bold"
                         value={editingAdvisor.email}
                         onChange={e => setEditingAdvisor({...editingAdvisor, email: e.target.value})}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">Extensión ITBX</Label>
+                      <Input
+                        inputMode="numeric"
+                        placeholder="Ej. 2546"
+                        className="h-12 bg-muted/50 border-none rounded-2xl font-bold"
+                        value={editingAdvisor.extension || ''}
+                        onChange={e => setEditingAdvisor({...editingAdvisor, extension: e.target.value})}
                       />
                     </div>
                     <div className="grid grid-cols-2 gap-4">

@@ -183,20 +183,17 @@ export const signIn = async () => {
         active: docData.active ?? true
       };
       isSupervisor = docData.role === 'supervisor';
-    } else {
-      // Fallback a ADVISORS estático si no está en Firestore aún
-      const staticMatch = ADVISORS.find(a => a.correo.toLowerCase() === userEmail);
-      if (staticMatch) {
-        advisorInfo = staticMatch;
-      }
     }
+    // Si el asesor no está en Firestore es porque se eliminó en "Gestión
+    // Asesores": ya no se recupera del listado fijo del código (ese solo se usa
+    // más abajo si Firestore no responde).
 
     // Chequeamos si su email es supervisor de algún asesor en Firestore
     if (!isSupervisor) {
       const qSuper = query(asesoresRef, where('supervisorEmail', '==', userEmail));
       FirestoreTracer.track('asesores (Login Supervisor Check)', 'firebase.ts/signIn', 'getDocs');
       const snapSuper = await getDocs(qSuper);
-      isSupervisor = SUPERVISORS.includes(userEmail) || !snapSuper.empty || ADVISORS.some(a => a.correo_supervisor.toLowerCase() === userEmail);
+      isSupervisor = SUPERVISORS.includes(userEmail) || !snapSuper.empty;
     }
   } catch (err) {
     logWarn("Error consultando asesores en Firestore para el login, usando fallbacks: " + (err instanceof Error ? err.message : String(err)), "Firebase/signInAdvisorLookup");

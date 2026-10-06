@@ -64,6 +64,9 @@ export interface Advisor {
   cartera: string;
   role: string;
   active: boolean;
+  // Extensión de ITBX (opcional); la usa Mi Equipo en Vivo.
+  extension?: string;
+  nombreBitacoras?: string;
   createdAt: any;
 }
 

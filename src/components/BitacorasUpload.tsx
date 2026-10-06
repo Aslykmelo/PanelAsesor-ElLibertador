@@ -50,7 +50,10 @@ function mergeDays(a: Record<string, DayStats>, b: Record<string, DayStats>): Re
 // Nombres + correos contra los que se cruza el autor de cada bitácora: la
 // lista fija de la app y lo que haya en Firestore (asesores y usuarios).
 async function loadCandidates(): Promise<NameCandidate[]> {
-  const list: NameCandidate[] = ADVISORS.map((a) => ({ name: a.nombre, email: a.correo }));
+  const list: NameCandidate[] = ADVISORS.flatMap((a) => [
+    { name: a.nombre, email: a.correo },
+    ...(a.nombreBitacoras ? [{ name: a.nombreBitacoras, email: a.correo }] : []),
+  ]);
   for (const col of ['asesores', 'users']) {
     try {
       const snap = await getDocs(collection(db, col));
@@ -62,12 +65,15 @@ async function loadCandidates(): Promise<NameCandidate[]> {
       logError(e as Error, `BitacorasUpload/load_${col}`);
     }
   }
-  const byEmail = new Map<string, NameCandidate>();
+  // Un mismo correo puede traer varios nombres (el del directorio y el del
+  // reporte de bitácoras): se conservan todos para cruzar mejor.
+  const unique = new Map<string, NameCandidate>();
   for (const c of list) {
-    const key = c.email.trim().toLowerCase();
-    if (!byEmail.has(key)) byEmail.set(key, { name: c.name, email: key });
+    const email = c.email.trim().toLowerCase();
+    const key = `${email}|${c.name.trim().toLowerCase()}`;
+    if (!unique.has(key)) unique.set(key, { name: c.name, email });
   }
-  return [...byEmail.values()];
+  return [...unique.values()];
 }
 
 interface BitacorasUploadProps {

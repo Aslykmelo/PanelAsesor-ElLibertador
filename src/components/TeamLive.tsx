@@ -4,12 +4,11 @@ import { db } from '@/firebase';
 import { cn } from '@/lib/utils';
 import { getDailyGoal } from '@/lib/goals';
 import { getExtensionCallTotalsForDate, todayKey } from '@/lib/itbxCache';
-import { ADVISORS } from '@/constants';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Activity, MessageSquare, PhoneCall, RefreshCcw, Users, CheckCircle2 } from 'lucide-react';
 import { toast } from 'sonner';
-import { User } from '../types';
+import { User, Advisor } from '../types';
 
 // "Mi Equipo en Vivo": el supervisor (o un admin, eligiendo el equipo) ve el
 // avance de HOY de cada asesor — conversaciones cerradas en Infobip y
@@ -47,17 +46,21 @@ function expectedFraction(isSaturday: boolean): number | null {
   return Math.max(0, Math.min(1, f));
 }
 
-// Un equipo por correo de supervisor. Lizeth aparece con dos nombres (su
-// cartera de Copropiedades), así que se usa el nombre más corto.
-const SUPERVISORS = (() => {
+// Un equipo por correo de supervisor, armado con la lista viva de Gestión
+// Asesores (colección `asesores` de Firestore): si ahí se agrega, edita,
+// desactiva o elimina un asesor, el equipo cambia solo. Un supervisor puede
+// aparecer con nombres distintos (p. ej. por su cartera de Copropiedades), así
+// que se usa el nombre más corto.
+function buildTeams(advisors: Advisor[]): { email: string; name: string }[] {
   const byEmail = new Map<string, string>();
-  for (const a of ADVISORS) {
-    const email = a.correo_supervisor.toLowerCase();
+  for (const a of advisors) {
+    const email = (a.supervisorEmail || '').toLowerCase();
+    if (!email || a.active === false || a.role === 'supervisor' || a.role === 'admin') continue;
     const prev = byEmail.get(email);
-    if (!prev || a.supervisor.length < prev.length) byEmail.set(email, a.supervisor);
+    if (!prev || (a.supervisor || '').length < prev.length) byEmail.set(email, a.supervisor || email);
   }
   return Array.from(byEmail, ([email, name]) => ({ email, name })).sort((a, b) => a.name.localeCompare(b.name, 'es'));
-})();
+}
 
 const AVAILABILITY: Record<string, { label: string; dot: string }> = {
   ACTIVE: { label: 'Disponible', dot: 'bg-emerald-500' },
@@ -113,13 +116,22 @@ function ProgressCell({ current, goal, expected }: { current: number | null; goa
   );
 }
 
-export function TeamLive({ user, role }: { user: User; role: 'admin' | 'supervisor' }) {
+export function TeamLive({ user, role, advisors }: { user: User; role: 'admin' | 'supervisor'; advisors: Advisor[] }) {
   const myEmail = (user.email || '').toLowerCase();
-  const ownsTeam = SUPERVISORS.some((s) => s.email === myEmail);
+  const teams = useMemo(() => buildTeams(advisors), [advisors]);
+  const ownsTeam = teams.some((s) => s.email === myEmail);
   // El supervisor ve solo su equipo; el admin elige cuál (por defecto el
   // suyo si también es supervisor de alguno).
   const canChooseTeam = role === 'admin' || !ownsTeam;
-  const [teamEmail, setTeamEmail] = useState(ownsTeam ? myEmail : SUPERVISORS[0]?.email ?? '');
+  const [teamEmail, setTeamEmail] = useState(ownsTeam ? myEmail : teams[0]?.email ?? '');
+
+  // La lista de asesores puede llegar después de abrir la pantalla, o el equipo
+  // elegido puede quedarse sin asesores: se pasa a uno que exista.
+  useEffect(() => {
+    if (teams.length > 0 && !teams.some((t) => t.email === teamEmail)) {
+      setTeamEmail(teams.some((t) => t.email === myEmail) ? myEmail : teams[0].email);
+    }
+  }, [teams, teamEmail, myEmail]);
 
   const [users, setUsers] = useState<UserDoc[]>([]);
   const [stats, setStats] = useState<Record<string, MemberStats>>({});
@@ -135,25 +147,19 @@ export function TeamLive({ user, role }: { user: User; role: 'admin' | 'supervis
       .catch((e) => console.error('Error al cargar usuarios para el equipo:', e));
   }, []);
 
-  // Integrantes: la lista oficial de asesores del supervisor, más cualquier
-  // usuario de la app que tenga a ese supervisor en su perfil. La extensión
-  // de ITBX sale del perfil de cada asesor.
+  // Integrantes: los asesores activos de ese supervisor en Gestión Asesores.
+  // La extensión de ITBX sale de la ficha del asesor; si no la tiene, de la que
+  // él mismo registró en su perfil.
   const members: Member[] = useMemo(() => {
     const userByEmail = new Map<string, UserDoc>(users.filter((u) => u.email).map((u) => [u.email!.toLowerCase(), u]));
-    const map = new Map<string, Member>();
-    for (const a of ADVISORS) {
-      if (a.correo_supervisor.toLowerCase() !== teamEmail) continue;
-      const email = a.correo.toLowerCase();
-      map.set(email, { email, name: a.nombre, cartera: a.cartera, extension: userByEmail.get(email)?.extension || null });
-    }
-    for (const u of users) {
-      const email = (u.email || '').toLowerCase();
-      if (!email || map.has(email) || (u.supervisorEmail || '').toLowerCase() !== teamEmail) continue;
-      if (u.role && u.role !== 'asesor') continue;
-      map.set(email, { email, name: u.name || email, cartera: u.cartera || '', extension: u.extension || null });
-    }
-    return Array.from(map.values());
-  }, [users, teamEmail]);
+    return advisors
+      .filter((a) => (a.supervisorEmail || '').toLowerCase() === teamEmail && a.active !== false && a.role !== 'supervisor' && a.role !== 'admin' && a.email)
+      .map((a) => {
+        const email = a.email.toLowerCase();
+        return { email, name: a.name, cartera: a.cartera || '', extension: a.extension || userByEmail.get(email)?.extension || null };
+      })
+      .filter((m, i, all) => all.findIndex((x) => x.email === m.email) === i);
+  }, [advisors, users, teamEmail]);
 
   const load = useCallback(async () => {
     if (members.length === 0) return;
@@ -222,7 +228,7 @@ export function TeamLive({ user, role }: { user: User; role: 'admin' | 'supervis
   const goalCalls = rows.reduce((acc, r) => acc + (r.goal?.calls ?? 0), 0);
   const metBoth = rows.filter((r) => r.goal && (r.conversations ?? 0) >= r.goal.conversations && (r.calls ?? 0) >= r.goal.calls).length;
   const connected = rows.filter((r) => r.s?.availability === 'ACTIVE' || r.s?.availability === 'BUSY').length;
-  const teamName = SUPERVISORS.find((s) => s.email === teamEmail)?.name ?? 'Equipo';
+  const teamName = teams.find((s) => s.email === teamEmail)?.name ?? 'Equipo';
 
   const tiles = [
     { label: 'Conversaciones cerradas', value: totalConv, goal: goalConv, Icon: MessageSquare },
@@ -252,7 +258,7 @@ export function TeamLive({ user, role }: { user: User; role: 'admin' | 'supervis
                 <SelectValue />
               </SelectTrigger>
               <SelectContent className="rounded-xl">
-                {SUPERVISORS.map((s) => (
+                {teams.map((s) => (
                   <SelectItem key={s.email} value={s.email} className="font-medium">{s.name}</SelectItem>
                 ))}
               </SelectContent>

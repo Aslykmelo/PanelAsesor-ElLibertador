@@ -10,7 +10,6 @@ import {
   addDoc,
   doc
 } from 'firebase/firestore';
-import { ADVISORS } from '@/constants';
 import { toast } from 'sonner';
 
 export function useAutoSyncAdvisors(currentUser: any) {
@@ -46,7 +45,7 @@ export function useAutoSyncAdvisors(currentUser: any) {
         
         const finalBatch = writeBatch(db);
         const finalBatchOps: Array<{ collection: string; docId: string; operation: string; data?: any }> = [];
-        let syncedCount = 0;
+        const syncedCount = 0;
         let deletedCount = 0;
 
         // --- B. CLEANUP ACTUAL DUPLICATES IN FIRESTORE ---
@@ -64,43 +63,10 @@ export function useAutoSyncAdvisors(currentUser: any) {
           }
         });
 
-        // --- B. SYNC FROM CONSTANTS ---
-        for (const adv of ADVISORS) {
-          const advEmail = adv.correo.toLowerCase();
-          const existingDoc = emailMap.get(advEmail);
-          
-          const advisorData = {
-            name: adv.nombre,
-            email: advEmail,
-            supervisor: adv.supervisor,
-            supervisorEmail: adv.correo_supervisor.toLowerCase(),
-            cartera: adv.cartera,
-            role: 'advisor',
-            active: true,
-            updatedAt: serverTimestamp()
-          };
-
-          if (existingDoc) {
-            // El asesor ya existe en la base de datos.
-            // Para mantener una única fuente de verdad, respetamos completamente cualquier cambio
-            // realizado por los administradores en el módulo "Gestión de Asesores".
-            // NO sobreescribimos la información con constantes de código.
-          } else {
-            // Create new
-            const newPartnerRef = doc(advisorsRef);
-            finalBatch.set(newPartnerRef, {
-              ...advisorData,
-              createdAt: serverTimestamp()
-            });
-            finalBatchOps.push({
-              collection: 'asesores',
-              docId: newPartnerRef.id,
-              operation: 'set',
-              data: { ...advisorData, createdAt: '[serverTimestamp]' }
-            });
-            syncedCount++;
-          }
-        }
+        // Ya NO se vuelven a crear asesores desde el listado fijo del código: la
+        // lista viva es la de "Gestión Asesores". Antes, cada vez que un
+        // administrador entraba, los asesores que faltaban en Firestore
+        // (incluidos los que se habían eliminado a propósito) reaparecían.
 
         if (syncedCount > 0 || deletedCount > 0) {
           console.log("=== FIRESTORE BATCH SYNC COMMIT INICIO ===");

@@ -680,7 +680,7 @@ export default function App() {
           setActiveTab('dashboard');
           return null;
         }
-        return <TeamLive user={currentUser!} role={effectiveRole === 'admin' ? 'admin' : 'supervisor'} />;
+        return <TeamLive user={currentUser!} role={effectiveRole === 'admin' ? 'admin' : 'supervisor'} advisors={advisors} />;
 
       case 'executive-dashboard':
         if (isAsesor) {
