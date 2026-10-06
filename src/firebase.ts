@@ -204,7 +204,21 @@ export const signIn = async () => {
     isSupervisor = SUPERVISORS.includes(userEmail) || ADVISORS.some(a => a.correo_supervisor.toLowerCase() === userEmail);
   }
 
-  const isAdmin = ADMINS.includes(userEmail);
+  // Rol asignado a mano en "Gestión de Usuarios" (colección role_overrides). Manda
+  // sobre el cálculo automático, salvo para los administradores fijos del código.
+  let overrideRole: 'admin' | 'supervisor' | 'asesor' | null = null;
+  if (!ADMINS.includes(userEmail)) {
+    try {
+      const overrideSnap = await getDoc(doc(db, 'role_overrides', userEmail));
+      const r = overrideSnap.exists() ? overrideSnap.data()?.role : null;
+      if (r === 'admin' || r === 'supervisor' || r === 'asesor') overrideRole = r;
+    } catch (e) {
+      logWarn("No se pudo leer el rol asignado a mano: " + (e instanceof Error ? e.message : String(e)), "Firebase/signInRoleOverride");
+    }
+  }
+  if (overrideRole === 'supervisor') isSupervisor = true;
+  if (overrideRole === 'asesor') isSupervisor = false;
+  const isAdmin = ADMINS.includes(userEmail) || overrideRole === 'admin';
 
   if (!userSnap || !userSnap.exists()) {
     // Si no existe o no pudimos leerlo, intentamos crearlo solo si es necesario (y si podemos)

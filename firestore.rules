@@ -44,19 +44,32 @@ service cloud.firestore {
              request.auth.uid == "tdev4fgZqwRxFNb9ujNsZHld5ZB3";
     }
 
+    // Rol asignado a mano desde "Gestión de Usuarios" (colección
+    // role_overrides, un documento por correo; solo lo escriben los
+    // administradores fijos del sistema). Vacío si no hay ninguno. Los
+    // administradores fijos (isKnownAdminEmail) nunca se degradan por esto.
+    function overrideRole() {
+      let path = /databases/$(database)/documents/role_overrides/$(getEmail());
+      return (isSignedIn() && getEmail() != "" && exists(path)) ? get(path).data.get('role', '') : '';
+    }
+
     function isAdmin() {
       let email = getEmail();
       return isSignedIn() && (
-        isKnownAdminEmail(email) || 
-        request.auth.uid == "tdev4fgZqwRxFNb9ujNsZHld5ZB3"
+        isKnownAdminEmail(email) ||
+        request.auth.uid == "tdev4fgZqwRxFNb9ujNsZHld5ZB3" ||
+        overrideRole() == 'admin'
       );
     }
 
     function isSupervisor() {
       let email = getEmail();
+      let override = overrideRole();
       return isSignedIn() && (
-        isKnownSupervisorEmail(email) ||
-        isKnownAdminEmail(email)
+        isKnownAdminEmail(email) ||
+        (isKnownSupervisorEmail(email) && override != 'asesor') ||
+        override == 'supervisor' ||
+        override == 'admin'
       );
     }
 
@@ -107,6 +120,14 @@ service cloud.firestore {
     // 1. Usuarios (Directorio y Perfiles)
     match /users/{userId} {
       allow read, write: if isSignedIn();
+    }
+
+    // 1b. Roles asignados a mano. Cada quien puede leer el suyo (para el login);
+    // los administradores leen todos; solo los administradores fijos del
+    // sistema pueden asignarlos o quitarlos.
+    match /role_overrides/{emailId} {
+      allow read: if isSignedIn() && (getEmail() == emailId || isAdmin());
+      allow write: if isSuperAdmin();
     }
 
     // 2. Logs de Acceso

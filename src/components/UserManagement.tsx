@@ -1,6 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { db, FirestoreTracer } from '@/firebase';
-import { collection, onSnapshot, query, orderBy } from 'firebase/firestore';
+import { db, auth, FirestoreTracer } from '@/firebase';
+import { collection, onSnapshot, query, orderBy, doc, setDoc, updateDoc, deleteDoc, serverTimestamp } from 'firebase/firestore';
+import { toast } from 'sonner';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { logError } from '../logger';
 import { User } from '../types';
 import { 
   Card, 
@@ -26,7 +29,18 @@ import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 
+type Role = 'admin' | 'supervisor' | 'asesor';
+
+const ROLE_LABEL: Record<Role, string> = { admin: 'Administrador', supervisor: 'Supervisor', asesor: 'Asesor' };
+
+// Administradores fijos del sistema: su rol no se puede cambiar desde aquí
+// (están definidos en el código y en las reglas de Firestore).
+const FIXED_ADMINS = ['taliana.moreno@segurosbolivar.com', 'helen.pantoja@segurosbolivar.com', 'asly.camelo@segurosbolivar.com'];
+
 export function UserManagement() {
+  const myEmail = (auth.currentUser?.email || '').toLowerCase();
+  const [overrides, setOverrides] = useState<Record<string, Role>>({});
+  const [savingUid, setSavingUid] = useState<string | null>(null);
   const [users, setUsers] = useState<User[]>([]);
   const [logs, setLogs] = useState<any[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
@@ -53,6 +67,19 @@ export function UserManagement() {
       setLoading(false);
     });
 
+    const unsubscribeOverrides = onSnapshot(
+      collection(db, 'role_overrides'),
+      (snapshot) => {
+        const map: Record<string, Role> = {};
+        snapshot.docs.forEach((d) => {
+          const r = d.data().role;
+          if (r === 'admin' || r === 'supervisor' || r === 'asesor') map[d.id.toLowerCase()] = r;
+        });
+        setOverrides(map);
+      },
+      (error) => console.warn('Roles manuales no disponibles:', error.message)
+    );
+
     const lq = query(collection(db, 'login_logs'), orderBy('timestamp', 'desc'));
     FirestoreTracer.track('login_logs (Audits Feed)', 'UserManagement', 'onSnapshot');
     const unsubscribeLogs = onSnapshot(lq, (snapshot) => {
@@ -75,8 +102,54 @@ export function UserManagement() {
     return () => {
       unsubscribeUsers();
       unsubscribeLogs();
+      unsubscribeOverrides();
     };
   }, []);
+
+  const changeRole = async (u: User, newRole: Role) => {
+    const email = (u.email || '').toLowerCase();
+    if (!email || newRole === u.role) return;
+    const ok = window.confirm(
+      `¿Cambiar el rol de ${u.name || email} a ${ROLE_LABEL[newRole]}?\n\n` +
+        (newRole === 'asesor'
+          ? 'Dejará de ver las pantallas y los datos de supervisores y administradores.'
+          : newRole === 'supervisor'
+            ? 'Podrá ver el panel de supervisor y las gestiones de todos los asesores.'
+            : 'Tendrá acceso de administrador, igual que tú.') +
+        '\n\nEl cambio se queda aunque la persona vuelva a iniciar sesión.'
+    );
+    if (!ok) return;
+    setSavingUid(u.uid);
+    try {
+      // 1) El rol manual (manda sobre el automático y lo usan las reglas de Firestore).
+      await setDoc(doc(db, 'role_overrides', email), {
+        role: newRole,
+        name: u.name || '',
+        updatedByEmail: myEmail,
+        updatedAt: serverTimestamp(),
+      });
+      // 2) El perfil del usuario, para que su sesión lo tome de inmediato.
+      await updateDoc(doc(db, 'users', u.uid), { role: newRole });
+      toast.success(`${u.name || email} ahora es ${ROLE_LABEL[newRole]}`);
+    } catch (e) {
+      logError(e as Error, 'UserManagement/changeRole');
+      toast.error('No fue posible cambiar el rol. Solo los administradores del sistema pueden hacerlo.');
+    } finally {
+      setSavingUid(null);
+    }
+  };
+
+  const clearManualRole = async (u: User) => {
+    const email = (u.email || '').toLowerCase();
+    if (!window.confirm(`¿Quitar el rol manual de ${u.name || email}? Volverá al rol automático la próxima vez que inicie sesión.`)) return;
+    try {
+      await deleteDoc(doc(db, 'role_overrides', email));
+      toast.success('Rol manual eliminado. Se recalculará en su próximo inicio de sesión.');
+    } catch (e) {
+      logError(e as Error, 'UserManagement/clearManualRole');
+      toast.error('No fue posible quitar el rol manual.');
+    }
+  };
 
   const filteredUsers = users.filter(user => 
     (user.name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -217,6 +290,38 @@ export function UserManagement() {
                             {user.role}
                           </span>
                         </div>
+
+                        {(() => {
+                          const email = (user.email || '').toLowerCase();
+                          if (FIXED_ADMINS.includes(email)) {
+                            return <p className="mt-3 text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Rol fijo del sistema</p>;
+                          }
+                          if (email === myEmail) {
+                            return <p className="mt-3 text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Tu propio rol no se cambia aquí</p>;
+                          }
+                          return (
+                            <div className="mt-3 w-full max-w-[220px] space-y-1.5">
+                              <Select value={(user.role as Role) || 'asesor'} onValueChange={(v) => changeRole(user, v as Role)} disabled={savingUid === user.uid}>
+                                <SelectTrigger className="h-9 rounded-xl text-xs font-bold">
+                                  <SelectValue>Cambiar rol: {ROLE_LABEL[(user.role as Role) || 'asesor']}</SelectValue>
+                                </SelectTrigger>
+                                <SelectContent className="rounded-xl">
+                                  <SelectItem value="asesor">Asesor</SelectItem>
+                                  <SelectItem value="supervisor">Supervisor</SelectItem>
+                                  <SelectItem value="admin">Administrador</SelectItem>
+                                </SelectContent>
+                              </Select>
+                              {overrides[email] && (
+                                <p className="text-[10px] font-bold text-primary">
+                                  Rol asignado manualmente{' '}
+                                  <button type="button" className="underline text-muted-foreground hover:text-primary" onClick={() => clearManualRole(user)}>
+                                    quitar
+                                  </button>
+                                </p>
+                              )}
+                            </div>
+                          );
+                        })()}
 
                         <div className="w-full mt-6 space-y-4 pt-6 border-t border-border/50">
                           <div className="flex items-center gap-3 text-left">
