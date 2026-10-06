@@ -414,7 +414,8 @@ export async function redirectConversationsToNgso(
 // hoy — y se agrupan por agente. Así el costo contra Infobip es el mismo sin
 // importar cuántos asesores tenga el equipo ni cuántos supervisores miren.
 
-type InfobipAgentSummary = { id: string; displayName: string; availability?: string; enabled?: boolean };
+// `updatedAt` es la última vez que Infobip actualizó al agente: en la práctica, el último cambio de estado (Disponible/Ausente/…).
+type InfobipAgentSummary = { id: string; displayName: string; availability?: string; enabled?: boolean; updatedAt?: string };
 type InfobipConversationLite = { id: string; agentId: string | null };
 
 const LIST_PAGE_LIMIT = 999;
@@ -498,6 +499,7 @@ export type TeamMemberStats = {
   active: number;
   closedToday: number;
   availability: string | null; // ACTIVE / BUSY / AWAY / INVISIBLE (Infobip); null = sin agente
+  statusSince: string | null; // ISO: desde cuándo está en ese estado (último cambio que reporta Infobip)
   hasAgent: boolean;
 };
 
@@ -522,6 +524,7 @@ export async function getTeamConversationStats(
       active: agentId ? snapshot.activeByAgent.get(agentId) ?? 0 : 0,
       closedToday: agentId ? snapshot.closedTodayByAgent.get(agentId) ?? 0 : 0,
       availability: agentId ? snapshot.agentsById.get(agentId)?.availability ?? null : null,
+      statusSince: agentId ? snapshot.agentsById.get(agentId)?.updatedAt ?? null : null,
       hasAgent: !!agentId,
     };
   });

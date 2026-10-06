@@ -18,7 +18,7 @@ import { User } from '../types';
 
 type Availability = 'ACTIVE' | 'BUSY' | 'AWAY' | 'INVISIBLE' | string;
 
-type MemberStats = { active: number; closedToday: number; availability: Availability | null; hasAgent: boolean };
+type MemberStats = { active: number; closedToday: number; availability: Availability | null; statusSince?: string | null; hasAgent: boolean };
 
 type Member = { email: string; name: string; cartera: string; extension: string | null };
 
@@ -64,6 +64,26 @@ const AVAILABILITY: Record<string, { label: string; dot: string }> = {
   BUSY: { label: 'Ocupado', dot: 'bg-amber-500' },
   AWAY: { label: 'Ausente', dot: 'bg-slate-400' },
   INVISIBLE: { label: 'Desconectado', dot: 'bg-slate-300 dark:bg-slate-600' },
+};
+
+// "12 min", "1 h 05 min" — tiempo transcurrido desde un instante ISO.
+function elapsedLabel(sinceIso: string | null | undefined, nowMs: number): string | null {
+  if (!sinceIso) return null;
+  const since = Date.parse(sinceIso);
+  if (isNaN(since)) return null;
+  const mins = Math.max(0, Math.floor((nowMs - since) / 60000));
+  if (mins < 1) return 'menos de 1 min';
+  if (mins < 60) return `${mins} min`;
+  const h = Math.floor(mins / 60);
+  if (h >= 24) return 'más de 1 día';
+  return `${h} h ${String(mins % 60).padStart(2, '0')} min`;
+}
+
+const AVAILABILITY_PILL: Record<string, string> = {
+  ACTIVE: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400',
+  BUSY: 'bg-amber-500/10 text-amber-700 dark:text-amber-400',
+  AWAY: 'bg-slate-500/10 text-slate-600 dark:text-slate-300',
+  INVISIBLE: 'bg-muted text-muted-foreground',
 };
 
 function ProgressCell({ current, goal, expected }: { current: number | null; goal: number | null; expected: number | null }) {
@@ -274,6 +294,7 @@ export function TeamLive({ user, role }: { user: User; role: 'admin' | 'supervis
             <thead>
               <tr className="border-b border-border/50 text-left">
                 <th className="px-4 py-3 font-bold text-muted-foreground uppercase text-[10px] tracking-wider">Asesor</th>
+                <th className="px-4 py-3 font-bold text-muted-foreground uppercase text-[10px] tracking-wider">Estado en Infobip</th>
                 <th className="px-4 py-3 font-bold text-muted-foreground uppercase text-[10px] tracking-wider text-right">Conversaciones</th>
                 <th className="px-4 py-3 font-bold text-muted-foreground uppercase text-[10px] tracking-wider text-right">Abiertas</th>
                 <th className="px-4 py-3 font-bold text-muted-foreground uppercase text-[10px] tracking-wider text-right">Llamadas contestadas</th>
@@ -293,6 +314,25 @@ export function TeamLive({ user, role }: { user: User; role: 'admin' | 'supervis
                       </p>
                     </td>
                     <td className="px-4 py-3">
+                      {r.s && !r.s.hasAgent ? (
+                        <span className="text-[11px] text-muted-foreground font-medium italic">Sin agente en Infobip</span>
+                      ) : av ? (
+                        <div className="space-y-0.5">
+                          <span className={cn('inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-black', AVAILABILITY_PILL[r.s!.availability as string] ?? 'bg-muted text-muted-foreground')}>
+                            <span className={cn('inline-block w-1.5 h-1.5 rounded-full', av.dot)} />
+                            {av.label}
+                          </span>
+                          {elapsedLabel(r.s!.statusSince, now) && (
+                            <p className="text-[11px] text-muted-foreground font-medium" title="Tiempo desde el último cambio de estado que reporta Infobip">
+                              hace {elapsedLabel(r.s!.statusSince, now)}
+                            </p>
+                          )}
+                        </div>
+                      ) : (
+                        <span className="text-[11px] text-muted-foreground font-medium">{r.s ? '—' : 'Consultando…'}</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3">
                       <ProgressCell current={r.conversations} goal={r.goal?.conversations ?? null} expected={expected} />
                     </td>
                     <td className="px-4 py-3 text-right font-black text-secondary">{r.s ? r.s.active : '—'}</td>
@@ -308,7 +348,7 @@ export function TeamLive({ user, role }: { user: User; role: 'admin' | 'supervis
               })}
               {rows.length === 0 && (
                 <tr>
-                  <td colSpan={4} className="px-4 py-10 text-center text-muted-foreground font-medium">
+                  <td colSpan={5} className="px-4 py-10 text-center text-muted-foreground font-medium">
                     Este equipo no tiene asesores registrados.
                   </td>
                 </tr>
@@ -320,6 +360,7 @@ export function TeamLive({ user, role }: { user: User; role: 'admin' | 'supervis
 
       <p className="text-[11px] text-muted-foreground font-medium">
         Conversaciones cerradas hoy y abiertas ahora en Infobip; llamadas contestadas según la extensión de cada asesor en ITBX.
+        El estado (Disponible, Ocupado, Ausente o Desconectado) y el tiempo en ese estado vienen de Infobip; Infobip no informa si una ausencia es almuerzo o break.
         {expected !== null && ' La raya en cada barra marca lo esperado a esta hora (jornada de 8:00 a 17:00).'}
       </p>
     </div>
