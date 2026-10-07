@@ -42,6 +42,8 @@ function mergeDays(a: Record<string, DayStats>, b: Record<string, DayStats>): Re
       byGestion: sum(cur.byGestion, s.byGestion),
       byCanal: sum(cur.byCanal, s.byCanal),
       lastAt: cur.lastAt > s.lastAt ? cur.lastAt : s.lastAt,
+      firstAt: [cur.firstAt, s.firstAt].filter(Boolean).sort()[0] ?? '',
+      byHour: sum(cur.byHour ?? {}, s.byHour ?? {}),
     };
   }
   return out;

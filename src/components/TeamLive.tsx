@@ -1,14 +1,15 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { collection, getDocs } from 'firebase/firestore';
+import { collection, getDocs, onSnapshot, query, where } from 'firebase/firestore';
 import { db } from '@/firebase';
 import { cn } from '@/lib/utils';
 import { getDailyGoal } from '@/lib/goals';
 import { getExtensionCallTotalsForDate, todayKey } from '@/lib/itbxCache';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Activity, MessageSquare, PhoneCall, RefreshCcw, Users, CheckCircle2 } from 'lucide-react';
+import { Activity, MessageSquare, PhoneCall, RefreshCcw, Users, CheckCircle2, BookOpen } from 'lucide-react';
 import { toast } from 'sonner';
 import { User, Advisor } from '../types';
+import type { BitacoraDoc } from '@/components/MyBitacoras';
 
 // "Mi Equipo en Vivo": el supervisor (o un admin, eligiendo el equipo) ve el
 // avance de HOY de cada asesor — conversaciones cerradas en Infobip y
@@ -89,6 +90,57 @@ const AVAILABILITY_PILL: Record<string, string> = {
   INVISIBLE: 'bg-muted text-muted-foreground',
 };
 
+// Bitácoras de los asesores del equipo (documentos bitacoras/{correo}); se
+// mantienen al día solos con onSnapshot, así que no consumen lecturas extra en
+// cada refresco de la pantalla. Las reglas de Firestore dejan leerlas a
+// supervisores y administradores.
+function useTeamBitacoras(emails: string[]) {
+  const [docs, setDocs] = useState<Record<string, BitacoraDoc>>({});
+  const key = [...emails].sort().join('|');
+  useEffect(() => {
+    setDocs({});
+    if (emails.length === 0) return;
+    const unsubs: (() => void)[] = [];
+    for (let i = 0; i < emails.length; i += 30) {
+      const chunk = emails.slice(i, i + 30);
+      unsubs.push(
+        onSnapshot(
+          query(collection(db, 'bitacoras'), where('email', 'in', chunk)),
+          (snap) =>
+            setDocs((prev) => {
+              const next = { ...prev };
+              chunk.forEach((e) => delete next[e]);
+              snap.docs.forEach((d) => {
+                next[d.id.toLowerCase()] = { days: {}, ...d.data() } as BitacoraDoc;
+              });
+              return next;
+            }),
+          (e) => console.warn('No se pudieron leer las bitácoras del equipo:', e.message)
+        )
+      );
+    }
+    return () => unsubs.forEach((u) => u());
+  }, [key]);
+  return docs;
+}
+
+const HOURS = Array.from({ length: 12 }, (_, i) => String(i + 7).padStart(2, '0')); // 07 a 18
+
+// Bitácoras por hora del día (barras mínimas con el número en el texto de ayuda).
+function HourBars({ byHour }: { byHour?: Record<string, number> }) {
+  if (!byHour) return null;
+  const max = Math.max(1, ...HOURS.map((h) => byHour[h] ?? 0));
+  return (
+    <div className="flex items-end justify-end gap-[3px] h-5 mt-1" title={HOURS.filter((h) => byHour[h]).map((h) => `${h}:00 → ${byHour[h]}`).join('  ·  ') || 'Sin bitácoras por hora'}>
+      {HOURS.map((h) => (
+        <div key={h} className="w-1.5 rounded-sm bg-muted/60 flex items-end" style={{ height: '100%' }}>
+          <div className="w-full rounded-sm bg-primary" style={{ height: `${Math.round(((byHour[h] ?? 0) / max) * 100)}%` }} />
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function ProgressCell({ current, goal, expected }: { current: number | null; goal: number | null; expected: number | null }) {
   if (goal === null) {
     return <p className="text-sm font-black text-secondary text-right">{current ?? '—'}</p>;
@@ -161,6 +213,8 @@ export function TeamLive({ user, role, advisors }: { user: User; role: 'admin' |
       .filter((m, i, all) => all.findIndex((x) => x.email === m.email) === i);
   }, [advisors, users, teamEmail]);
 
+  const bitacoraDocs = useTeamBitacoras(useMemo(() => members.map((m) => m.email), [members]));
+
   const load = useCallback(async () => {
     if (members.length === 0) return;
     setLoading(true);
@@ -207,6 +261,8 @@ export function TeamLive({ user, role, advisors }: { user: User; role: 'admin' |
   };
 
   const today = todayKey();
+  const reportToday = members.some((m) => bitacoraDocs[m.email]?.days?.[today]);
+  const reportUpdatedMs = Math.max(0, ...members.map((m) => bitacoraDocs[m.email]?.updatedAt?.toMillis?.() ?? 0));
   const rows = members
     .map((m) => {
       const goal = getDailyGoal({ email: m.email, supervisorEmail: teamEmail, cartera: m.cartera }, today);
@@ -215,7 +271,11 @@ export function TeamLive({ user, role, advisors }: { user: User; role: 'admin' |
       const calls = m.extension ? answered[m.extension] ?? 0 : null;
       const convPct = goal && conversations !== null ? conversations / goal.conversations : 0;
       const callPct = goal && calls !== null ? calls / goal.calls : 0;
-      return { ...m, goal, s, conversations, calls, progress: (Math.min(1, convPct) + Math.min(1, callPct)) / 2 };
+      const bDoc = bitacoraDocs[m.email];
+      const bDay = bDoc?.days?.[today];
+      // Si ningún asesor del equipo tiene bitácoras de hoy, el reporte de hoy aún no se ha cargado.
+      const bitacoras = bDay ? bDay.total : reportToday ? 0 : null;
+      return { ...m, goal, s, conversations, calls, bitacoras, bDay, progress: (Math.min(1, convPct) + Math.min(1, callPct)) / 2 };
     })
     // Los que van más atrás, primero.
     .sort((a, b) => a.progress - b.progress || a.name.localeCompare(b.name, 'es'));
@@ -227,12 +287,15 @@ export function TeamLive({ user, role, advisors }: { user: User; role: 'admin' |
   const goalConv = rows.reduce((acc, r) => acc + (r.goal?.conversations ?? 0), 0);
   const goalCalls = rows.reduce((acc, r) => acc + (r.goal?.calls ?? 0), 0);
   const metBoth = rows.filter((r) => r.goal && (r.conversations ?? 0) >= r.goal.conversations && (r.calls ?? 0) >= r.goal.calls).length;
+  const totalBitacoras = rows.reduce((acc, r) => acc + (r.bitacoras ?? 0), 0);
+  const goalBitacoras = rows.reduce((acc, r) => acc + (r.goal?.bitacoras ?? 0), 0);
   const connected = rows.filter((r) => r.s?.availability === 'ACTIVE' || r.s?.availability === 'BUSY').length;
   const teamName = teams.find((s) => s.email === teamEmail)?.name ?? 'Equipo';
 
   const tiles = [
     { label: 'Conversaciones cerradas', value: totalConv, goal: goalConv, Icon: MessageSquare },
     { label: 'Llamadas contestadas', value: totalCalls, goal: goalCalls, Icon: PhoneCall },
+    { label: 'Bitácoras de hoy', value: reportToday ? totalBitacoras : 0, goal: goalBitacoras, Icon: BookOpen },
     { label: 'Cumplen ambas metas', value: metBoth, goal: rows.length, Icon: CheckCircle2 },
     { label: 'Conectados en Infobip', value: connected, goal: rows.length, Icon: Activity },
   ];
@@ -277,7 +340,7 @@ export function TeamLive({ user, role, advisors }: { user: User; role: 'admin' |
         </div>
       </div>
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
         {tiles.map(({ label, value, goal, Icon }) => (
           <div key={label} className="bg-card rounded-2xl p-4 card-shadow flex items-center gap-3">
             <div className="w-10 h-10 shrink-0 bg-primary/10 text-primary rounded-xl flex items-center justify-center">
@@ -302,6 +365,7 @@ export function TeamLive({ user, role, advisors }: { user: User; role: 'admin' |
                 <th className="px-4 py-3 font-bold text-muted-foreground uppercase text-[10px] tracking-wider">Asesor</th>
                 <th className="px-4 py-3 font-bold text-muted-foreground uppercase text-[10px] tracking-wider">Estado en Infobip</th>
                 <th className="px-4 py-3 font-bold text-muted-foreground uppercase text-[10px] tracking-wider text-right">Conversaciones</th>
+                <th className="px-4 py-3 font-bold text-muted-foreground uppercase text-[10px] tracking-wider text-right">Bitácoras</th>
                 <th className="px-4 py-3 font-bold text-muted-foreground uppercase text-[10px] tracking-wider text-right">Abiertas</th>
                 <th className="px-4 py-3 font-bold text-muted-foreground uppercase text-[10px] tracking-wider text-right">Llamadas contestadas</th>
               </tr>
@@ -341,6 +405,21 @@ export function TeamLive({ user, role, advisors }: { user: User; role: 'admin' |
                     <td className="px-4 py-3">
                       <ProgressCell current={r.conversations} goal={r.goal?.conversations ?? null} expected={expected} />
                     </td>
+                    <td className="px-4 py-3">
+                      {r.bitacoras === null ? (
+                        <p className="text-[11px] text-muted-foreground font-medium text-right italic">Reporte de hoy sin cargar</p>
+                      ) : (
+                        <>
+                          <ProgressCell current={r.bitacoras} goal={r.goal?.bitacoras ?? null} expected={expected} />
+                          {r.bDay && (
+                            <p className="text-[10px] text-muted-foreground font-medium text-right mt-0.5" title="Hora de la primera y de la última bitácora de hoy, según el reporte">
+                              {r.bDay.firstAt ? `desde ${r.bDay.firstAt.slice(11, 16)} · ` : ''}última {r.bDay.lastAt?.slice(11, 16) || '—'}
+                            </p>
+                          )}
+                          <HourBars byHour={r.bDay?.byHour} />
+                        </>
+                      )}
+                    </td>
                     <td className="px-4 py-3 text-right font-black text-secondary">{r.s ? r.s.active : '—'}</td>
                     <td className="px-4 py-3">
                       {r.extension ? (
@@ -354,7 +433,7 @@ export function TeamLive({ user, role, advisors }: { user: User; role: 'admin' |
               })}
               {rows.length === 0 && (
                 <tr>
-                  <td colSpan={5} className="px-4 py-10 text-center text-muted-foreground font-medium">
+                  <td colSpan={6} className="px-4 py-10 text-center text-muted-foreground font-medium">
                     Este equipo no tiene asesores registrados.
                   </td>
                 </tr>
@@ -366,6 +445,7 @@ export function TeamLive({ user, role, advisors }: { user: User; role: 'admin' |
 
       <p className="text-[11px] text-muted-foreground font-medium">
         Conversaciones cerradas hoy y abiertas ahora en Infobip; llamadas contestadas según la extensión de cada asesor en ITBX.
+        Las bitácoras salen del reporte que carga Control{reportUpdatedMs > 0 ? ` (última carga: ${new Date(reportUpdatedMs).toLocaleString('es-CO', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', timeZone: 'America/Bogota' })})` : ''}: se muestra cuántas lleva cada asesor, a qué hora hizo la primera y la última, y las barras muestran cuántas hizo en cada hora (de 7:00 a 18:00).
         El estado (Disponible, Ocupado, Ausente o Desconectado) y el tiempo en ese estado vienen de Infobip; Infobip no informa si una ausencia es almuerzo o break.
         {expected !== null && ' La raya en cada barra marca lo esperado a esta hora (jornada de 8:00 a 17:00).'}
       </p>

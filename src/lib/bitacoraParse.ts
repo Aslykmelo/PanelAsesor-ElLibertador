@@ -12,6 +12,10 @@ export type DayStats = {
   byGestion: Record<string, number>;
   byCanal: Record<string, number>;
   lastAt: string;
+  // Hora (Bogotá) de la primera bitácora del día y cuántas se escribieron en cada
+  // hora ("09": 12). Solo vienen en los reportes cargados desde octubre 2026.
+  firstAt?: string;
+  byHour?: Record<string, number>;
 };
 
 export type AuthorAgg = {
@@ -101,7 +105,7 @@ export function parseBitacoraRows(rows: unknown[][]): ParseResult {
     throw new Error('Faltan columnas: se necesita "Nombre completo" y la "Fecha de creación" de la bitácora.');
   }
 
-  type Tmp = { displayName: string; days: Map<string, { total: number; sols: Set<string>; byGestion: Record<string, number>; byCanal: Record<string, number>; lastAt: string }> };
+  type Tmp = { displayName: string; days: Map<string, { total: number; sols: Set<string>; byGestion: Record<string, number>; byCanal: Record<string, number>; lastAt: string; firstAt: string; byHour: Record<string, number> }> };
   const tmp = new Map<string, Tmp>();
   const dayKeys = new Set<string>();
   let rowsRead = 0;
@@ -134,7 +138,7 @@ export function parseBitacoraRows(rows: unknown[][]): ParseResult {
     }
     let day = agg.days.get(when.day);
     if (!day) {
-      day = { total: 0, sols: new Set(), byGestion: {}, byCanal: {}, lastAt: '' };
+      day = { total: 0, sols: new Set(), byGestion: {}, byCanal: {}, lastAt: '', firstAt: '', byHour: {} };
       agg.days.set(when.day, day);
     }
     day.total++;
@@ -145,6 +149,9 @@ export function parseBitacoraRows(rows: unknown[][]): ParseResult {
     const c = rawCanal === 'Sin valor' ? 'Sin canal' : rawCanal;
     day.byCanal[c] = (day.byCanal[c] ?? 0) + 1;
     if (when.at > day.lastAt) day.lastAt = when.at;
+    if (!day.firstAt || when.at < day.firstAt) day.firstAt = when.at;
+    const hour = when.at.slice(11, 13);
+    day.byHour[hour] = (day.byHour[hour] ?? 0) + 1;
     dayKeys.add(when.day);
   }
 
@@ -152,7 +159,7 @@ export function parseBitacoraRows(rows: unknown[][]): ParseResult {
   for (const [key, a] of tmp) {
     const days: Record<string, DayStats> = {};
     for (const [d, s] of a.days) {
-      days[d] = { total: s.total, solicitudes: s.sols.size, byGestion: s.byGestion, byCanal: s.byCanal, lastAt: s.lastAt };
+      days[d] = { total: s.total, solicitudes: s.sols.size, byGestion: s.byGestion, byCanal: s.byCanal, lastAt: s.lastAt, firstAt: s.firstAt, byHour: s.byHour };
     }
     authors.set(key, { displayName: a.displayName, days });
   }
