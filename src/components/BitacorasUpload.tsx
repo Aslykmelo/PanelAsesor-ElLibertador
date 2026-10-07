@@ -53,8 +53,8 @@ function mergeDays(a: Record<string, DayStats>, b: Record<string, DayStats>): Re
 // lista fija de la app y lo que haya en Firestore (asesores y usuarios).
 async function loadCandidates(): Promise<NameCandidate[]> {
   const list: NameCandidate[] = ADVISORS.flatMap((a) => [
-    { name: a.nombre, email: a.correo },
-    ...(a.nombreBitacoras ? [{ name: a.nombreBitacoras, email: a.correo }] : []),
+    { name: a.nombre, email: a.correo, preferred: true },
+    ...(a.nombreBitacoras ? [{ name: a.nombreBitacoras, email: a.correo, preferred: true }] : []),
   ]);
   for (const col of ['asesores', 'users']) {
     try {
@@ -73,7 +73,9 @@ async function loadCandidates(): Promise<NameCandidate[]> {
   for (const c of list) {
     const email = c.email.trim().toLowerCase();
     const key = `${email}|${c.name.trim().toLowerCase()}`;
-    if (!unique.has(key)) unique.set(key, { name: c.name, email });
+    const prev = unique.get(key);
+    if (!prev) unique.set(key, { name: c.name, email, preferred: c.preferred });
+    else if (c.preferred) prev.preferred = true;
   }
   return [...unique.values()];
 }

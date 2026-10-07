@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { db, FirestoreTracer } from '@/firebase';
+import { db, auth, FirestoreTracer } from '@/firebase';
 import { logError, logWarn } from '../logger';
-import { collection, onSnapshot, query, orderBy, addDoc, serverTimestamp, deleteDoc, doc, updateDoc } from 'firebase/firestore';
+import { collection, onSnapshot, query, orderBy, addDoc, serverTimestamp, deleteDoc, doc, updateDoc, writeBatch } from 'firebase/firestore';
+import { ADVISORS } from '@/constants';
 import { cn } from '@/lib/utils';
 import { Advisor } from '../types';
 import { 
@@ -50,7 +51,11 @@ import { Badge } from '@/components/ui/badge';
 import { motion, AnimatePresence } from 'motion/react';
 import { toast } from 'sonner';
 
+// Administradores fijos del sistema: los únicos que ven el botón de roster.
+const ROSTER_ADMINS = ['taliana.moreno@segurosbolivar.com', 'helen.pantoja@segurosbolivar.com', 'asly.camelo@segurosbolivar.com'];
+
 export function AdvisorManagement() {
+  const [applyingRoster, setApplyingRoster] = useState(false);
   const [advisors, setAdvisors] = useState<Advisor[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [loading, setLoading] = useState(true);
@@ -197,6 +202,78 @@ export function AdvisorManagement() {
     } catch (error) {
       logError(error, "AdvisorManagement/Delete");
       toast.error("No fue posible guardar la información.");
+    }
+  };
+
+  // ---- Roster oficial: diferencias con lo que hay en Gestión Asesores ----
+  const myEmail = (auth.currentUser?.email || '').toLowerCase();
+  const rosterPlan = useMemo(() => {
+    const isAdvisorDoc = (a: Advisor) => a.role !== 'supervisor' && a.role !== 'admin';
+    const current = advisors.filter(isAdvisorDoc);
+    const rosterByEmail = new Map(ADVISORS.map((a) => [a.correo.toLowerCase(), a]));
+    const seen = new Set<string>();
+    const toDelete: Advisor[] = [];
+    const toUpdate: { doc: Advisor; roster: (typeof ADVISORS)[number] }[] = [];
+    for (const a of current) {
+      const email = (a.email || '').toLowerCase();
+      const roster = rosterByEmail.get(email);
+      if (!roster || seen.has(email)) toDelete.push(a);
+      else {
+        seen.add(email);
+        toUpdate.push({ doc: a, roster });
+      }
+    }
+    const toCreate = ADVISORS.filter((a) => !seen.has(a.correo.toLowerCase()));
+    return { toDelete, toUpdate, toCreate };
+  }, [advisors]);
+  const rosterPending = !loading && ROSTER_ADMINS.includes(myEmail) && (rosterPlan.toDelete.length > 0 || rosterPlan.toCreate.length > 0);
+
+  const applyRoster = async () => {
+    const { toDelete, toUpdate, toCreate } = rosterPlan;
+    if (
+      !window.confirm(
+        `Roster oficial (${ADVISORS.length} asesores):\n\n• Se ELIMINARÁN ${toDelete.length} asesores que no están en el roster.\n• Se CREARÁN ${toCreate.length} asesores nuevos.\n• Se ACTUALIZARÁN ${toUpdate.length} (supervisor, cartera y extensión).\n\nPrimero se descarga un respaldo con la lista actual. Los supervisores y administradores no se tocan. ¿Continuar?`
+      )
+    )
+      return;
+    setApplyingRoster(true);
+    try {
+      // Respaldo de la lista actual, en el computador de quien lo ejecuta.
+      const blob = new Blob([JSON.stringify(advisors, null, 1)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `respaldo_asesores_${new Date().toISOString().slice(0, 10)}.json`;
+      link.click();
+      URL.revokeObjectURL(url);
+
+      type Op = (b: ReturnType<typeof writeBatch>) => void;
+      const fieldsOf = (r: (typeof ADVISORS)[number]) => ({
+        name: r.nombre,
+        email: r.correo.toLowerCase(),
+        supervisor: r.supervisor,
+        supervisorEmail: r.correo_supervisor.toLowerCase(),
+        cartera: r.cartera,
+        role: 'advisor',
+        active: true,
+        extension: r.extension || '',
+        nombreBitacoras: r.nombreBitacoras || '',
+      });
+      const ops: Op[] = [];
+      toDelete.forEach((a) => ops.push((b) => b.delete(doc(db, 'asesores', a.id!))));
+      toUpdate.forEach(({ doc: d, roster }) => ops.push((b) => b.update(doc(db, 'asesores', d.id!), { ...fieldsOf(roster), updatedAt: serverTimestamp() })));
+      toCreate.forEach((r) => ops.push((b) => b.set(doc(collection(db, 'asesores')), { ...fieldsOf(r), createdAt: serverTimestamp(), updatedAt: serverTimestamp() })));
+      for (let i = 0; i < ops.length; i += 400) {
+        const batch = writeBatch(db);
+        ops.slice(i, i + 400).forEach((op) => op(batch));
+        await batch.commit();
+      }
+      toast.success(`Roster aplicado: ${toCreate.length} creados, ${toUpdate.length} actualizados, ${toDelete.length} eliminados.`);
+    } catch (error) {
+      logError(error, 'AdvisorManagement/ApplyRoster');
+      toast.error('No fue posible aplicar el roster. No se cambió nada o quedó a medias: revisa la lista y vuelve a intentar.');
+    } finally {
+      setApplyingRoster(false);
     }
   };
 
@@ -413,6 +490,21 @@ export function AdvisorManagement() {
           </Dialog>
         </div>
       </div>
+
+      {rosterPending && (
+        <div className="rounded-2xl border border-amber-500/30 bg-amber-500/10 p-5 flex flex-col md:flex-row md:items-center gap-4">
+          <div className="flex-1">
+            <p className="font-black text-secondary">Hay un roster oficial de asesores por aplicar</p>
+            <p className="text-xs font-medium text-muted-foreground mt-1">
+              Eliminaría {rosterPlan.toDelete.length}, crearía {rosterPlan.toCreate.length} y actualizaría {rosterPlan.toUpdate.length} de los {ADVISORS.length} asesores del roster
+              (con supervisor, cartera y extensión de ITBX). Descarga un respaldo antes de cambiar nada.
+            </p>
+          </div>
+          <Button type="button" onClick={applyRoster} disabled={applyingRoster} className="rounded-xl font-black bg-secondary text-white px-6 h-11">
+            {applyingRoster ? <Loader2 className="animate-spin" /> : 'Aplicar roster oficial'}
+          </Button>
+        </div>
+      )}
 
       {/* SEARCH AND FILTERS */}
       <div className="relative group">

@@ -166,7 +166,10 @@ export function parseBitacoraRows(rows: unknown[][]): ParseResult {
   return { authors, rowsRead, rowsSkipped, automatic, dayKeys: [...dayKeys].sort() };
 }
 
-export type NameCandidate = { name: string; email: string };
+// `preferred`: viene del roster oficial. Si la misma persona aparece con dos
+// correos (p. ej. uno viejo que quedó en Firestore), se usa el del roster en vez
+// de dejarla como "ambigua".
+export type NameCandidate = { name: string; email: string; preferred?: boolean };
 
 export type MatchOutcome =
   | { kind: 'match'; email: string; name: string }
@@ -215,7 +218,12 @@ export function matchAuthor(authorName: string, candidates: NameCandidate[]): Ma
     }
   }
   if (best.size === 0) return { kind: 'none' };
-  if (best.size > 1) return { kind: 'ambiguous', options: [...best.values()] };
+  if (best.size > 1) {
+    const preferredEmails = new Set(candidates.filter((c) => c.preferred).map((c) => c.email.trim().toLowerCase()));
+    const preferred = [...best].filter(([email]) => preferredEmails.has(email));
+    if (preferred.length === 1) return { kind: 'match', email: preferred[0][0], name: preferred[0][1] };
+    return { kind: 'ambiguous', options: [...(preferred.length > 1 ? new Map(preferred) : best).values()] };
+  }
   const [email, name] = [...best][0];
   return { kind: 'match', email, name };
 }
