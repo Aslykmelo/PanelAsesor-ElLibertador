@@ -17,6 +17,7 @@ type Preview = {
   rowsRead: number;
   rowsSkipped: number;
   automatic: number;
+  sinGestion: number;
   dayKeys: string[];
   fileName: string;
   // Texto del título del archivo (celda A1) cuando no es el reporte esperado.
@@ -153,6 +154,7 @@ export function BitacorasUpload({
         rowsRead: parsed.rowsRead,
         rowsSkipped: parsed.rowsSkipped,
         automatic: parsed.automatic,
+        sinGestion: parsed.sinGestion,
         dayKeys: parsed.dayKeys,
         fileName: file.name,
         titleWarning,
@@ -250,6 +252,7 @@ export function BitacorasUpload({
             <li>Días en el archivo: <b className="text-secondary">{preview.dayKeys.join(', ') || '—'}</b></li>
             <li>Asesores identificados: <b className="text-secondary">{preview.matched.length}</b> ({matchedTotal} bitácoras)</li>
             <li>Bitácoras automáticas (ICX) que no se cuentan: <b className="text-secondary">{preview.automatic}</b></li>
+            <li>Registros "Sin Gestión" que no se cuentan: <b className="text-secondary">{preview.sinGestion}</b></li>
             {preview.rowsSkipped > 0 && <li>Filas sin autor o fecha válida: <b className="text-secondary">{preview.rowsSkipped}</b></li>}
             <li>Autores sin coincidir con un asesor: <b className="text-secondary">{preview.unmatched.length}</b></li>
           </ul>

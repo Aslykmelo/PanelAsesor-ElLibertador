@@ -28,6 +28,8 @@ export type ParseResult = {
   rowsRead: number;
   rowsSkipped: number;
   automatic: number;
+  // Filas cuya "Gestión de Pago" es "Sin Gestión": no son una gestión real y no se cuentan.
+  sinGestion: number;
   dayKeys: string[];
 };
 
@@ -111,6 +113,7 @@ export function parseBitacoraRows(rows: unknown[][]): ParseResult {
   let rowsRead = 0;
   let rowsSkipped = 0;
   let automatic = 0;
+  let sinGestion = 0;
 
   for (const r of rows.slice(headerIdx + 1)) {
     const sol = String(r[solCol] ?? '').trim();
@@ -130,6 +133,13 @@ export function parseBitacoraRows(rows: unknown[][]): ParseResult {
       continue;
     }
 
+    // "Sin Gestión" (columna "Gestión de Pago") no cuenta como bitácora.
+    const gestionLabel = safeLabel(gestionCol >= 0 ? r[gestionCol] : '', 'Sin dato');
+    if (normalizeHeader(gestionLabel) === 'sin gestion') {
+      sinGestion++;
+      continue;
+    }
+
     const key = tokenKey(tokens);
     let agg = tmp.get(key);
     if (!agg) {
@@ -143,8 +153,7 @@ export function parseBitacoraRows(rows: unknown[][]): ParseResult {
     }
     day.total++;
     day.sols.add(sol);
-    const g = safeLabel(gestionCol >= 0 ? r[gestionCol] : '', 'Sin dato');
-    day.byGestion[g] = (day.byGestion[g] ?? 0) + 1;
+    day.byGestion[gestionLabel] = (day.byGestion[gestionLabel] ?? 0) + 1;
     const rawCanal = safeLabel(canalCol >= 0 ? r[canalCol] : '', 'Sin canal');
     const c = rawCanal === 'Sin valor' ? 'Sin canal' : rawCanal;
     day.byCanal[c] = (day.byCanal[c] ?? 0) + 1;
@@ -163,7 +172,7 @@ export function parseBitacoraRows(rows: unknown[][]): ParseResult {
     }
     authors.set(key, { displayName: a.displayName, days });
   }
-  return { authors, rowsRead, rowsSkipped, automatic, dayKeys: [...dayKeys].sort() };
+  return { authors, rowsRead, rowsSkipped, automatic, sinGestion, dayKeys: [...dayKeys].sort() };
 }
 
 // `preferred`: viene del roster oficial. Si la misma persona aparece con dos
