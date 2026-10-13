@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react';
 import * as XLSX from 'xlsx';
-import { collection, doc, getDocs, writeBatch, serverTimestamp, FieldPath } from 'firebase/firestore';
+import { collection, doc, getDocs, writeBatch, serverTimestamp, FieldPath, deleteField } from 'firebase/firestore';
 import { UploadCloud, Loader2, CheckCircle, FileSpreadsheet } from 'lucide-react';
 import { toast } from 'sonner';
 import { db } from '@/firebase';
@@ -52,7 +52,12 @@ function mergeDays(a: Record<string, DayStats>, b: Record<string, DayStats>): Re
 
 // Nombres + correos contra los que se cruza el autor de cada bitácora: la
 // lista fija de la app y lo que haya en Firestore (asesores y usuarios).
-async function loadCandidates(): Promise<NameCandidate[]> {
+const CUOTAS_SUPERVISOR = 'lizeth.osma@segurosbolivar.com';
+
+async function loadCandidates(): Promise<{ candidates: NameCandidate[]; cuotasEmails: Set<string> }> {
+  // Quiénes son del equipo de Cuotas (por su supervisor), para limpiar solo lo
+  // que corresponde a cada reporte.
+  const cuotasEmails = new Set<string>(ADVISORS.filter((a) => a.correo_supervisor.toLowerCase() === CUOTAS_SUPERVISOR).map((a) => a.correo.toLowerCase()));
   const list: NameCandidate[] = ADVISORS.flatMap((a) => [
     { name: a.nombre, email: a.correo, preferred: true },
     ...(a.nombreBitacoras ? [{ name: a.nombreBitacoras, email: a.correo, preferred: true }] : []),
@@ -63,6 +68,7 @@ async function loadCandidates(): Promise<NameCandidate[]> {
       snap.docs.forEach((d) => {
         const data = d.data();
         if (data.name && data.email) list.push({ name: String(data.name), email: String(data.email) });
+        if (col === 'asesores' && String(data.supervisorEmail || '').toLowerCase() === CUOTAS_SUPERVISOR && data.email) cuotasEmails.add(String(data.email).toLowerCase());
       });
     } catch (e) {
       logError(e as Error, `BitacorasUpload/load_${col}`);
@@ -78,7 +84,7 @@ async function loadCandidates(): Promise<NameCandidate[]> {
     if (!prev) unique.set(key, { name: c.name, email, preferred: c.preferred });
     else if (c.preferred) prev.preferred = true;
   }
-  return [...unique.values()];
+  return { candidates: [...unique.values()], cuotasEmails };
 }
 
 interface BitacorasUploadProps {
@@ -91,6 +97,10 @@ interface BitacorasUploadProps {
   // Palabra que debe aparecer en el título del archivo (celda A1); si no está
   // se avisa antes de publicar, para no subir el reporte equivocado.
   expectedTitle?: string;
+  // Qué asesores cubre este reporte: 'cuotas' (equipo de Lizeth Osma) o 'resto'
+  // (todos los demás). Sirve para limpiar los días de quien ya no trae
+  // bitácoras en el archivo sin tocar lo que sube el otro reporte.
+  scope?: 'cuotas' | 'resto';
 }
 
 // Primer texto de las primeras filas del archivo (ej. "CUOTAS AL DIA CON GESTION").
@@ -108,8 +118,10 @@ export function BitacorasUpload({
   reportName = 'GESTION BITACORAS TOTALES',
   description = 'Cada asesor verá solo sus propias bitácoras. Volver a subir un día lo reemplaza; los demás días se conservan.',
   expectedTitle,
+  scope = 'resto',
 }: BitacorasUploadProps) {
   const fileRef = useRef<HTMLInputElement>(null);
+  const cuotasRef = useRef<Set<string>>(new Set());
   const [working, setWorking] = useState(false);
   const [preview, setPreview] = useState<Preview | null>(null);
   const [done, setDone] = useState<string | null>(null);
@@ -129,7 +141,8 @@ export function BitacorasUpload({
         return;
       }
 
-      const candidates = await loadCandidates();
+      const { candidates, cuotasEmails: cuotas } = await loadCandidates();
+      cuotasRef.current = cuotas;
       const byEmail = new Map<string, Matched>();
       const unmatched: { name: string; total: number }[] = [];
       for (const author of parsed.authors.values()) {
@@ -194,7 +207,37 @@ export function BitacorasUpload({
         }
         await batch.commit();
       }
-      setDone(`Listo: bitácoras publicadas para ${preview.matched.length} asesor(es).`);
+      // Limpieza: quien tenía bitácoras de estos días en una carga anterior pero
+      // ya no trae ninguna válida (p. ej. todas eran "Sin Gestión") no aparece en
+      // el archivo y conservaría sus números viejos. Se borran esos días, solo
+      // para los asesores que cubre este reporte.
+      let cleaned = 0;
+      try {
+        const fileDays = new Set(preview.dayKeys);
+        const matchedByEmail = new Map<string, Matched>(preview.matched.map((m) => [m.email, m] as [string, Matched]));
+        const snap = await getDocs(collection(db, 'bitacoras'));
+        const stale: { ref: (typeof snap.docs)[number]['ref']; days: string[] }[] = [];
+        snap.docs.forEach((d) => {
+          const email = d.id.toLowerCase();
+          const inScope = scope === 'cuotas' ? cuotasRef.current.has(email) : !cuotasRef.current.has(email);
+          if (!inScope) return;
+          const days = Object.keys((d.data().days ?? {}) as Record<string, unknown>).filter((day) => fileDays.has(day) && !matchedByEmail.get(email)?.days[day]);
+          if (days.length) stale.push({ ref: d.ref, days });
+        });
+        for (let i = 0; i < stale.length; i += 400) {
+          const batch = writeBatch(db);
+          for (const item of stale.slice(i, i + 400)) {
+            const args: unknown[] = [];
+            item.days.forEach((day) => args.push(new FieldPath('days', day), deleteField()));
+            (batch.update as (...a: unknown[]) => unknown)(item.ref, ...args);
+          }
+          await batch.commit();
+        }
+        cleaned = stale.length;
+      } catch (cleanErr) {
+        logError(cleanErr as Error, 'BitacorasUpload/cleanStale');
+      }
+      setDone(`Listo: bitácoras publicadas para ${preview.matched.length} asesor(es).${cleaned > 0 ? ` Se limpiaron los días de ${cleaned} asesor(es) que ya no tienen bitácoras válidas en este archivo.` : ''}`);
       setPreview(null);
       toast.success('Bitácoras cargadas');
     } catch (e: any) {

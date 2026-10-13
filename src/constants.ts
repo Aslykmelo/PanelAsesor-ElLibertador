@@ -136,4 +136,5 @@ export const ADVISORS: Advisor[] = [
   { nombre: "Daniela Valentina Cabezas Correcha", correo: "daniela.cabezas@segurosbolivar.com", correo_supervisor: "lizeth.osma@segurosbolivar.com", supervisor: "Lizeth Osma", cartera: "Cuotas al día", extension: "2603", nombreBitacoras: "DANIELA VALENTINA CABEZAS CORRECHA" },
   { nombre: "Jorge Andrés Avila Jimenez", correo: "jorge.avila@segurosbolivar.com", correo_supervisor: "lizeth.osma@segurosbolivar.com", supervisor: "Lizeth Osma", cartera: "Cuotas al día", extension: "2666", nombreBitacoras: "JORGE ANDRÉS AVILA JIMENEZ" },
   { nombre: "Eduardo Alejandro Depablos Gutierrez", correo: "eduardo.depablos@segurosbolivar.com", correo_supervisor: "lizeth.osma@segurosbolivar.com", supervisor: "Lizeth Osma", cartera: "Cuotas al día", extension: "2661", nombreBitacoras: "EDUARDO ALEJANDRO DEPABLOS GUTIERREZ" },
+  { nombre: "Jhoan Sebastian Moreno Zapata", correo: "jhoan.moreno@segurosbolivar.com", correo_supervisor: "lizeth.osma@segurosbolivar.com", supervisor: "Lizeth Osma", cartera: "Cuotas al día", extension: "", nombreBitacoras: "Jhoan Sebastian moreno Zapata" },
 ];

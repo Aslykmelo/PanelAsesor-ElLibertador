@@ -444,6 +444,7 @@ export function Profile({ user, transfers, advisors }: ProfileProps) {
                 title="Cargar Bitácoras · Cuotas al Día"
                 reportName="CUOTAS AL DIA CON GESTION"
                 expectedTitle="CUOTAS AL DIA"
+                scope="cuotas"
                 description="Es el reporte aparte del equipo de Cuotas al Día. Esos asesores verán sus bitácoras en la misma pantalla que los demás. Volver a subir un día lo reemplaza; los demás días se conservan."
               />
             </>
