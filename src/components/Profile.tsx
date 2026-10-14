@@ -436,7 +436,7 @@ export function Profile({ user, transfers, advisors }: ProfileProps) {
             <AdvisorSearch advisors={advisors} />
           )}
 
-          {BITACORA_UPLOADER_EMAILS.includes((user.email || '').toLowerCase()) && (
+          {(user.role === 'admin' || BITACORA_UPLOADER_EMAILS.includes((user.email || '').toLowerCase())) && (
             <>
               <BitacorasUpload currentUser={user} />
               <BitacorasUpload

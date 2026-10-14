@@ -30,9 +30,9 @@ export const CONTROLLER_EMAILS = [
   'asly.camelo@segurosbolivar.com'
 ];
 
-// Único correo que carga el reporte de bitácoras (desde su perfil); cada
-// asesor ve solo las suyas. Debe coincidir con isBitacoraUploader() en
-// firestore.rules.
+// Correos que cargan los reportes de bitácoras (desde su perfil) además de los
+// administradores (rol admin), que también pueden; cada asesor ve solo las
+// suyas. Debe coincidir con isBitacoraUploader() en firestore.rules.
 export const BITACORA_UPLOADER_EMAILS = ['asly.camelo@segurosbolivar.com'];
 
 export interface Advisor {
