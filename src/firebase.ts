@@ -225,7 +225,9 @@ export const signIn = async () => {
     try {
       const newUser = {
         uid: firebaseUser.uid,
-        name: firebaseUser.displayName || advisorInfo?.nombre || (isAdmin ? 'Administrador' : isSupervisor ? 'Supervisor' : 'Asesor'),
+        // El nombre del directorio (Gestión Asesores) manda sobre el de la cuenta de Google,
+        // que a veces trae apodos o datos mal escritos.
+        name: advisorInfo?.nombre || firebaseUser.displayName || (isAdmin ? 'Administrador' : isSupervisor ? 'Supervisor' : 'Asesor'),
         email: firebaseUser.email,
         role: isAdmin ? 'admin' : (isSupervisor ? 'supervisor' : 'asesor'),
         supervisorEmail: advisorInfo?.correo_supervisor || '',
@@ -250,7 +252,7 @@ export const signIn = async () => {
     const updates: any = { 
       lastLoginAt: serverTimestamp(),
       status: 'online',
-      name: firebaseUser.displayName || advisorInfo?.nombre || userSnap.data()?.name || 'Asesor',
+      name: advisorInfo?.nombre || firebaseUser.displayName || userSnap.data()?.name || 'Asesor',
       supervisorEmail: advisorInfo?.correo_supervisor || userSnap.data()?.supervisorEmail || '',
       supervisorName: advisorInfo?.supervisor || userSnap.data()?.supervisorName || '',
       cartera: advisorInfo?.cartera || userSnap.data()?.cartera || 'Sin asignar'
