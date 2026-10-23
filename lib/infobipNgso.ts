@@ -283,20 +283,36 @@ export async function findConversationsByRequestNumber(
 // (substring, insensible a mayúsculas) — el nombre completo del asesor
 // siempre queda dentro de ese campo, aunque venga con un código y a veces la
 // cédula pegados, p. ej. "5YM ALEXANDRA SANCHEZ SARAY-1010208898".
+// Una misma persona puede tener varios agentes en Infobip con el mismo correo
+// (p. ej. uno viejo ya deshabilitado y el real, "5YM NOMBRE-CÉDULA"). Con
+// limit=1 se quedaba con el primero que devolvía la API, que era el viejo
+// (siempre "Desconectado", sin conversaciones). Se trae la lista corta y se
+// elige el que está habilitado, con sesión activa y actualizado más
+// recientemente.
+type AgentPick = { id: string; enabled?: boolean; availability?: string; updatedAt?: string };
+
+function pickBestAgent(agents: AgentPick[] | undefined): { id: string } | null {
+  if (!agents || agents.length === 0) return null;
+  const score = (a: AgentPick) => (a.enabled === false ? 0 : 4) + (a.availability && a.availability !== "INVISIBLE" ? 2 : 0);
+  return [...agents].sort(
+    (a, b) => score(b) - score(a) || (Date.parse(b.updatedAt ?? "") || 0) - (Date.parse(a.updatedAt ?? "") || 0)
+  )[0];
+}
+
 async function getAgentByEmail(email: string): Promise<{ id: string } | null> {
-  const data = await infobipFetch<{ agents: { id: string }[] }>(
-    `/ccaas/1/agents?email=${encodeURIComponent(email)}&limit=1`
+  const data = await infobipFetch<{ agents: AgentPick[] }>(
+    `/ccaas/1/agents?email=${encodeURIComponent(email)}&limit=20`
   );
-  return data.agents?.[0] ?? null;
+  return pickBestAgent(data.agents);
 }
 
 async function getAgentByName(name: string): Promise<{ id: string } | null> {
   const trimmed = name.trim();
   if (!trimmed) return null;
-  const data = await infobipFetch<{ agents: { id: string }[] }>(
-    `/ccaas/1/agents?displayName=${encodeURIComponent(trimmed)}&limit=1`
+  const data = await infobipFetch<{ agents: AgentPick[] }>(
+    `/ccaas/1/agents?displayName=${encodeURIComponent(trimmed)}&limit=20`
   );
-  return data.agents?.[0] ?? null;
+  return pickBestAgent(data.agents);
 }
 
 async function countConversationsByStatus(
